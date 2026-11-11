@@ -10,7 +10,7 @@ import { initEmscriptenModule } from '@jsquash/avif/utils.js';
 import { defaultOptions as avifOptions } from '@jsquash/avif/meta.js';
 import avifWasm from '@jsquash/avif/codec/enc/avif_enc.wasm?url';
 import { fitImage } from './fit-size.js';
-import { removeConnectedBackground, traceImageData, tracePreset } from './vectorize.js';
+import { removeBackgroundColor, traceImageData, tracePreset } from './vectorize.js';
 const initialized = {};
 async function init(format) {
   if (initialized[format]) return initialized[format];
@@ -29,7 +29,7 @@ function validateSvg(bytes) {
   return source;
 }
 
-self.onmessage = async ({ data: { bytes, format, sourceFormat, quality, maxSize, maxBytes, traceDetail, removeBackground, bgTolerance, bitmap: decodedBitmap } }) => {
+self.onmessage = async ({ data: { bytes, format, sourceFormat, quality, maxSize, maxBytes, traceDetail, removeBackground, bgTolerance, bgMode, bitmap: decodedBitmap } }) => {
   let bitmap;
   try {
     if (!['jpg', 'png', 'webp', 'avif', 'svg'].includes(format)) throw new Error('Unsupported output format.');
@@ -53,7 +53,7 @@ self.onmessage = async ({ data: { bytes, format, sourceFormat, quality, maxSize,
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(bitmap, 0, 0, width, height); bitmap.close(); bitmap = null;
     if (removeBackground && (!svgSource || format !== 'svg')) {
       const pixels = ctx.getImageData(0, 0, width, height);
-      removeConnectedBackground(pixels, bgTolerance);
+      removeBackgroundColor(pixels, bgTolerance, bgMode || 'edges');
       ctx.putImageData(pixels, 0, 0);
     }
 
