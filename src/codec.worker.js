@@ -29,7 +29,7 @@ function validateSvg(bytes) {
   return source;
 }
 
-self.onmessage = async ({ data: { bytes, format, sourceFormat, quality, maxSize, maxBytes, traceDetail, removeBackground, bgTolerance } }) => {
+self.onmessage = async ({ data: { bytes, format, sourceFormat, quality, maxSize, maxBytes, traceDetail, removeBackground, bgTolerance, bitmap: decodedBitmap } }) => {
   let bitmap;
   try {
     if (!['jpg', 'png', 'webp', 'avif', 'svg'].includes(format)) throw new Error('Unsupported output format.');
@@ -43,14 +43,15 @@ self.onmessage = async ({ data: { bytes, format, sourceFormat, quality, maxSize,
       try { await decoder.tracks.ready; if (decoder.tracks.selectedTrack?.animated) throw new Error('Animated images are not supported. Choose a still image.'); }
       finally { decoder.close(); }
     }
-    bitmap = await createImageBitmap(new Blob([bytes], { type }), { imageOrientation: 'from-image' });
+    if (svgSource && !decodedBitmap) throw new Error('SVG needs document-side image decoding.');
+    bitmap = decodedBitmap || await createImageBitmap(new Blob([bytes], { type }), { imageOrientation: 'from-image' });
     if (bitmap.width * bitmap.height > 160_000_000) throw new Error('Image exceeds the 160 megapixel limit. Resize it before adding.');
     const scale = maxSize ? Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height)) : 1;
     const width = Math.max(1, Math.round(bitmap.width * scale)), height = Math.max(1, Math.round(bitmap.height * scale));
     const canvas = new OffscreenCanvas(width, height);
     const ctx = canvas.getContext('2d', { willReadFrequently: true, alpha: true });
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(bitmap, 0, 0, width, height); bitmap.close(); bitmap = null;
-    if (removeBackground && !svgSource) {
+    if (removeBackground && (!svgSource || format !== 'svg')) {
       const pixels = ctx.getImageData(0, 0, width, height);
       removeConnectedBackground(pixels, bgTolerance);
       ctx.putImageData(pixels, 0, 0);
