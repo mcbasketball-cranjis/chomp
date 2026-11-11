@@ -1,36 +1,37 @@
-# Chomp 1.4.1 — macOS signing integrity update
+# Chomp 2.0.0 — redesigned image workspace
 
-This release addresses the initial Chomp 1.4.0 macOS packaging issue reported as **“Chomp is damaged and can’t be opened”**.
+Chomp 2 brings a fresh, native-feeling desktop interface for compression, format conversion and editable SVG tracing, while keeping everything processed locally.
 
-## Changes
+## What's new
 
-- Mac Intel (x64) and Apple Silicon (arm64) packages are now **ad-hoc code-signed** with explicit Electron entitlements for JIT and library validation compatibility. Unlike 1.4.0, they no longer ship as completely unsigned app bundles.
-- The release pipeline mounts both DMGs and requires **`codesign --verify --deep --strict`** to succeed, in addition to architecture, icon and DMG layout checks.
-- Documentation explains Gatekeeper, trusted-download precautions, and how to manually authorize an unnotarized Chomp release.
-- All 1.4.0 features remain: local raster-to-SVG tracing, transparency preservation, white/black JPG background removal (edge-only or everywhere including letter holes), SVG import and raster export, and existing compression workflows.
+- Three focused workspaces: **Compress**, **Convert**, and **Vectorize**.
+- Image queue with quick switching, a draggable before/after preview, and actual locally computed output sizes and savings.
+- Contextual settings for quality, tracing detail, resizing, file-size limits, and solid-color background removal.
+- Persistent **Save files to** control, batch export, duplicate-folder, images-only, and replace-originals modes.
+- Preserves transparent PNG/SVG conversion, true editable SVG paths, and edge-only versus everywhere removal (including enclosed letter holes).
+- A new layered **Apple Icon Composer** macOS app icon using the native asset catalog for modern macOS. Windows keeps its existing icon.
+- Light and dark appearance, safe overwrite behavior, and offline processing.
 
-## Important limitation: macOS trust and notarization
+## macOS distribution
 
-**This build is ad-hoc signed, not signed with an Apple Developer ID and not notarized by Apple.** A signature integrity check can detect malformed bundles but cannot make macOS automatically trust an app downloaded from the internet. Some users will still need to approve Chomp via **System Settings → Privacy & Security → Open Anyway** after attempting to open it, and a “damaged” warning can also mean the file was corrupted or modified.
+The macOS builds use ad-hoc code signatures and pass signature integrity checks, but **they are not Developer ID signed or Apple-notarized**. As before, Gatekeeper may require explicit approval through **System Settings → Privacy & Security → Open Anyway**, and a “damaged” warning may also indicate actual corruption. Only authorize copies from a source you trust and can verify.
 
-For a Chomp copy you built yourself or have independently verified from this project’s official GitHub release, and only if normal approval fails, you may remove the quarantine attribute for Chomp alone:
+For a Chomp copy you built yourself or independently verified from the official GitHub release, you can remove quarantine from that app alone if standard approval still fails:
 
 ```sh
 xattr -dr com.apple.quarantine "/Applications/Chomp.app"
 ```
 
-**This bypasses part of macOS's downloaded-app protection. It does not verify authenticity, make a damaged file safe or disable Gatekeeper system-wide.** Truly warning-free distribution requires Apple Developer ID signing and notarization, which need Apple Developer credentials.
+This changes macOS security handling; it does not verify software authenticity or repair corrupted binaries. Do not disable Gatekeeper globally.
 
 ## Downloads
 
-See [Chomp 1.4.1 GitHub Releases](https://github.com/mcbasketball-cranjis/chomp/releases/tag/v1.4.1) after publication.
+See [Chomp 2.0.0 GitHub Releases](https://github.com/mcbasketball-cranjis/chomp/releases/tag/v2.0.0) once published.
 
-- **Apple Silicon:** `Chomp-1.4.1-mac-arm64.dmg` (or ZIP)
-- **Intel Mac:** `Chomp-1.4.1-mac-x64.dmg` (or ZIP)
-- **Windows:** `Chomp-1.4.1-win-x64-Setup.zip`, `Chomp-1.4.1-win-x64-Portable.zip`, `Chomp-1.4.1-win-x64.zip`, standalone EXEs and signing kit.
+- Apple Silicon: `Chomp-2.0.0-mac-arm64.dmg` or ZIP
+- Intel Mac: `Chomp-2.0.0-mac-x64.dmg` or ZIP
+- Windows: the x64 Setup and Portable ZIPs, plus standalone EXEs and optional local-signing helpers.
 
-The Windows installer continues to update previous Chomp versions and migrate old installed GatorSqoosh copies for the same user while retaining user data. Windows optional local signing helpers do not add certificate trust.
+## Testing
 
-## Test coverage
-
-Windows and Intel macOS run the packaged desktop and vector tests. Apple Silicon is cross-packaged on Intel macOS and **statically** verified; native ARM hardware execution is not tested in CI. Package/code-signature integrity verification alone does not reproduce every possible Gatekeeper approval path on a user's Mac.
+Automated tests cover file and folder operations, true SVG tracing, preservation of transparency, output size limits, dark/light themes, and the desktop workflow. Native macOS packaging verifies the compiled Icon Composer `Assets.car`, code signature, and app architecture on both Intel and Apple Silicon artifacts. Apple Silicon is cross-packaged on the Intel runner and statically verified; native Apple Silicon execution still requires testing on ARM hardware.
