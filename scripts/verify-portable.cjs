@@ -18,7 +18,7 @@ const { chromium, expect } = require('@playwright/test');
     browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
     const page = browser.contexts()[0].pages()[0]; await expect(page.locator('.brand')).toContainText('Chomp'); await expect(page.locator('#add-folder')).toBeVisible();
     if (!await page.locator('.brand-mark').evaluate(image => image.complete && image.naturalWidth > 0)) throw new Error('Portable icon missing.');
-    const session = await browser.newBrowserCDPSession(); await session.send('Browser.close'); browser = null;
+    const session = await browser.newBrowserCDPSession(); await session.send('Browser.close').catch(error => { if (!/closed/i.test(error.message)) throw error; }); browser = null;
     console.log('PASS: Single-file portable executable extracts and launches Chomp with working interface and branding.');
-  } finally { if (browser) { const session = await browser.newBrowserCDPSession(); await session.send('Browser.close').catch(() => {}); } if (child.exitCode === null) await Promise.race([new Promise(resolve => child.once('exit', resolve)), new Promise(resolve => setTimeout(resolve, 5000))]); }
+  } finally { if (browser) { try { const session = await browser.newBrowserCDPSession(); await session.send('Browser.close').catch(() => {}); } catch {} } if (child.exitCode === null) await Promise.race([new Promise(resolve => child.once('exit', resolve)), new Promise(resolve => setTimeout(resolve, 5000))]); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

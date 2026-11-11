@@ -18,10 +18,10 @@ Never send a private signing key, PFX/P12 file, certificate-store backup, or sig
 Confirm the certificate fingerprint with the sender through a separate trusted channel, such as a known phone number or company chat. A fingerprint delivered only inside the same ZIP does not independently establish authenticity.
 
 Expected certificate SHA-1 thumbprint (identifier, not the signing algorithm):
-B7A00841A601BA11D88F36B588C9922E172D313B
+[confirm the actual certificate thumbprint supplied with your build]
 
 Subject: CN=Chomp Internal Signing
-Certificate expires: November 11, 2028. Check the certificate's actual validity dates in Windows. Signatures use SHA-256. Timestamp availability is shown in the accompanying signing report; without a trusted timestamp, builds need re-signing before certificate expiration.
+Certificate expiration depends on the certificate generated for your build. Check the certificate's actual validity dates in Windows. Signatures use SHA-256. Timestamp availability is shown in the accompanying signing report; without a trusted timestamp, builds need re-signing before certificate expiration.
 
 Double-click Chomp-Internal.cer, select Details, and compare Thumbprint. Or run this read-only PowerShell command from the extracted ZIP folder:
 
