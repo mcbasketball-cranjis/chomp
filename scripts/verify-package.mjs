@@ -6,9 +6,19 @@ const executable = process.env.CHOMP_TEST_EXECUTABLE || (process.platform === 'w
 await fs.access(executable);
 if (process.platform === 'darwin') {
   const resources = path.join(path.dirname(path.dirname(executable)), 'Resources');
-  const icons = (await fs.readdir(resources)).filter(name => name.endsWith('.icns'));
-  if (!icons.length) throw new Error('Packaged macOS icon is missing.');
-  const icon = await fs.readFile(path.join(resources, icons[0])); if (icon.toString('ascii', 0, 4) !== 'icns') throw new Error('Invalid macOS icon.');
+  const names = await fs.readdir(resources);
+  if (names.includes('Assets.car')) {
+    const catalog = await fs.stat(path.join(resources, 'Assets.car'));
+    if (!catalog.isFile() || catalog.size < 1024) throw new Error('Invalid compiled Icon Composer catalog.');
+    const plist = path.join(path.dirname(resources), 'Info.plist');
+    const icon = spawnSync('/usr/bin/plutil', ['-extract', 'CFBundleIconName', 'raw', '-o', '-', plist], { encoding: 'utf8' });
+    if (icon.status !== 0 || !icon.stdout.trim()) throw new Error('Native Icon Composer catalog is not registered in Info.plist.');
+  } else {
+    const icons = names.filter(name => name.endsWith('.icns'));
+    if (!icons.length) throw new Error('Packaged macOS icon is missing.');
+    const icon = await fs.readFile(path.join(resources, icons[0]));
+    if (icon.toString('ascii', 0, 4) !== 'icns') throw new Error('Invalid macOS icon.');
+  }
 }
 for (const test of ['tests/desktop.cjs', 'tests/vector-desktop.cjs', 'tests/folder-desktop.cjs', 'tests/appearance-size.cjs']) {
   const result = spawnSync(process.execPath, [test], { stdio: 'inherit', env: { ...process.env, CHOMP_TEST_EXECUTABLE: executable } });
