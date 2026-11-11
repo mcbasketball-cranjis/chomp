@@ -122,10 +122,56 @@ const root = path.resolve(__dirname, '..');
       assert.ok(rgba.logo[0] > rgba.logo[1], `${path.basename(input)} must retain the red logo fill`);
     }
 
+    // Letterform counters: edge-only keeps enclosed background, everywhere clears them.
+    // Use JPEG fixtures to cover the real logo-on-a-solid-background workflow.
+    const counterSamples = await page.evaluate(() => {
+      return ['white', 'black'].map(background => {
+        const canvas = document.createElement('canvas'); canvas.width = 96; canvas.height = 96;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = background; ctx.fillRect(0, 0, 96, 96);
+        ctx.fillStyle = '#ee3322'; ctx.fillRect(24, 24, 48, 48);
+        ctx.fillStyle = background; ctx.fillRect(40, 40, 16, 16);
+        return canvas.toDataURL('image/jpeg', .95).split(',')[1];
+      });
+    });
+    const counterWhite = path.join(work, 'white-letter-O.jpg');
+    const counterBlack = path.join(work, 'black-letter-O.jpg');
+    await fs.writeFile(counterWhite, Buffer.from(counterSamples[0], 'base64'));
+    await fs.writeFile(counterBlack, Buffer.from(counterSamples[1], 'base64'));
+    for (const [input, outputFormat] of [[counterWhite, 'svg'], [counterBlack, 'png']]) {
+      for (const [bgMode, expectedCounterAlpha] of [['edges', 255], ['all', 0]]) {
+        await page.click('#clear'); await choose([input]); await page.click('#add');
+        await page.selectOption('#format', outputFormat);
+        await page.check('#remove-bg');
+        await expect(page.locator('#background-controls')).toBeVisible();
+        await page.check(`[name="bg-mode"][value="${bgMode}"]`);
+        await page.click('#compress');
+        const bytes = [...await fs.readFile(await saved())];
+        const sampled = await page.evaluate(async ({ bytes, type }) => {
+          const blob = new Blob([new Uint8Array(bytes)], { type });
+          const url = URL.createObjectURL(blob);
+          try {
+            const img = new Image(); img.src = url; await img.decode();
+            const canvas = document.createElement('canvas'); canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0);
+            return {
+              outside: ctx.getImageData(0, 0, 1, 1).data[3],
+              hole: ctx.getImageData(48, 48, 1, 1).data[3],
+              shape: [...ctx.getImageData(30, 30, 1, 1).data]
+            };
+          } finally { URL.revokeObjectURL(url); }
+        }, { bytes, type: outputFormat === 'svg' ? 'image/svg+xml' : 'image/png' });
+        assert.equal(sampled.outside, 0, `${input}: exterior should be clear (${bgMode})`);
+        assert.equal(sampled.hole, expectedCounterAlpha, `${input}: enclosed O counter (${bgMode})`);
+        assert.equal(sampled.shape[3], 255, `${input}: O shape must stay opaque (${bgMode})`);
+        assert.ok(sampled.shape[0] > sampled.shape[1], `${input}: O shape must keep its red fill`);
+      }
+    }
+
     assert.deepEqual(await fs.readFile(transparent), before);
     assert.deepEqual(await fs.readFile(whiteJpeg), Buffer.from(jpegSamples[0], 'base64'));
     assert.deepEqual(await fs.readFile(blackJpeg), Buffer.from(jpegSamples[1], 'base64'));
     assert.deepEqual(errors, []);
-    console.log('PASS: transparent PNG -> actual SVG paths -> transparent PNG, white/black JPEG background removal, source preservation.');
+    console.log('PASS: transparent PNG -> actual SVG paths -> transparent PNG, white/black JPEG removal scopes, lettering counters, source preservation.');
   } finally { await app.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
