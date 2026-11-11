@@ -1,6 +1,6 @@
 {
   "name": "chomp",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": true,
   "type": "module",
   "description": "Local image compression and SVG vector tracing for Windows and macOS",
@@ -65,8 +65,10 @@
         "zip"
       ],
       "category": "public.app-category.photography",
-      "identity": null,
-      "icon": "build/icon.icns"
+      "identity": "-",
+      "icon": "build/icon.icns",
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist"
     },
     "artifactName": "Chomp-${version}-${os}-${arch}.${ext}",
     "compression": "normal",

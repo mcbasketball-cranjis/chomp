@@ -1,38 +1,36 @@
-# Chomp 1.4.0 — Vector conversion and transparent backgrounds
+# Chomp 1.4.1 — macOS signing integrity update
 
-Chomp now traces ordinary images into **real, editable SVG vector paths** and converts SVG files back into regular image formats. The entire process runs on your computer without an AI service, account, or uploads.
+This release addresses the initial Chomp 1.4.0 macOS packaging issue reported as **“Chomp is damaged and can’t be opened”**.
 
-## What's new
+## Changes
 
-- **Raster → SVG tracing:** Convert PNG, JPEG, WebP, or AVIF artwork into actual vector shapes, not an SVG containing an embedded bitmap. Choose **Simple**, **Balanced**, or **Detailed** tracing.
-- **Transparent logo conversion:** PNG transparency stays transparent in SVG exports; Chomp doesn't add a white background.
-- **Remove backgrounds without AI:** Optional corner-color detection works with plain white, black, or similarly colored image backgrounds, including JPG files.
-- **Choose the removal area:** **Edges only** (default) removes the connected outer background while preserving enclosed matching colors. **Everywhere** also removes matching background color in enclosed holes, such as letters **O, e, p, and a**. The latter may remove genuine same-colored details; adjust tolerance to suit your logo.
-- **SVG → PNG, WebP, JPEG, or AVIF:** Rasterize vector artwork with transparency preserved in supported formats. JPEG always has an opaque background.
-- **Batch and folder workflows:** SVG is available alongside the existing formats; original files remain untouched unless you explicitly select the existing replace-originals mode.
-- **New tests:** Automated SVG round trips, JPEG background removal, enclosed lettering, source preservation, and local build checks.
+- Mac Intel (x64) and Apple Silicon (arm64) packages are now **ad-hoc code-signed** with explicit Electron entitlements for JIT and library validation compatibility. Unlike 1.4.0, they no longer ship as completely unsigned app bundles.
+- The release pipeline mounts both DMGs and requires **`codesign --verify --deep --strict`** to succeed, in addition to architecture, icon and DMG layout checks.
+- Documentation explains Gatekeeper, trusted-download precautions, and how to manually authorize an unnotarized Chomp release.
+- All 1.4.0 features remain: local raster-to-SVG tracing, transparency preservation, white/black JPG background removal (edge-only or everywhere including letter holes), SVG import and raster export, and existing compression workflows.
 
-**Best suited to:** logos, icons, flat illustrations, and other simple graphics. Photograph tracing is approximate; complex photo cutouts and AI masking are not included.
+## Important limitation: macOS trust and notarization
 
-## Windows upgrades and distribution
+**This build is ad-hoc signed, not signed with an Apple Developer ID and not notarized by Apple.** A signature integrity check can detect malformed bundles but cannot make macOS automatically trust an app downloaded from the internet. Some users will still need to approve Chomp via **System Settings → Privacy & Security → Open Anyway** after attempting to open it, and a “damaged” warning can also mean the file was corrupted or modified.
 
-- Windows Setup updates previously installed Chomp versions and migrates old installed GatorSqoosh copies, including old shortcuts and uninstall registration. Existing app data is retained. Portable copies must be replaced manually.
-- Windows ZIP bundles include **Sign on this PC.cmd**, **Sign installed Chomp.cmd**, the local PowerShell signing script, and instructions; the standalone EXEs have a separate **Chomp-Windows-Signing-Kit.zip**.
-- The optional local signing workflow keeps private keys on your computer and does not install certificate trust or bypass security policy. Self-signing does not guarantee Windows SmartScreen acceptance.
+For a Chomp copy you built yourself or have independently verified from this project’s official GitHub release, and only if normal approval fails, you may remove the quarantine attribute for Chomp alone:
 
-### Windows downloads
+```sh
+xattr -dr com.apple.quarantine "/Applications/Chomp.app"
+```
 
-After publication, download assets from the [Chomp 1.4.0 release](https://github.com/mcbasketball-cranjis/chomp/releases/tag/v1.4.0):
+**This bypasses part of macOS's downloaded-app protection. It does not verify authenticity, make a damaged file safe or disable Gatekeeper system-wide.** Truly warning-free distribution requires Apple Developer ID signing and notarization, which need Apple Developer credentials.
 
-- **Installer + signing kit:** `Chomp-1.4.0-win-x64-Setup.zip`.
-- **Single-file portable + signing kit:** `Chomp-1.4.0-win-x64-Portable.zip`.
-- **Portable folder + signing kit:** `Chomp-1.4.0-win-x64.zip`.
-- The installer and portable EXEs are also available separately.
+## Downloads
 
-### macOS downloads
+See [Chomp 1.4.1 GitHub Releases](https://github.com/mcbasketball-cranjis/chomp/releases/tag/v1.4.1) after publication.
 
-Select the DMG for **Apple Silicon (arm64)** or **Intel (x64)**, then drag Chomp into Applications. macOS packages are currently unsigned and not notarized.
+- **Apple Silicon:** `Chomp-1.4.1-mac-arm64.dmg` (or ZIP)
+- **Intel Mac:** `Chomp-1.4.1-mac-x64.dmg` (or ZIP)
+- **Windows:** `Chomp-1.4.1-win-x64-Setup.zip`, `Chomp-1.4.1-win-x64-Portable.zip`, `Chomp-1.4.1-win-x64.zip`, standalone EXEs and signing kit.
 
-## Verification
+The Windows installer continues to update previous Chomp versions and migrate old installed GatorSqoosh copies for the same user while retaining user data. Windows optional local signing helpers do not add certificate trust.
 
-The release workflow executes desktop conversion tests for Windows x64 and Intel macOS, and checks their installers and distribution packages. Due to recurring GitHub-hosted Apple Silicon runner allocation failures, the arm64 DMG and ZIP are cross-packaged on an Intel Mac and statically checked for an actual arm64 executable, application contents, and DMG layout. **The arm64 app is not executed on native Apple Silicon hardware in this CI run.** Windows upgrade, portable and signing-kit checks still run. Windows Defender scan status and hashes are included when available.
+## Test coverage
+
+Windows and Intel macOS run the packaged desktop and vector tests. Apple Silicon is cross-packaged on Intel macOS and **statically** verified; native ARM hardware execution is not tested in CI. Package/code-signature integrity verification alone does not reproduce every possible Gatekeeper approval path on a user's Mac.

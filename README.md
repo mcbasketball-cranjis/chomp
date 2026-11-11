@@ -91,7 +91,7 @@ pnpm build
 pnpm exec electron-builder --mac dmg zip --arm64 --x64
 ```
 
-The GitHub Actions workflow builds on Windows x64, macOS Intel, and macOS Apple Silicon when main is updated, a `v*` tag is pushed, or the workflow runs manually. Each packaged executable runs the desktop, folder, and appearance tests on its matching OS and architecture. Windows also tests installation, the installed app, shortcuts, and uninstallation on the disposable runner. macOS mounts the DMG and checks the app and Applications shortcut. Once all checks pass, the workflow publishes a GitHub release with the Windows installer, ZIPs, and macOS DMGs. Old GatorSqoosh releases are removed after Chomp is published.
+The GitHub Actions workflow builds Windows x64 and macOS Intel, then cross-packages Apple Silicon (arm64) using the Intel Mac runner when main is updated, a `v*` tag is pushed, or the workflow runs manually. Windows and Intel macOS run the packaged desktop, folder, vector, and appearance tests; arm64 is statically checked for correct architecture, DMG contents, and code-signature integrity, but not executed on native Apple Silicon hardware in CI. Windows also tests installation, the installed app, shortcuts, and uninstallation on the disposable runner. Once all checks pass, the workflow publishes a GitHub release with the Windows installer, ZIPs, and macOS DMGs. Old GatorSqoosh releases are removed after Chomp is published.
 
 Portable Windows ZIPs are also provided. Extract the entire folder and keep its files together; the EXE depends on the bundled resources. The installer handles these files automatically and does not require admin rights.
 
@@ -101,7 +101,19 @@ An unknown-publisher SmartScreen warning is a reputation warning, not a named ma
 
 To sign Windows installers and app executables, configure repository secrets `WINDOWS_CSC_LINK` (certificate URL or base64 PFX) and `WINDOWS_CSC_KEY_PASSWORD`. Use a trusted code-signing certificate; self-signed certificates are not publicly trusted and do not establish SmartScreen reputation. No signing certificate is included. Signing identifies the publisher but does not guarantee immediate SmartScreen acceptance, and managed work PCs may enforce stricter policies.
 
-Builds are unsigned and macOS builds are not notarized. Signed distribution requires Windows Authenticode or Apple signing and notarization credentials. For Mac signing, remove `mac.identity: null` from `package.json`.
+macOS packages use an **ad-hoc code signature** (no Apple Developer ID) so the app and nested Electron frameworks can pass code-signature integrity checks. Ad-hoc signatures do **not** establish a trusted publisher, defeat macOS Gatekeeper, or notarize an app. Windows packages remain unsigned unless configured with a real certificate. For warning-free public distribution, configure Apple **Developer ID Application** signing and Apple's notarization workflow; a paid Apple Developer Program membership and signing/notarization credentials are required. Before enabling Developer ID signing, replace `mac.identity: "-"` and the ad-hoc entitlements with the correct trusted-signing configuration and CI secrets.
+
+### Opening Chomp on macOS
+
+For releases that are not Apple-notarized, download Chomp only from the official project's GitHub Releases, confirm you have the correct Mac architecture, and drag `Chomp.app` into `/Applications`. Try to open it once; if it is blocked, go to **System Settings → Privacy & Security → Open Anyway** and approve the specific app. Apple warns that overriding security protections can be dangerous; only proceed with builds you trust and can verify.
+
+If an app downloaded from the official release shows **"damaged and can't be opened"**, this can be caused by Gatekeeper quarantine on an unnotarized app, but may also indicate actual corruption or tampering. Re-download it first if integrity is uncertain. For a copy you built yourself or have independently verified, you can clear the quarantine attribute **on Chomp only**:
+
+```sh
+xattr -dr com.apple.quarantine "/Applications/Chomp.app"
+```
+
+This changes the Mac's trust handling for that one downloaded app; it is **not** proof that a file is safe, is **not** notarization, and does not repair a corrupted app. Do not globally disable Gatekeeper.
 
 `pnpm build` generates Windows ICO, macOS ICNS, and PNG icons from `assets/icon-source.png` using `scripts/icons.mjs`. To test an unpacked package, run `pnpm test:package` after packaging.
 
