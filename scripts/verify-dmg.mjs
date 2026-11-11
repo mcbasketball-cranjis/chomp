@@ -41,7 +41,7 @@ try {
   const catalogStat = await fs.stat(assetCatalog);
   if (!catalogStat.isFile() || catalogStat.size < 1024) throw new Error(`Packaged ${arch} Icon Composer asset catalog missing or empty.`);
   const iconName = run('/usr/bin/plutil', ['-extract', 'CFBundleIconName', 'raw', '-o', '-', path.join(app, 'Contents', 'Info.plist')]);
-  if (!iconName || !/chomp/i.test(iconName)) throw new Error(`Native Icon Composer name missing from ${arch} Info.plist: ${iconName}`);
+  if (!iconName || !/^(Icon|chomp)$/i.test(iconName.trim())) throw new Error(`Native Icon Composer name missing from ${arch} Info.plist: ${iconName}`);
   console.log(`PASS: ${arch} DMG and ZIP present, ad-hoc code signature valid, architecture and Icon Composer asset catalog verified.`);
   if (process.arch !== arch) console.log(`NOTE: ${arch} build statically verified only; runtime testing requires ${arch} hardware.`);
 } finally {
