@@ -45,7 +45,7 @@ Failed files can be retried. **Stop after this image** saves the current file an
 
 - **Raster → SVG:** Choose **SVG (editable vectors)** as the output format. Choose Simple (clean shapes), Balanced (default), or Detailed (more colors and contours). The tracer generates real colored SVG paths, **not an SVG wrapper around an embedded raster image**.
 - **Transparent PNG → SVG:** Existing transparent pixels are ignored by tracing, so the output SVG has **no added solid background**. Partially transparent regions are represented using fill opacity. The viewBox retains the image's aspect ratio.
-- **Optional background removal:** Enable **Remove background** and adjust the tolerance if the image has a solid or near-solid backdrop. The app detects a consistent opaque color at the corners and removes only matching regions connected to the image edge. Enclosed same-color details are protected; this is not a full subject-segmentation or AI-matting tool for complex photo backgrounds.
+- **Optional background removal:** Enable **Remove background** and adjust the tolerance for a solid or near-solid backdrop, including white/black JPEG backgrounds. Chomp infers the background color from agreeing opaque corners (never assumes white) and offers two removal areas: **Edges only** (default; removes connected exterior background while protecting enclosed details), and **Everywhere · including letter holes** (removes matching background-colored pixels anywhere, such as the enclosed counters inside O, e, p, or a). Everywhere also removes other intentional logo details that use the same color, so choose Edges only to preserve those details. Neither mode is AI subject segmentation for complex photographic backgrounds.
 - **SVG → raster:** Add SVG files and choose PNG, WebP, AVIF, or JPEG. Rasterization occurs locally. Select PNG, WebP, or AVIF to preserve transparency; JPEG is always opaque.
 - **SVG → SVG:** Existing vector artwork is kept intact instead of being retraced. Background removal is intended for bitmap input, or SVG rendered to a raster output. SVGs with external resources, scripts, or active markup are rejected for safety.
 
@@ -75,7 +75,7 @@ pnpm test:folders
 pnpm test:appearance
 ```
 
-The desktop tests cover exports, resizing, failed images, duplicate filenames, source preservation, and stopping a batch. The vector tests check true SVG path output, transparency round trips, and optional edge-connected background removal. Folder tests use actual directory drag-and-drop and check all three output modes with nested mixed files and all four codecs. Appearance tests check themes, persistence, Windows title-bar overlay, native maximize/restore, and strict size limits for all formats.
+The desktop tests cover exports, resizing, failed images, duplicate filenames, source preservation, and stopping a batch. The vector tests check true SVG path output, transparency round trips, and edge-only and everywhere background removal, including white/black JPEG letter counters. Folder tests use actual directory drag-and-drop and check all three output modes with nested mixed files and all four codecs. Appearance tests check themes, persistence, Windows title-bar overlay, native maximize/restore, and strict size limits for all formats.
 
 ## Packaging
 
