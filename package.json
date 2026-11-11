@@ -1,6 +1,6 @@
 {
   "name": "gatorsqoosh",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "description": "Batch image compression for Windows and macOS",
@@ -9,14 +9,17 @@
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "vite build",
+    "build": "node scripts/icons.mjs && vite build",
     "start": "electron .",
     "test": "node --test tests/*.test.cjs",
     "test:desktop": "node tests/desktop.cjs",
     "test:folders": "node tests/folder-desktop.cjs",
-    "pack": "vite build && electron-builder --dir",
-    "dist:win": "vite build && electron-builder --win zip",
-    "dist:mac": "vite build && electron-builder --mac dmg zip"
+    "pack": "node scripts/icons.mjs && vite build && electron-builder --dir",
+    "dist:win": "node scripts/icons.mjs && vite build && electron-builder --win zip",
+    "dist:mac": "node scripts/icons.mjs && vite build && electron-builder --mac dmg zip",
+    "icons": "node scripts/icons.mjs",
+    "test:appearance": "node tests/appearance-size.cjs",
+    "test:package": "node scripts/verify-package.mjs"
   },
   "dependencies": {
     "@jsquash/avif": "2.1.1",
@@ -28,6 +31,7 @@
     "@playwright/test": "1.65.0",
     "electron": "45.3.0",
     "electron-builder": "26.18.0",
+    "sharp": "0.35.5",
     "vite": "8.3.8"
   },
   "build": {
@@ -50,7 +54,8 @@
       "target": [
         "zip"
       ],
-      "signAndEditExecutable": false
+      "icon": "build/icon.ico",
+      "signExecutable": false
     },
     "mac": {
       "target": [
@@ -58,8 +63,10 @@
         "zip"
       ],
       "category": "public.app-category.photography",
-      "identity": null
+      "identity": null,
+      "icon": "build/icon.icns"
     },
-    "artifactName": "GatorSqoosh-${version}-${os}-${arch}.${ext}"
+    "artifactName": "GatorSqoosh-${version}-${os}-${arch}.${ext}",
+    "compression": "normal"
   }
 }

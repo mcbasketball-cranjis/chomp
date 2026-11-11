@@ -9,6 +9,12 @@ Batch image compression for Windows and macOS. Uses Squoosh-derived codecs throu
 3. Choose an output format, set the quality, and optionally resize.
 4. Choose an output folder and click **Compress batch**.
 
+## Appearance and size limits
+
+Choose **System**, **Light**, or **Dark** in the header. The preference is saved between launches. The Windows title bar uses the selected theme and native window controls. The supplied mountain icon is used in the interface and platform packages.
+
+Enable **Maximum file size**, enter a value, and select KB or MB. The app first lowers quality within your selected quality setting, then reduces image dimensions if necessary. PNG fitting uses resizing because PNG compression is lossless. Limits range from 1 KB to 150 MB (1 KB = 1,024 bytes). Successful exports never exceed the limit. Failed images are not replaced; in full-folder copies, their original copies remain and may exceed the limit.
+
 Individual image exports use `name-compressed.ext`. Duplicate names receive a number. Existing exports are not overwritten.
 
 ## Folder quick compress
@@ -55,9 +61,10 @@ pnpm test
 pnpm build
 pnpm test:desktop
 pnpm test:folders
+pnpm test:appearance
 ```
 
-The desktop tests cover exports, resizing, failed images, duplicate filenames, source preservation, and stopping a batch. Folder tests use actual directory drag-and-drop and check all three output modes with nested mixed files and all four codecs.
+The desktop tests cover exports, resizing, failed images, duplicate filenames, source preservation, and stopping a batch. Folder tests use actual directory drag-and-drop and check all three output modes with nested mixed files and all four codecs. Appearance tests check themes, persistence, Windows title-bar overlay, native maximize/restore, and strict size limits for all formats.
 
 ## Packaging
 
@@ -73,9 +80,11 @@ pnpm build
 pnpm exec electron-builder --mac dmg zip --arm64 --x64
 ```
 
-The GitHub Actions workflow builds and tests on Windows and macOS when run manually or when a `v*` tag is pushed. Download packages from the workflow artifacts.
+The GitHub Actions workflow builds on Windows x64, macOS Intel, and macOS Apple Silicon when main is updated, a `v*` tag is pushed, or the workflow runs manually. Each packaged executable runs the desktop, folder, and appearance tests on its matching OS and architecture. Once all three pass, the workflow publishes the package version as a GitHub release with ZIPs and macOS DMGs. Existing releases are left unchanged. Verification screenshots are also available as workflow artifacts.
 
-Builds are unsigned. Signed distribution requires Windows Authenticode or Apple signing and notarization credentials. For Mac signing, remove `mac.identity: null` from `package.json`.
+Builds are unsigned and macOS builds are not notarized. Signed distribution requires Windows Authenticode or Apple signing and notarization credentials. For Mac signing, remove `mac.identity: null` from `package.json`.
+
+`pnpm build` generates Windows ICO, macOS ICNS, and PNG icons from `assets/icon-source.png` using `scripts/icons.mjs`. To test an unpacked package, run `pnpm test:package` after packaging.
 
 ## License
 

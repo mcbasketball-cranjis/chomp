@@ -1,16 +1,29 @@
-name: Build desktop apps
+name: Build, test, and release
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     tags: ['v*']
+permissions:
+  contents: read
 jobs:
   build:
+    timeout-minutes: 30
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: windows-latest
+            platform: win
+            arch: x64
             command: dist:win
-          - os: macos-latest
+          - os: macos-15-intel
+            platform: mac
+            arch: x64
+            command: dist:mac
+          - os: macos-15
+            platform: mac
+            arch: arm64
             command: dist:mac
     runs-on: ${{ matrix.os }}
     steps:
@@ -25,13 +38,42 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: node node_modules/electron/install.js
       - run: pnpm test
-      - run: pnpm build
-      - run: pnpm test:desktop
-      - run: pnpm test:folders
       - run: pnpm ${{ matrix.command }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - run: pnpm test:package
       - uses: actions/upload-artifact@v4
         with:
-          name: GatorSqoosh-${{ runner.os }}-${{ runner.arch }}
-          path: release/*.*
+          name: packages-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            release/*.zip
+            release/*.dmg
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verification-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            ../GatorSqoosh-*.png
+            test-results/*.png
+          if-no-files-found: ignore
+  release:
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: packages-*
+          path: release-assets
+          merge-multiple: true
+      - run: node scripts/release.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}

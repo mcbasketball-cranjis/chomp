@@ -13,18 +13,20 @@ const icons = {
 };
 const icon = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]}</svg>`;
 document.querySelector('#app').innerHTML = `
-<header class="topbar"><a class="brand" href="#" aria-label="GatorSqoosh home"><span class="brand-mark">${icon('layers')}</span>Gator<span class="brand-light">Sqoosh</span></a><span class="local-badge"><span></span> Local processing</span></header>
+<div class="titlebar"><img src="./icon.png" alt=""><span>GatorSqoosh</span></div>
+<header class="topbar"><a class="brand" href="#" aria-label="GatorSqoosh home"><img class="brand-mark" src="./icon.png" alt="GatorSqoosh">Gator<span class="brand-light">Sqoosh</span></a><div class="header-tools"><span class="local-badge"><span></span> Local processing</span><label class="theme-control"><span>Theme</span><select id="theme" aria-label="Color theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label></div></header>
 <main><section class="intro"><div><h1>Bulk image compression</h1><p>Compress images and save them to a folder.</p></div></section>
 <div class="workspace"><section class="queue-panel"><div class="panel-heading"><div><h2>Your images <span id="count" class="count">0</span></h2><p>JPEG, PNG, WebP & AVIF · up to 150 MB each</p></div><div class="add-actions"><button id="add-folder" class="button secondary">${icon('folder')}Add folder</button><button id="add" class="button secondary">${icon('plus')}Add images</button></div></div>
 <button id="drop" class="dropzone"><span class="upload-icon">${icon('upload')}</span><strong>Drop images or folders here</strong><span>or <b>browse files</b> to get started</span><span class="drop-note">Folders include images in all subfolders.</span></button>
 <section id="quick-panel" class="quick-panel" hidden><div class="quick-heading"><h2>Quick compress</h2><span id="folder-count"></span></div><p id="source-folders"></p><fieldset id="folder-modes"><label class="mode-option"><input type="radio" name="folder-mode" value="copy" checked><span><strong>Duplicate folder</strong><small>Copy the folder and replace its images. Keep all other files.</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="images"><span><strong>Images only</strong><small>Export compressed images with the same subfolder structure.</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="replace"><span><strong>Replace originals</strong><small>Overwrite images in the source folders. Other files stay unchanged.</small></span></label></fieldset><p id="mode-note" class="mode-note"></p></section>
 <div id="queue" class="queue" aria-label="Image queue"></div>
-<div id="empty-note" class="empty-note"><span class="mini-art">${icon('image')}${icon('image')}${icon('image')}</span><strong>No images added</strong><p>Drop images above or click Add images.</p></div>
+<div id="empty-note" class="empty-note"><img class="empty-logo" src="./icon.png" alt=""><strong>No images added</strong><p>Drop images above or click Add images.</p></div>
 <div class="queue-footer"><span id="total">No images added yet</span><button id="clear" class="text-button" disabled>Clear all</button></div>
 </section>
-<aside class="settings-panel"><div class="settings-title"><span class="tiny-icon">${icon('spark')}</span><h2>Compression settings</h2></div><fieldset id="settings"><label class="field-label" for="format">Output format</label><div class="select-wrap"><select id="format"><option value="original">Keep original format</option><option value="webp" selected>WebP</option><option value="jpg">JPEG</option><option value="png">PNG (lossless)</option><option value="avif">AVIF</option></select></div><p id="format-hint" class="hint">Supports transparency.</p>
+<aside class="settings-panel"><div class="settings-title"><img class="tiny-icon" src="./icon.png" alt=""><h2>Compression settings</h2></div><fieldset id="settings"><label class="field-label" for="format">Output format</label><div class="select-wrap"><select id="format"><option value="original">Keep original format</option><option value="webp" selected>WebP</option><option value="jpg">JPEG</option><option value="png">PNG (lossless)</option><option value="avif">AVIF</option></select></div><p id="format-hint" class="hint">Supports transparency.</p>
 <div class="label-row"><label class="field-label" for="quality">Quality</label><output id="quality-value">80<span>%</span></output></div><input id="quality" type="range" min="1" max="100" value="80"><div class="range-labels"><span>Smaller file</span><span>More detail</span></div>
 <div class="presets" aria-label="Quality presets"><button data-quality="60">Smallest</button><button data-quality="80" class="selected">Balanced</button><button data-quality="92">Best quality</button></div>
+<div class="divider"></div><label class="toggle-row"><span><strong>Maximum file size</strong><small>Set a size limit for each image.</small></span><input id="limit-size" type="checkbox" role="switch"><span class="switch"></span></label><div id="limit-options" hidden><label class="field-label" for="max-bytes">Maximum per image</label><div class="size-input"><input id="max-bytes" type="number" min="0.001" step="any" value="500"><select id="size-unit" aria-label="File size unit"><option value="1024">KB</option><option value="1048576">MB</option></select></div><p class="hint">Lowers quality, then dimensions as needed. PNG may be resized.</p></div>
 <div class="divider"></div><label class="toggle-row"><span><strong>Resize large images</strong><small>Keep proportions. Never upscale.</small></span><input id="resize" type="checkbox" role="switch"><span class="switch"></span></label><div id="resize-options" hidden><label class="field-label" for="max-size">Maximum long edge</label><div class="number-wrap"><input id="max-size" type="number" min="64" max="16384" value="2400" step="1"><span>px</span></div></div>
 <div class="divider"></div><div id="output-controls"><label class="field-label">Save to</label><button id="folder" class="folder-button">${icon('folder')}<span id="folder-label">Choose output folder</span><span class="folder-arrow">↗</span></button><p class="hint" id="output-hint">Originals stay untouched. Existing files are never replaced.</p></div><p id="replace-warning" class="replace-warning" hidden>Original images will be overwritten. Keep a backup if you need the source files.</p></fieldset>
 <div class="action-area"><div id="progress-wrap" hidden><div class="progress-label"><span id="progress-text">Preparing…</span><span id="progress-count"></span></div><progress id="progress" max="100" value="0"></progress></div><button id="compress" class="button primary" disabled>Compress batch ${icon('arrow')}</button><button id="cancel" class="button cancel" hidden>Stop after this image</button><p class="action-note" id="action-note">Add images and choose a folder to begin.</p></div></aside></div>
@@ -32,6 +34,10 @@ document.querySelector('#app').innerHTML = `
 <footer><span>${icon('shield')} Images are processed on this computer.</span><span>MozJPEG <span class="footer-dot">·</span> WebP <span class="footer-dot">·</span> OxiPNG</span></footer></main>`;
 const $ = id => document.getElementById(id);
 const api = window.desktop;
+function applyAppearance(state) { document.documentElement.dataset.theme = state.dark ? 'dark' : 'light'; document.documentElement.dataset.platform = state.platform; $('theme').value = state.preference; }
+if (api) { api.getAppearance().then(applyAppearance).catch(error => notice(error.message)); api.onAppearance(applyAppearance); }
+else { applyAppearance({ dark: matchMedia('(prefers-color-scheme: dark)').matches, platform: 'browser', preference: 'system' }); }
+$('theme').onchange = async () => { try { if (api) applyAppearance(await api.setAppearance($('theme').value)); else applyAppearance({ dark: $('theme').value === 'dark' || $('theme').value === 'system' && matchMedia('(prefers-color-scheme: dark)').matches, platform: 'browser', preference: $('theme').value }); } catch (error) { notice(error.message); } };
 let items = [], folderRoots = [], output = null, running = false, stopped = false, worker = null, scanning = false;
 const mode = () => folderRoots.length ? document.querySelector('[name="folder-mode"]:checked').value : 'files';
 const urls = new Set();
@@ -104,6 +110,7 @@ function quality() { $('quality-value').innerHTML = `${$('quality').value}<span>
 $('quality').oninput = quality;
 document.querySelectorAll('[data-quality]').forEach(el => el.onclick = () => { $('quality').value = el.dataset.quality; quality(); });
 $('resize').onchange = () => { $('resize-options').hidden = !$('resize').checked; };
+$('limit-size').onchange = () => { $('limit-options').hidden = !$('limit-size').checked; };
 $('format').onchange = () => {
   const format = $('format').value, lossless = format === 'png';
   $('quality').disabled = lossless;
@@ -124,7 +131,9 @@ $('cancel').onclick = () => { stopped = true; api.stopPreparation(); $('cancel')
 $('compress').onclick = async () => {
   const maxSize = Number($('max-size').value);
   if ($('resize').checked && (!Number.isInteger(maxSize) || maxSize < 64 || maxSize > 16384)) { notice('Enter a maximum edge between 64 and 16,384 pixels.'); $('max-size').focus(); return; }
-  const settings = { format: $('format').value, quality: Number($('quality').value), maxSize: $('resize').checked ? maxSize : null };
+  const maxBytes = $('limit-size').checked ? Math.floor(Number($('max-bytes').value) * Number($('size-unit').value)) : null;
+  if (maxBytes !== null && (!Number.isInteger(maxBytes) || maxBytes < 1024 || maxBytes > 150 * 1024 * 1024)) { notice('Set a file size between 1 KB and 150 MB.'); $('max-bytes').focus(); return; }
+  const settings = { format: $('format').value, quality: Number($('quality').value), maxSize: $('resize').checked ? maxSize : null, maxBytes };
   const outputMode = mode();
   if (outputMode === 'replace' && items.some(item => !item.rootId)) { notice('Clear individual image files from the queue before replacing a folder in place.'); return; }
   running = true; stopped = false; buttonState(); notice(''); $('summary').hidden = true;
@@ -134,7 +143,7 @@ $('compress').onclick = async () => {
   $('progress').value = 0;
   try {
     $('progress-text').textContent = outputMode === 'copy' ? 'Copying folder contents…' : 'Preparing output…'; $('progress-count').textContent = '';
-    batch = await api.beginBatch({ ids: pending.map(item => item.id), mode: outputMode });
+    batch = await api.beginBatch({ ids: pending.map(item => item.id), mode: outputMode, maxBytes });
     for (const item of pending) {
       if (stopped) break;
       updateItem(item, 'Compressing…', 'working');

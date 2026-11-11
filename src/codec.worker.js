@@ -9,13 +9,14 @@ import avifEncoder from '@jsquash/avif/codec/enc/avif_enc.js';
 import { initEmscriptenModule } from '@jsquash/avif/utils.js';
 import { defaultOptions as avifOptions } from '@jsquash/avif/meta.js';
 import avifWasm from '@jsquash/avif/codec/enc/avif_enc.wasm?url';
+import { fitImage } from './fit-size.js';
 const initialized = {};
 async function init(format) {
   if (initialized[format]) return initialized[format];
   initialized[format] = format === 'jpg' ? initJpeg({ locateFile: () => jpegWasm }) : format === 'webp' ? initWebp({ locateFile: name => name.includes('simd') ? webpSimdWasm : webpWasm }) : format === 'avif' ? initEmscriptenModule(avifEncoder, undefined, { locateFile: () => avifWasm }) : initPng(pngWasm);
   return initialized[format];
 }
-self.onmessage = async ({ data: { bytes, format, quality, maxSize } }) => {
+self.onmessage = async ({ data: { bytes, format, quality, maxSize, maxBytes } }) => {
   let bitmap;
   try {
     if (!['jpg', 'png', 'webp', 'avif'].includes(format)) throw new Error('Unsupported output format.');
@@ -35,21 +36,26 @@ self.onmessage = async ({ data: { bytes, format, quality, maxSize } }) => {
     const ctx = canvas.getContext('2d', { willReadFrequently: true, alpha: format !== 'jpg' });
     if (format === 'jpg') { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, width, height); }
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(bitmap, 0, 0, width, height); bitmap.close(); bitmap = null;
-    const pixels = ctx.getImageData(0, 0, width, height);
     await init(format);
-    let buffer;
-    if (format === 'jpg') buffer = await encodeJpeg(pixels, { quality });
-    else if (format === 'webp') buffer = await encodeWebp(pixels, { quality, method: 4 });
-    else if (format === 'avif') {
-      const result = (await initialized.avif).encode(new Uint8Array(pixels.data.buffer), width, height, { ...avifOptions, quality, speed: 8 });
-      if (!result) throw new Error('AVIF encoding failed.');
-      buffer = result.buffer;
-    } else buffer = optimise_raw(pixels.data, width, height, 2, false, false).buffer;
+    let currentCanvas = canvas, pixels = ctx.getImageData(0, 0, width, height);
+    const fitted = await fitImage({ width, height, quality, maxBytes, lossless: format === 'png' }, async (w, h, q) => {
+      if (currentCanvas.width !== w || currentCanvas.height !== h) {
+        currentCanvas = new OffscreenCanvas(w, h); const context = currentCanvas.getContext('2d', { willReadFrequently: true });
+        context.imageSmoothingEnabled = true; context.imageSmoothingQuality = 'high'; context.drawImage(canvas, 0, 0, w, h); pixels = context.getImageData(0, 0, w, h);
+      }
+      if (format === 'jpg') return encodeJpeg(pixels, { quality: q });
+      if (format === 'webp') return encodeWebp(pixels, { quality: q, method: 4 });
+      if (format === 'avif') {
+        const result = (await initialized.avif).encode(new Uint8Array(pixels.data.buffer), w, h, { ...avifOptions, quality: q, speed: 8 });
+        if (!result) throw new Error('AVIF encoding failed.'); return result.buffer;
+      }
+      return optimise_raw(pixels.data, w, h, 2, false, false).buffer;
+    });
     const small = new OffscreenCanvas(80, 80); const preview = small.getContext('2d');
-    preview.drawImage(canvas, 0, 0, 80, 80);
+    preview.drawImage(currentCanvas, 0, 0, 80, 80);
     const thumbnail = await (await small.convertToBlob({ type: 'image/webp', quality: .7 })).arrayBuffer();
-    const result = new Uint8Array(buffer);
-    self.postMessage({ bytes: result, thumbnail, width, height }, [result.buffer, thumbnail]);
+    const result = new Uint8Array(fitted.buffer);
+    self.postMessage({ bytes: result, thumbnail, width: fitted.width, height: fitted.height, quality: fitted.quality }, [result.buffer, thumbnail]);
   } catch (error) { self.postMessage({ error: error.message || 'Could not decode this image.' }); }
   finally { if (bitmap) bitmap.close(); }
 };

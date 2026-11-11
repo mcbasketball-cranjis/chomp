@@ -1,5 +1,8 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 contextBridge.exposeInMainWorld('desktop', {
+  getAppearance: () => ipcRenderer.invoke('get-appearance'),
+  setAppearance: theme => ipcRenderer.invoke('set-appearance', theme),
+  onAppearance: callback => { const listener = (_event, state) => callback(state); ipcRenderer.on('theme-changed', listener); return () => ipcRenderer.removeListener('theme-changed', listener); },
   pickImages: () => ipcRenderer.invoke('pick-images'),
   pickFolders: () => ipcRenderer.invoke('pick-folders'),
   dropImages: files => ipcRenderer.invoke('drop-images', files.map(file => webUtils.getPathForFile(file))),
