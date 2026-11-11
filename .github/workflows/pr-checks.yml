@@ -24,3 +24,6 @@ jobs:
       - run: pnpm build
       - run: node node_modules/electron/install.js
       - run: xvfb-run --auto-servernum pnpm test:vector
+      - run: xvfb-run --auto-servernum pnpm test:desktop
+      - run: xvfb-run --auto-servernum pnpm test:folders
+      - run: xvfb-run --auto-servernum pnpm test:appearance
