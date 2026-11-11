@@ -141,7 +141,7 @@ select{min-width:0;width:100%;height:38px;background:var(--raised);color:var(--i
 .toggle-row strong{display:block;font-size:11px;font-weight:750;color:var(--ink)}
 .toggle-row small{display:block;color:var(--faint);font-size:10px;line-height:1.4;margin-top:6px}
 .toggle-row input{position:absolute;right:0;opacity:0;width:36px;height:24px}
-.switch{width:34px;height:20px;border-radius:14px;flex:none;background:var(--line);position:relative}
+.switch{width:34px;height:20px;border-radius:14px;flex:none;background:var(--line);position:relative;pointer-events:none}
 .switch:before{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:white;box-shadow:0 1px 3px #0003;transition:transform .15s}
 .toggle-row input:checked+.switch{background:var(--accent)}
 .toggle-row input:checked+.switch:before{transform:translateX(14px)}
@@ -149,8 +149,8 @@ select{min-width:0;width:100%;height:38px;background:var(--raised);color:var(--i
 #background-controls{margin-top:19px}
 .bg-scope{display:grid;grid-template-columns:1fr 1fr;gap:4px}
 .bg-scope legend{grid-column:1 / -1;float:none;width:100%;margin-bottom:9px}
-.bg-mode-option{display:flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--raised);border-radius:8px;padding:9px 4px;color:var(--muted);font-size:10px;font-weight:700;cursor:pointer;text-align:center}
-.bg-mode-option input{position:absolute;opacity:0;width:1px;height:1px}
+.bg-mode-option{position:relative;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--raised);border-radius:8px;padding:9px 4px;color:var(--muted);font-size:10px;font-weight:700;cursor:pointer;text-align:center}
+.bg-mode-option input{position:absolute;inset:0;opacity:0;width:100%;height:100%;margin:0;cursor:pointer}.bg-mode-option span{pointer-events:none}
 .bg-mode-option:has(input:checked){background:var(--surface);color:var(--accent-ink);box-shadow:0 1px 5px #00000012}
 .bg-mode-option:has(input:focus-visible){outline:3px solid #73dcca}
 .label-row{display:flex;justify-content:space-between;align-items:center;gap:9px}
