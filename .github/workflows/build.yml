@@ -46,6 +46,19 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+      - name: Select Xcode 26 for the layered macOS icon
+        if: matrix.platform == 'mac'
+        shell: bash
+        run: |
+          shopt -s nullglob
+          xcodes=(/Applications/Xcode_26*.app)
+          if (( ${#xcodes[@]} == 0 )); then
+            echo "Xcode 26+ is required for Apple's Icon Composer asset catalog" >&2
+            exit 1
+          fi
+          selected="${xcodes[${#xcodes[@]}-1]}"
+          sudo xcode-select --switch "$selected/Contents/Developer"
+          xcodebuild -version
       - name: Build Intel macOS packages (ad-hoc signed)
         if: matrix.platform == 'mac'
         run: pnpm dist:mac
