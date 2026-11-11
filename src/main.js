@@ -13,28 +13,98 @@ const icons = {
   spark: '<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/>'
 };
 const icon = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]}</svg>`;
+
 document.querySelector('#app').innerHTML = `
-<div class="titlebar"><img src="./icon.png" alt=""><span>Chomp</span></div>
-<header class="topbar"><a class="brand" href="#" aria-label="Chomp home"><img class="brand-mark" src="./icon.png" alt="Chomp">Chomp</a></header>
-<main><section class="intro"><div><h1>Compress & vectorize images</h1><p>Compress, convert, or trace images into editable SVG vectors. Everything stays on your device.</p></div></section>
-<div class="workspace"><section class="queue-panel"><div class="panel-heading"><div><h2>Your images <span id="count" class="count">0</span></h2><p>JPEG, PNG, WebP, AVIF & SVG · up to 512 MB each</p></div><div class="add-actions"><button id="add-folder" class="button secondary">${icon('folder')}Add folder</button><button id="add" class="button secondary">${icon('plus')}Add images</button></div></div>
-<button id="drop" class="dropzone"><span class="upload-icon">${icon('upload')}</span><strong>Drop images or folders here</strong><span>or <b>browse files</b> to get started</span><span class="drop-note">Folders include images in all subfolders.</span></button>
-<section id="quick-panel" class="quick-panel" hidden><div class="quick-heading"><h2>Quick compress</h2><span id="folder-count"></span></div><p id="source-folders"></p><fieldset id="folder-modes"><label class="mode-option"><input type="radio" name="folder-mode" value="copy" checked><span><strong>Duplicate folder</strong><small>Copy the folder and replace its images. Keep all other files.</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="images"><span><strong>Images only</strong><small>Export compressed images with the same subfolder structure.</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="replace"><span><strong>Replace originals</strong><small>Overwrite images in the source folders. Other files stay unchanged.</small></span></label></fieldset><p id="mode-note" class="mode-note"></p></section>
-<div id="queue" class="queue" aria-label="Image queue"></div>
-<div id="empty-note" class="empty-note"><img class="empty-logo" src="./icon.png" alt=""><strong>No images added</strong><p>Drop images above or click Add images.</p></div>
-<div class="queue-footer"><span id="total">No images added yet</span><button id="clear" class="text-button" disabled>Clear all</button></div>
-</section>
-<aside class="settings-panel"><div class="settings-title"><img class="tiny-icon" src="./icon.png" alt=""><h2>Compression settings</h2></div><fieldset id="settings"><label class="field-label" for="format">Output format</label><div class="select-wrap"><select id="format"><option value="original">Keep original format</option><option value="webp" selected>WebP</option><option value="jpg">JPEG</option><option value="png">PNG (lossless)</option><option value="avif">AVIF</option><option value="svg">SVG (editable vectors)</option></select></div><p id="format-hint" class="hint">Supports transparency.</p>
-<div id="trace-controls" class="trace-controls" hidden><label class="field-label" for="trace-detail">Vector tracing detail</label><div class="select-wrap"><select id="trace-detail"><option value="simple">Simple · clean logos</option><option value="balanced" selected>Balanced · recommended</option><option value="detailed">Detailed · more colors and edges</option></select></div><p class="hint">Creates actual SVG paths, not a bitmap inside an SVG. Transparent pixels stay transparent.</p></div>
-<div class="divider"></div><label class="toggle-row"><span><strong>Remove background</strong><small>Optional. Detect a solid background at image edges.</small></span><input id="remove-bg" type="checkbox" role="switch"><span class="switch"></span></label><div id="background-controls" hidden><fieldset class="bg-scope"><legend class="field-label">Removal area</legend><label class="bg-mode-option"><input type="radio" name="bg-mode" value="edges" checked><span>Edges only</span></label><label class="bg-mode-option"><input type="radio" name="bg-mode" value="all"><span>Everywhere · including letter holes</span></label></fieldset><p id="bg-mode-hint" class="hint">Removes background connected to the outside. Enclosed areas stay untouched.</p><div class="label-row"><label class="field-label" for="bg-tolerance">Background tolerance</label><output id="bg-value">28</output></div><input type="range" id="bg-tolerance" min="0" max="100" value="28"></div>
-<div class="label-row"><label class="field-label" for="quality">Quality</label><output id="quality-value">80<span>%</span></output></div><input id="quality" type="range" min="1" max="100" value="80"><div class="range-labels"><span>Smaller file</span><span>More detail</span></div>
-<div class="presets" aria-label="Quality presets"><button data-quality="60">Smallest</button><button data-quality="80" class="selected">Balanced</button><button data-quality="92">Best quality</button></div>
-<div class="divider"></div><label class="toggle-row"><span><strong>Maximum file size</strong><small>Set a size limit for each image.</small></span><input id="limit-size" type="checkbox" role="switch"><span class="switch"></span></label><div id="limit-options" hidden><label class="field-label" for="max-bytes">Maximum per image</label><div class="size-input"><input id="max-bytes" type="number" min="0.001" step="any" value="500"><select id="size-unit" aria-label="File size unit"><option value="1024">KB</option><option value="1048576">MB</option></select></div><p class="hint">Lowers quality, then dimensions as needed. PNG may be resized.</p></div>
-<div class="divider"></div><label class="toggle-row"><span><strong>Resize large images</strong><small>Keep proportions. Never upscale.</small></span><input id="resize" type="checkbox" role="switch"><span class="switch"></span></label><div id="resize-options" hidden><label class="field-label" for="max-size">Maximum long edge</label><div class="number-wrap"><input id="max-size" type="number" min="64" max="32768" value="2400" step="1"><span>px</span></div></div>
-<div class="divider"></div><div id="output-controls"><label class="field-label">Save to</label><button id="folder" class="folder-button">${icon('folder')}<span id="folder-label">Choose output folder</span><span class="folder-arrow">↗</span></button><p class="hint" id="output-hint">Originals stay untouched. Existing files are never replaced.</p></div><p id="replace-warning" class="replace-warning" hidden>Original images will be overwritten. Keep a backup if you need the source files.</p></fieldset>
-<div class="action-area"><div id="progress-wrap" hidden><div class="progress-label"><span id="progress-text">Preparing…</span><span id="progress-count"></span></div><progress id="progress" max="100" value="0"></progress></div><button id="compress" class="button primary" disabled>Compress batch ${icon('arrow')}</button><button id="cancel" class="button cancel" hidden>Stop after this image</button><p class="action-note" id="action-note">Add images and choose a folder to begin.</p></div></aside></div>
-<section id="summary" class="summary" hidden aria-live="polite"></section><div id="notice" role="status" aria-live="polite"></div>
-<footer><span>MozJPEG <span class="footer-dot">·</span> WebP <span class="footer-dot">·</span> OxiPNG</span></footer></main>`;
+<div class="titlebar"><img src="./icon.png" alt=""><span>Chomp — Image workspace</span><span class="titlebar-status">${icon('shield')} Desktop app · private by design</span></div>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand brand"><img src="./icon.png" class="brand-mark" alt=""><strong>Chomp</strong><span class="brand-version">2.0</span></div>
+    <div class="sidebar-caption">TOOLS</div>
+    <nav class="tool-nav" aria-label="Image tools">
+      <button type="button" data-workspace="compress">${icon('layers')}<span>Compress</span></button>
+      <button type="button" data-workspace="convert">${icon('arrow')}<span>Convert</span></button>
+      <button type="button" class="active" data-workspace="vectorize">${icon('spark')}<span>Vectorize</span></button>
+    </nav>
+    <div class="sidebar-divider"></div>
+    <div class="files-heading"><span class="sidebar-caption">YOUR FILES</span><span id="count" class="files-count">0</span></div>
+    <div id="queue" class="queue" aria-label="Image queue"></div>
+    <div class="sidebar-buttons">
+      <button type="button" id="add-sidebar" class="add-more">${icon('upload')} Add more images</button>
+      <button type="button" id="add-folder" class="add-folder">${icon('folder')} Add folder</button>
+    </div>
+    <div class="queue-footer"><span id="total">No images added yet</span><button id="clear" class="text-button" disabled>Clear all</button></div>
+    <div class="local-panel">${icon('shield')}<div><strong>Made for your device.</strong><p>Private by design. All processing stays on your computer.</p></div></div>
+  </aside>
+  <main class="main-content">
+    <header class="intro"><div><span class="eyebrow" id="workspace-eyebrow">PIXELS, MEET PATHS</span><h1 id="workspace-title">Vectorize your images.</h1><p id="workspace-description">Turn logos and illustrations into beautiful, editable SVGs.</p></div><div class="header-actions"><button type="button" class="button secondary" id="add">${icon('upload')} Add images</button><button type="button" class="help-button" id="help" aria-label="Help" title="Drop images or folders to begin">?</button></div></header>
+    <div class="workspace">
+      <div class="center-column">
+        <section class="preview-panel" aria-label="Image comparison">
+          <header class="preview-heading"><div><strong>Live preview</strong><span id="selected-name" class="selected-filename">No image selected</span></div><div class="preview-heading-right"><span id="preview-badge" class="format-badge">SVG · transparent</span><span id="preview-status">Ready</span></div></header>
+          <div class="preview-stage" id="preview-stage">
+            <div class="preview-image-wrap result-image" id="result-layer"><img id="result-img" alt="Processed image preview" hidden></div>
+            <div class="preview-image-wrap original-image" id="original-layer"><img id="original-img" alt="Original image preview" hidden></div>
+            <div id="comparison-line" class="comparison-line"></div><div id="comparison-handle" class="comparison-handle" aria-hidden="true">‹ ›</div>
+            <span class="preview-chip before-chip">ORIGINAL</span><span class="preview-chip after-chip" id="preview-after-label">VECTOR</span>
+            <input type="range" min="0" max="100" value="40" id="compare-slider" class="compare-slider" aria-label="Compare original and processed image">
+            <button id="drop" class="dropzone" type="button"><span class="upload-icon">${icon('upload')}</span><strong>Drop images or folders here</strong><span>or <b>browse files</b> to get started</span><span class="drop-note">JPEG, PNG, WebP, AVIF, SVG · up to 512 MB</span></button>
+            <div id="empty-note" class="empty-note"><span>Drop an image to get started</span></div>
+          </div>
+          <footer class="preview-footer"><span class="image-metadata">${icon('image')}<span id="stage-caption">Select an image to see its preview</span></span><div class="preview-switch"><button type="button" id="compare-view" class="selected">Compare</button><button type="button" id="result-view">Result only</button></div></footer>
+        </section>
+        <div class="metrics"><div class="metric"><span>Original image</span><strong id="metric-original">—</strong>${icon('image')}</div><div class="metric"><span>Actual preview output</span><strong id="metric-output">—</strong>${icon('folder')}</div><div class="metric"><span>Potential savings</span><strong id="metric-savings">—</strong>${icon('layers')}</div></div>
+      </div>
+      <aside class="settings-panel">
+        <div class="settings-scroll"><h2 id="settings-title">Vector settings</h2>
+          <fieldset id="settings">
+            <label class="field-label" for="format">Output format</label>
+            <div class="format-control"><span class="format-icon">${icon('spark')}</span><select id="format"><option value="original">Keep original format</option><option value="webp">WebP</option><option value="jpg">JPEG</option><option value="png">PNG (lossless)</option><option value="avif">AVIF</option><option value="svg" selected>SVG — editable paths</option></select></div>
+            <p id="format-hint" class="hint">Actual vector paths, not an embedded image.</p>
+            <section id="trace-controls" class="settings-section">
+              <label class="field-label" for="trace-detail">Tracing detail</label>
+              <select id="trace-detail" class="visually-hidden"><option value="simple">Simple</option><option value="balanced" selected>Balanced</option><option value="detailed">Detailed</option></select>
+              <div class="presets trace-presets" aria-label="Tracing detail"><button type="button" data-trace="simple">Simple</button><button type="button" class="selected" data-trace="balanced">Balanced</button><button type="button" data-trace="detailed">Detailed</button></div>
+              <p id="trace-hint" class="hint">Balanced shapes and colors. Great for logos.</p>
+            </section>
+            <div class="settings-section">
+              <label class="toggle-row"><span><strong>Remove background</strong><small>Clear solid-color backgrounds automatically.</small></span><input id="remove-bg" type="checkbox" role="switch"><span class="switch"></span></label>
+              <div id="background-controls" hidden>
+                <fieldset class="bg-scope"><legend class="field-label">Removal area</legend>
+                  <label class="bg-mode-option"><input type="radio" name="bg-mode" value="edges" checked><span>Edges only</span></label>
+                  <label class="bg-mode-option"><input type="radio" name="bg-mode" value="all"><span>Everywhere</span></label>
+                </fieldset>
+                <p id="bg-mode-hint" class="hint">Keeps enclosed areas intact, like the centers of letters.</p>
+                <div class="label-row"><label for="bg-tolerance" class="field-label">Color tolerance</label><output id="bg-value">28</output></div>
+                <input id="bg-tolerance" type="range" min="0" max="100" value="28"><div class="range-labels"><span>Precise</span><span>More aggressive</span></div>
+              </div>
+            </div>
+            <section class="settings-section" id="compression-controls">
+              <div class="label-row"><label class="field-label" for="quality">Quality</label><output id="quality-value">80<span>%</span></output></div>
+              <input id="quality" type="range" min="1" max="100" value="80"><div class="range-labels"><span>Smaller file</span><span>More detail</span></div>
+              <div class="presets"><button type="button" data-quality="60">Smallest</button><button type="button" class="selected" data-quality="80">Balanced</button><button type="button" data-quality="92">Best quality</button></div>
+            </section>
+            <section class="settings-section" id="advanced-settings"><h3>Additional options</h3>
+              <label class="toggle-row"><span><strong>Maximum file size</strong><small>Set a size limit for each image.</small></span><input id="limit-size" type="checkbox" role="switch"><span class="switch"></span></label>
+              <div id="limit-options" hidden><label class="field-label" for="max-bytes">Maximum per image</label><div class="size-input"><input id="max-bytes" type="number" min="0.001" step="any" value="500"><select id="size-unit" aria-label="File size unit"><option value="1024">KB</option><option value="1048576">MB</option></select></div><p class="hint">Adjusts quality and dimensions when possible.</p></div>
+              <div class="mini-divider"></div><label class="toggle-row"><span><strong>Resize large images</strong><small>Keep proportions. Never upscale.</small></span><input id="resize" type="checkbox" role="switch"><span class="switch"></span></label>
+              <div id="resize-options" hidden><label class="field-label" for="max-size">Maximum long edge</label><div class="number-wrap"><input id="max-size" type="number" min="64" max="32768" value="2400" step="1"><span>px</span></div></div>
+            </section>
+            <section id="quick-panel" class="settings-section quick-panel" hidden><div class="quick-heading"><h3>Folder processing</h3><span id="folder-count"></span></div><p id="source-folders"></p><fieldset id="folder-modes"><label class="mode-option"><input type="radio" name="folder-mode" value="copy" checked><span><strong>Duplicate folder</strong><small>Copy the whole folder structure and replace images in the copy.</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="images"><span><strong>Images only</strong><small>Export just the processed images in matching subfolders.</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="replace"><span><strong>Replace originals</strong><small>Overwrite successful images in place; this cannot be undone.</small></span></label></fieldset><p id="mode-note" class="mode-note"></p></section>
+          </fieldset>
+        </div>
+        <div class="settings-footer">
+          <div id="output-controls"><span class="destination-label">Save files to</span><button id="folder" class="folder-button">${icon('folder')}<span id="folder-label">Choose output folder</span><span class="folder-arrow">⌄</span></button><p class="hint" id="output-hint">Your original files stay untouched.</p></div>
+          <p id="replace-warning" class="replace-warning" hidden>Original images will be overwritten. Keep a backup if you need the source files.</p>
+          <div class="action-area"><div id="progress-wrap" hidden><div class="progress-label"><span id="progress-text">Preparing…</span><span id="progress-count"></span></div><progress id="progress" max="100" value="0"></progress></div>
+            <button id="compress" class="button primary" disabled>Export SVGs ${icon('arrow')}</button><button id="cancel" class="button cancel" hidden>Stop after this image</button><p class="action-note" id="action-note">Add images and choose a folder to begin.</p></div>
+        </div>
+      </aside>
+    </div>
+    <section id="summary" class="summary" hidden aria-live="polite"></section>
+    <div id="notice" role="status" aria-live="polite"></div>
+  </main>
+</div>`;
+
 const $ = id => document.getElementById(id);
 const api = window.desktop;
 function applyAppearance(state) { document.documentElement.dataset.theme = state.dark ? 'dark' : 'light'; document.documentElement.dataset.platform = state.platform;  }
@@ -43,23 +113,131 @@ else { applyAppearance({ dark: matchMedia('(prefers-color-scheme: dark)').matche
 let items = [], folderRoots = [], output = null, running = false, stopped = false, worker = null, scanning = false;
 const mode = () => folderRoots.length ? document.querySelector('[name="folder-mode"]:checked').value : 'files';
 const urls = new Set();
+let workspaceMode='compress',selectedId=null,previewTimer=null,previewVersion=0,previewWorker=null,previewOriginalUrl=null,previewResultUrl=null;
+const MIME={jpg:'image/jpeg',png:'image/png',svg:'image/svg+xml',webp:'image/webp',avif:'image/avif'};
+const workspaceCopy={
+  compress:['LESS WEIGHT, SAME IMPACT','Compress your images.','Smaller files, beautiful results. Control quality and size.','Compression settings'],
+  convert:['EVERY FORMAT, ONE PLACE','Convert your images.','Switch between PNG, JPEG, WebP, AVIF and SVG without uploads.','Conversion settings'],
+  vectorize:['PIXELS, MEET PATHS','Vectorize your images.','Turn logos and illustrations into beautiful, editable SVGs.','Vector settings']
+};
+const preferredFormats={compress:'webp',convert:'png',vectorize:'svg'};
+function selectedItem(){return items.find(item=>item.id===selectedId)||null;}
+function releasePreviewUrls(){
+  if(previewOriginalUrl)URL.revokeObjectURL(previewOriginalUrl);
+  if(previewResultUrl)URL.revokeObjectURL(previewResultUrl);
+  previewOriginalUrl=previewResultUrl=null;
+}
+function stopPreview(){
+  ++previewVersion;clearTimeout(previewTimer);
+  if(previewWorker){previewWorker.terminate();previewWorker=null;}
+}
+function selectItem(item){
+  selectedId=item?.id??null;
+  document.querySelectorAll('.image-row').forEach(el=>el.classList.toggle('selected',el.dataset.id===String(selectedId)));
+  $('selected-name').textContent=item?(item.relative||item.name):'No image selected';
+  $('metric-original').textContent=item?bytes(item.size):'—';
+  $('metric-output').textContent='—';$('metric-savings').textContent='—';
+  $('stage-caption').textContent=item?item.name+' · '+item.format.toUpperCase():'Select an image to see its preview';
+  $('preview-stage').classList.toggle('is-empty',!item);
+  $('original-img').hidden=true;$('result-img').hidden=true;
+  releasePreviewUrls();stopPreview();buttonState();
+  if(item)queuePreview();
+}
+function queuePreview(){
+  if(!selectedItem()||!api||running||scanning)return;
+  stopPreview();$('preview-status').textContent='Rendering…';
+  $('metric-output').textContent='—';$('metric-savings').textContent='—';
+  previewTimer=setTimeout(renderPreview,350);
+}
+async function renderPreview(){
+  const item=selectedItem(),token=++previewVersion;
+  if(!item||!api||running)return;
+  if(item.size>32*1024*1024){$('preview-status').textContent='Large image · export supported';return;}
+  try{
+    const data=await api.readImage(item.id);
+    if(token!==previewVersion||selectedId!==item.id||running)return;
+    releasePreviewUrls();
+    previewOriginalUrl=URL.createObjectURL(new Blob([data],{type:MIME[item.format]||'application/octet-stream'}));
+    $('original-img').src=previewOriginalUrl;$('original-img').hidden=false;
+    const target=$('format').value==='original'?item.format:$('format').value;
+    if(target==='jpg'&&$('remove-bg').checked){$('preview-status').textContent='JPEG cannot keep transparency';return;}
+    const bitmap=item.format==='svg'?await decodeSvgBitmap(data):null;
+    if(token!==previewVersion||running){bitmap?.close();return;}
+    const local=new Worker(new URL('./codec.worker.js',import.meta.url),{type:'module'});
+    previewWorker=local;
+    local.onmessage=({data:result})=>{
+      if(token!==previewVersion)return;
+      previewWorker=null;local.terminate();
+      if(result.error){$('preview-status').textContent='Preview unavailable';return;}
+      previewResultUrl=URL.createObjectURL(new Blob([result.bytes],{type:MIME[target]}));
+      $('result-img').src=previewResultUrl;$('result-img').hidden=false;
+      $('metric-output').textContent=bytes(result.bytes.byteLength);
+      const percent=Math.round((1-result.bytes.byteLength/item.size)*100);
+      $('metric-savings').textContent=percent>=0?percent+'% smaller':Math.abs(percent)+'% larger';
+      $('preview-status').textContent='Preview ready';
+      $('stage-caption').textContent=item.format.toUpperCase()+' · '+result.width+' × '+result.height;
+      if(result.thumbnail&&!item.url){
+        const url=URL.createObjectURL(new Blob([result.thumbnail],{type:'image/webp'}));
+        urls.add(url);item.url=url;
+        const img=document.createElement('img');img.src=url;img.alt='';
+        item.el.querySelector('.thumbnail').replaceChildren(img);
+      }
+    };
+    local.onerror=()=>{
+      if(token!==previewVersion)return;
+      previewWorker=null;local.terminate();$('preview-status').textContent='Preview unavailable';
+    };
+    const payload={
+      bytes:data,bitmap,format:target,sourceFormat:item.format,
+      quality:Number($('quality').value),maxSize:$('resize').checked?Number($('max-size').value):null,
+      maxBytes:$('limit-size').checked?Math.floor(Number($('max-bytes').value)*Number($('size-unit').value)):null,
+      traceDetail:$('trace-detail').value,removeBackground:$('remove-bg').checked,
+      bgTolerance:Number($('bg-tolerance').value),bgMode:document.querySelector('[name="bg-mode"]:checked').value
+    };
+    local.postMessage(payload,bitmap?[data.buffer,bitmap]:[data.buffer]);
+  }catch(error){if(token===previewVersion)$('preview-status').textContent='Preview unavailable';}
+}
+function setWorkspace(next){
+  if(running||!workspaceCopy[next])return;
+  if(workspaceMode!==next&&!$('format').disabled)preferredFormats[workspaceMode]=$('format').value;
+  workspaceMode=next;
+  const [eyebrow,title,desc,settingsTitle]=workspaceCopy[next];
+  $('workspace-eyebrow').textContent=eyebrow;$('workspace-title').textContent=title;
+  $('workspace-description').textContent=desc;$('settings-title').textContent=settingsTitle;
+  document.querySelectorAll('[data-workspace]').forEach(el=>{
+    el.classList.toggle('active',el.dataset.workspace===next);
+    el.setAttribute('aria-current',el.dataset.workspace===next?'page':'false');
+  });
+  $('format').value=mode()==='replace'?'original':preferredFormats[next];
+  $('format').onchange();buttonState();
+}
+function updatePreviewSplit(){
+  const value=$('compare-slider').value;
+  $('original-layer').style.clipPath='inset(0 '+(100-value)+'% 0 0)';
+  $('comparison-line').style.left=value+'%';$('comparison-handle').style.left=value+'%';
+}
 const bytes = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`;
 function notice(message) { $('notice').textContent = message; }
 function buttonState() {
   const replacing = mode() === 'replace';
   $('compress').disabled = running || scanning || (!replacing && !output) || !items.length;
   const converting = $('format').value === 'svg' || items.some(item => item.format === 'svg');
-  $('compress').innerHTML = `${replacing ? 'Replace original images' : items.length && items.every(i => i.status === 'done') ? 'Process again' : converting ? 'Convert batch' : 'Compress batch'} ${icon('arrow')}`;
+  const amount=items.length+' image'+(items.length===1?'':'s');
+  const label=replacing?'Replace original images':items.length&&items.every(i=>i.status==='done')?'Export again':workspaceMode==='vectorize'&&$('format').value==='svg'?'Export '+items.length+' SVG'+(items.length===1?'':'s'):workspaceMode==='convert'?'Convert '+amount:'Compress '+amount;
+  $('compress').innerHTML=icon('upload')+' '+label;
   $('clear').disabled = running || scanning || (!items.length && !folderRoots.length);
   $('add').disabled = running || scanning;
   $('add-folder').disabled = running || scanning;
   $('drop').disabled = running || scanning;
+  $('add-sidebar').disabled=running||scanning;
+  document.querySelectorAll('[data-workspace]').forEach(el=>el.disabled=running);
   $('folder-modes').disabled = running || scanning;
   $('settings').disabled = running;
   $('total').textContent = items.length ? `${items.length} image${items.length === 1 ? '' : 's'} · ${bytes(items.reduce((s, i) => s + i.size, 0))} total` : 'No images added yet';
   $('count').textContent = items.length;
   $('empty-note').hidden = items.length > 0;
-  $('drop').classList.toggle('compact', items.length > 0);
+  $('drop').hidden=items.length>0;
+  $('preview-stage').classList.toggle('is-empty',!items.length);
   $('quick-panel').hidden = !folderRoots.length;
   $('folder-count').textContent = `${folderRoots.length} folder${folderRoots.length === 1 ? '' : 's'}`;
   $('source-folders').textContent = folderRoots.map(root => root.name).join(' · ');
@@ -71,7 +249,10 @@ function buttonState() {
   $('action-note').textContent = scanning ? 'Scanning subfolders…' : running ? 'Compressing locally. You can stop after the current image.' : !items.length ? 'Add images or a folder to begin.' : replacing ? 'Only successfully encoded images will be replaced.' : !output ? 'Choose where to save your compressed images.' : 'Ready to compress.';
 }
 function row(item) {
-  const el = document.createElement('div'); el.className = 'image-row'; el.dataset.id = item.id;
+  const el=document.createElement('div');el.className='image-row';el.dataset.id=item.id;
+  el.tabIndex=0;el.setAttribute('role','button');el.setAttribute('aria-label','Preview '+item.name);
+  el.onclick=()=>{if(!running)selectItem(item);};
+  el.onkeydown=e=>{if((e.key==='Enter'||e.key===' ')&&e.target===el){e.preventDefault();if(!running)selectItem(item);}};
   const thumb = document.createElement('div'); thumb.className = 'thumbnail'; thumb.innerHTML = icon('image');
   const info = document.createElement('div'); info.className = 'image-info';
   const name = document.createElement('strong'); name.textContent = item.rootId ? item.relative : item.name; name.title = item.relative || item.name;
@@ -79,14 +260,18 @@ function row(item) {
   info.append(name, detail);
   const status = document.createElement('span'); status.className = 'status'; status.textContent = 'Ready';
   const remove = document.createElement('button'); remove.className = 'remove'; remove.innerHTML = icon('x'); remove.setAttribute('aria-label', `Remove ${item.name}`);
-  remove.onclick = async () => { if (running) return; items = items.filter(i => i !== item); api.forgetImages([item.id]); if (item.url) { URL.revokeObjectURL(item.url); urls.delete(item.url); } el.remove(); buttonState(); };
+  remove.onclick=async e=>{e.stopPropagation();if(running)return;
+    items=items.filter(i=>i!==item);await api.forgetImages([item.id]);
+    if(item.url){URL.revokeObjectURL(item.url);urls.delete(item.url);}
+    el.remove();if(selectedId===item.id)selectItem(items[0]||null);else buttonState();
+  };
   el.append(thumb, info, status, remove); item.el = el;
   return el;
 }
 async function add(result) {
   const firstFolder = !folderRoots.length && result.roots?.length;
   folderRoots.push(...(result.roots || []));
-  if (firstFolder) { $('format').value = 'original'; $('format').onchange(); }
+  if(firstFolder){setWorkspace('compress');$('format').value='original';$('format').onchange();}
   let duplicates = 0;
   for (const file of result.files) {
     const existing = items.find(i => i.key === file.key);
@@ -96,41 +281,66 @@ async function add(result) {
     } else if (existing) { duplicates++; api.forgetImages([file.id]); continue; }
     const item = { ...file, status: 'ready' }; items.push(item); $('queue').append(row(item));
   }
-  $('summary').hidden = true; buttonState();
+  $('summary').hidden=true;buttonState();
+  if(!selectedItem()&&items.length)selectItem(items[0]);
   notice([result.ignored ? `${result.ignored} non-image or oversized file(s) excluded from compression.` : '', result.skipped ? `${result.skipped} symbolic links or special files skipped.` : '', duplicates ? `${duplicates} duplicate image(s) skipped.` : '', ...(result.warnings || []), !items.length && folderRoots.length ? 'No supported images found in the selected folders.' : ''].filter(Boolean).join(' '));
 }
-async function importFiles(load) { if (running || scanning) return; scanning = true; buttonState(); try { await add(await load()); } catch (e) { notice(e.message); } finally { scanning = false; buttonState(); } }
+async function importFiles(load) { if (running || scanning) return; scanning = true; buttonState(); try { await add(await load()); } catch (e) { notice(e.message); } finally { scanning = false; buttonState(); if(selectedItem()) queuePreview(); } }
 async function pick() { if (!api) { notice('Open the desktop app to select images and output folders.'); return; } await importFiles(() => api.pickImages()); }
-$('add').onclick = pick; $('drop').onclick = pick;
+$('add').onclick=pick;$('add-sidebar').onclick=pick;$('drop').onclick=pick;
+$('help').onclick=()=>notice('Add images or folders, choose a tool, inspect the result, choose a save destination, and export. Everything is processed locally.');
+document.querySelectorAll('[data-workspace]').forEach(el=>el.onclick=()=>setWorkspace(el.dataset.workspace));
+$('compare-slider').oninput=updatePreviewSplit;
+$('compare-view').onclick=()=>{
+  $('preview-stage').classList.remove('result-only');
+  $('compare-view').classList.add('selected');$('result-view').classList.remove('selected');
+};
+$('result-view').onclick=()=>{
+  $('preview-stage').classList.add('result-only');
+  $('result-view').classList.add('selected');$('compare-view').classList.remove('selected');
+};
+document.querySelectorAll('[data-trace]').forEach(el=>el.onclick=()=>{
+  $('trace-detail').value=el.dataset.trace;
+  document.querySelectorAll('[data-trace]').forEach(button=>button.classList.toggle('selected',button===el));
+  $('trace-hint').textContent=el.dataset.trace==='simple'?'Cleaner shapes and fewer colors. Great for simple icons.':el.dataset.trace==='detailed'?'More colors and contours for detailed artwork.':'Balanced shapes and colors. Great for logos.';
+  queuePreview();
+});
 $('add-folder').onclick = () => api ? importFiles(() => api.pickFolders()) : notice('Open the desktop app to select folders.');
-document.querySelectorAll('[name="folder-mode"]').forEach(el => el.onchange = () => { if (mode() === 'replace') $('format').value = 'original'; $('format').onchange(); buttonState(); });
+document.querySelectorAll('[name="folder-mode"]').forEach(el => el.onchange = () => { if(mode()==='replace'){$('format').value='original';workspaceMode='compress';}else if($('format').value==='original')$('format').value=preferredFormats[workspaceMode];$('format').onchange();buttonState(); });
 window.addEventListener('dragover', e => { e.preventDefault(); if (!running) $('drop').classList.add('dragging'); });
 window.addEventListener('dragleave', e => { if (!e.relatedTarget) $('drop').classList.remove('dragging'); });
 window.addEventListener('drop', async e => { e.preventDefault(); $('drop').classList.remove('dragging'); if (running || !api) return; const files = [...e.dataTransfer.files]; await importFiles(() => api.dropImages(files)); });
-$('clear').onclick = async () => { try { await api.clearInputs(); for (const url of urls) URL.revokeObjectURL(url); urls.clear(); items = []; folderRoots = []; $('queue').replaceChildren(); $('summary').hidden = true; notice(''); buttonState(); } catch (e) { notice(e.message); } };
+$('clear').onclick = async () => { try { await api.clearInputs(); for (const url of urls) URL.revokeObjectURL(url); urls.clear(); items = []; folderRoots = []; $('queue').replaceChildren(); $('summary').hidden = true; notice(''); selectItem(null); buttonState(); } catch (e) { notice(e.message); } };
 $('folder').onclick = async () => { if (!api) return; try { const folder = await api.pickOutput(); if (folder) { output = folder; $('folder-label').textContent = folder.split(/[\\/]/).filter(Boolean).pop() || folder; $('folder').title = folder; buttonState(); } } catch (e) { notice(e.message); } };
-function quality() { $('quality-value').innerHTML = `${$('quality').value}<span>%</span>`; document.querySelectorAll('[data-quality]').forEach(el => el.classList.toggle('selected', el.dataset.quality === $('quality').value)); }
+function quality() { $('quality-value').innerHTML = `${$('quality').value}<span>%</span>`; document.querySelectorAll('[data-quality]').forEach(el => el.classList.toggle('selected', el.dataset.quality === $('quality').value));queuePreview(); }
 $('quality').oninput = quality;
 document.querySelectorAll('[data-quality]').forEach(el => el.onclick = () => { $('quality').value = el.dataset.quality; quality(); });
-$('resize').onchange = () => { $('resize-options').hidden = !$('resize').checked; };
-$('limit-size').onchange = () => { $('limit-options').hidden = !$('limit-size').checked; };
-$('remove-bg').onchange = () => { $('background-controls').hidden = !$('remove-bg').checked; };
+$('resize').onchange=()=>{$('resize-options').hidden=!$('resize').checked;queuePreview();};
+$('limit-size').onchange=()=>{$('limit-options').hidden=!$('limit-size').checked;queuePreview();};
+$('remove-bg').onchange=()=>{$('background-controls').hidden=!$('remove-bg').checked;queuePreview();};
 document.querySelectorAll('[name="bg-mode"]').forEach(el => el.onchange = () => {
   const all = document.querySelector('[name="bg-mode"]:checked').value === 'all';
   $('bg-mode-hint').textContent = all
     ? 'Clears matching color anywhere, including inside O, e, and p. Same-colored logo details will also be removed.'
     : 'Removes background connected to the outside. Enclosed areas stay untouched.';
+  queuePreview();
 });
-$('bg-tolerance').oninput = () => { $('bg-value').textContent = $('bg-tolerance').value; };
+$('bg-tolerance').oninput=()=>{$('bg-value').textContent=$('bg-tolerance').value;queuePreview();};
+['max-size','max-bytes','size-unit'].forEach(id=>{$(id).onchange=queuePreview;});
+$('trace-detail').onchange=queuePreview;
 $('format').onchange = () => {
   const format = $('format').value, lossless = format === 'png' || format === 'svg';
   $('quality').disabled = lossless;
   document.querySelectorAll('[data-quality]').forEach(el => el.disabled = lossless);
   $('quality-value').innerHTML = format === 'svg' ? '<span>Vector</span>' : lossless ? '<span>Lossless</span>' : `${$('quality').value}<span>%</span>`;
-  $('trace-controls').hidden = format !== 'svg';
+  $('trace-controls').hidden=format!=='svg';
+  $('compression-controls').hidden=lossless;
+  $('preview-after-label').textContent=format==='svg'?'VECTOR':'RESULT';
+  $('preview-badge').textContent=format==='svg'?'SVG · transparent':format==='original'?'Original format':format.toUpperCase()+(format==='jpg'?' · opaque':' · transparency');
   $('remove-bg').disabled = format === 'jpg';
   if (format === 'jpg' && $('remove-bg').checked) { $('remove-bg').checked = false; $('remove-bg').onchange(); }
   $('format-hint').textContent = format === 'svg' ? 'Editable shapes. Transparent areas remain transparent with no added backdrop.' : format === 'png' ? 'Keeps every pixel. Size savings vary by image.' : format === 'original' ? 'Keeps formats. Existing SVG vectors remain SVG.' : format === 'jpg' ? 'Transparency becomes white. Background removal needs PNG, WebP, AVIF or SVG.' : format === 'avif' ? 'Supports transparency. Slower to encode.' : 'Supports transparency.';
+  queuePreview();buttonState();
 };
 async function encode(data, settings) {
   if (!worker) worker = new Worker(new URL('./codec.worker.js', import.meta.url), { type: 'module' });
@@ -153,7 +363,7 @@ $('compress').onclick = async () => {
   if (settings.removeBackground && settings.format === 'original' && items.some(item => item.format === 'jpg')) { notice('JPEG cannot save transparency. Choose PNG, WebP, AVIF or SVG to remove the background.'); return; }
   const outputMode = mode();
   if (outputMode === 'replace' && items.some(item => !item.rootId)) { notice('Clear individual image files from the queue before replacing a folder in place.'); return; }
-  running = true; stopped = false; buttonState(); notice(''); $('summary').hidden = true;
+  stopPreview();running=true;stopped=false;buttonState();notice('');$('summary').hidden=true;$('preview-status').textContent='Exporting…';
   $('compress').hidden = true; $('cancel').hidden = false; $('cancel').disabled = false; $('cancel').textContent = 'Stop after this image'; $('progress-wrap').hidden = false;
   document.querySelectorAll('.remove').forEach(el => el.disabled = true);
   const pending = folderRoots.length || items.every(i => i.status === 'done') ? [...items] : items.filter(i => i.status !== 'done'); let completed = 0, failed = 0, original = 0, compressed = 0, batch = null, startupError = null;
@@ -193,7 +403,8 @@ $('compress').onclick = async () => {
     const text = document.createElement('div'); const title = document.createElement('strong'); title.textContent = startupError ? stopped ? 'Batch stopped' : 'Batch could not start' : stopped ? 'Batch stopped' : failed ? 'Processing finished with errors' : 'Processing complete';
     const detail = document.createElement('p'); detail.textContent = `${completed} ${outputMode === 'replace' ? 'replaced' : 'saved'}${failed ? ` · ${failed} failed` : ''}${completed ? ` · ${delta >= 0 ? bytes(delta) + ' saved' : bytes(-delta) + ' larger'} · ${bytes(original)} → ${bytes(compressed)}` : ''}${stopped ? ' · Remaining images stay in the queue.' : ''}`;
     text.append(title, detail); const open = document.createElement('button'); open.className = 'button secondary'; open.innerHTML = `${icon('folder')}Open folder`; open.onclick = () => api.showOutput().catch(e => notice(e.message));
-    $('summary').append(mark, text); if (batch) $('summary').append(open); $('summary').hidden = false;
+    $('summary').append(mark,text);if(batch)$('summary').append(open);$('summary').hidden=false;
+    if(selectedItem())queuePreview();
   }
 };
-buttonState();
+setWorkspace('compress');updatePreviewSplit();buttonState();

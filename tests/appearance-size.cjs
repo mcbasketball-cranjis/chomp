@@ -21,9 +21,13 @@ const root = path.resolve(__dirname, '..');
     }
     const drag = await page.locator('.titlebar').evaluate(el => getComputedStyle(el).webkitAppRegion); assert.equal(drag, 'drag');
     if (process.platform === 'win32') assert.equal(await page.evaluate(() => navigator.windowControlsOverlay.visible), true);
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].maximize());
-    await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isMaximized())).toBe(true);
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].unmaximize());
+    // GitHub's Linux xvfb runner has no window manager, so maximization is unsupported there.
+    // Keep asserting native maximize/restore on regular desktop and packaged-host runs.
+    if (!(process.platform === 'linux' && process.env.CI)) {
+      await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].maximize());
+      await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isMaximized())).toBe(true);
+      await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].unmaximize());
+    }
     await app.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].setSize(960,720));
     await page.check('#limit-size'); await page.check('#resize');
     const layout=await page.evaluate(()=>({overflow:document.documentElement.scrollWidth>innerWidth,clipped:[...document.querySelectorAll('input,select,button')].filter(el=>el.getBoundingClientRect().width>0).some(el=>{const r=el.getBoundingClientRect();return r.left<0||r.right>innerWidth;})}));
