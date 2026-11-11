@@ -4,14 +4,14 @@ Batch image compression for Windows and macOS. Uses Squoosh-derived codecs throu
 
 ## Usage
 
-1. Windows: run `GatorSqoosh-<version>-win-x64-Setup.exe`. It installs the supporting files and a Start menu shortcut. macOS: open the DMG, drag GatorSqoosh into Applications, then eject the DMG.
+1. Windows: run `GatorSqoosh-<version>-win-x64-Setup.exe`. It installs the supporting files and a Start menu shortcut. macOS: open the DMG, drag GatorSqoosh into Applications.
 2. Drop images or folders into the window, or click **Add images** / **Add folder**.
 3. Choose an output format, set the quality, and optionally resize.
 4. Choose an output folder and click **Compress batch**.
 
 ## Appearance and size limits
 
-Choose **System**, **Light**, or **Dark** in the header. The preference is saved between launches. The Windows title bar uses the selected theme and native window controls. The supplied mountain icon is used in the interface and platform packages.
+Choose **System**, **Light**, or **Dark** in the header. The preference is saved between launches. 
 
 Enable **Maximum file size**, enter a value, and select KB or MB. The app first lowers quality within your selected quality setting, then reduces image dimensions if necessary. PNG fitting uses resizing because PNG compression is lossless. Limits range from 1 KB to 150 MB (1 KB = 1,024 bytes). Successful exports never exceed the limit. Failed images are not replaced; in full-folder copies, their original copies remain and may exceed the limit.
 
