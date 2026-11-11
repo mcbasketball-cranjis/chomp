@@ -24,12 +24,8 @@ jobs:
             platform: mac
             arch: x64
             command: dist:mac
-          # macos-26 arm64 occasionally remains unassigned and the job is cancelled.
-          # macos-15 is also a native Apple Silicon M1 runner, not Intel emulation.
-          - os: macos-15
-            platform: mac
-            arch: arm64
-            command: dist:mac
+          # The Intel Mac runner builds native x64 and cross-packages arm64.
+          # macOS ARM hosted runners have repeatedly failed to acquire a machine.
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -49,6 +45,17 @@ jobs:
           CSC_LINK: ${{ matrix.platform == 'win' && secrets.WINDOWS_CSC_LINK || '' }}
           CSC_KEY_PASSWORD: ${{ matrix.platform == 'win' && secrets.WINDOWS_CSC_KEY_PASSWORD || '' }}
       - run: pnpm test:package
+      - name: Cross-package Apple Silicon (arm64) on Intel macOS
+        if: matrix.platform == 'mac'
+        run: pnpm exec electron-builder --mac dmg zip --arm64 --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Verify Intel macOS DMG architecture and contents
+        if: matrix.platform == 'mac'
+        run: node scripts/verify-dmg.mjs x64
+      - name: Verify Apple Silicon DMG architecture and contents (static; no native execution)
+        if: matrix.platform == 'mac'
+        run: node scripts/verify-dmg.mjs arm64
       - name: Build previous-version upgrade fixtures
         if: runner.os == 'Windows'
         run: node scripts/build-upgrade-fixtures.mjs
@@ -71,9 +78,6 @@ jobs:
         if: runner.os == 'Windows'
         shell: powershell
         run: ./scripts/defender-scan.ps1
-      - name: Verify Mac drag-to-Applications DMG
-        if: runner.os == 'macOS'
-        run: node scripts/verify-dmg.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: packages-${{ matrix.platform }}-${{ matrix.arch }}

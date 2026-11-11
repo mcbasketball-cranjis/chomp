@@ -35,4 +35,4 @@ Select the DMG for **Apple Silicon (arm64)** or **Intel (x64)**, then drag Chomp
 
 ## Verification
 
-The release workflow checks Windows and both macOS architectures, desktop vector and compression flows, installers/upgrades, portable packages, and signing-kit contents before publishing. Windows Defender scan status and hashes are included when available.
+The release workflow executes desktop conversion tests for Windows x64 and Intel macOS, and checks their installers and distribution packages. Due to recurring GitHub-hosted Apple Silicon runner allocation failures, the arm64 DMG and ZIP are cross-packaged on an Intel Mac and statically checked for an actual arm64 executable, application contents, and DMG layout. **The arm64 app is not executed on native Apple Silicon hardware in this CI run.** Windows upgrade, portable and signing-kit checks still run. Windows Defender scan status and hashes are included when available.
