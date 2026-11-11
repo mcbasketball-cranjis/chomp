@@ -27,3 +27,38 @@ jobs:
       - run: xvfb-run --auto-servernum pnpm test:desktop
       - run: xvfb-run --auto-servernum pnpm test:folders
       - run: xvfb-run --auto-servernum pnpm test:appearance
+
+  mac-icon:
+    runs-on: macos-15-intel
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Select Xcode 26
+        shell: bash
+        run: |
+          shopt -s nullglob
+          xcodes=(/Applications/Xcode_26*.app)
+          if (( ${#xcodes[@]} == 0 )); then
+            echo "Xcode 26 is required for Apple Icon Composer" >&2
+            exit 1
+          fi
+          selected="${xcodes[${#xcodes[@]}-1]}"
+          sudo xcode-select --switch "$selected/Contents/Developer"
+          xcodebuild -version
+      - run: pnpm install --frozen-lockfile
+      - run: node node_modules/electron/install.js
+      - name: Build and verify Intel Mac package with native layered icon
+        run: |
+          pnpm dist:mac
+          node scripts/verify-dmg.mjs x64
+      - name: Cross-build and verify Apple Silicon package with native layered icon
+        run: |
+          pnpm exec electron-builder --mac dmg zip --arm64 --publish never
+          node scripts/verify-dmg.mjs arm64
