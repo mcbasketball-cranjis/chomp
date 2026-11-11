@@ -24,7 +24,9 @@ jobs:
             platform: mac
             arch: x64
             command: dist:mac
-          - os: macos-26
+          # macos-26 arm64 occasionally remains unassigned and the job is cancelled.
+          # macos-15 is also a native Apple Silicon M1 runner, not Intel emulation.
+          - os: macos-15
             platform: mac
             arch: arm64
             command: dist:mac
