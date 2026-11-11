@@ -1,26 +1,38 @@
-## Chomp 1.3.1
+# Chomp 1.4.0 — Vector conversion and transparent backgrounds
 
-- Windows setup updates installed Chomp versions and removes installed GatorSqoosh copies for the same Windows user, including old shortcuts and uninstall registration. User data is retained. Portable copies must be replaced manually.
-- Every Windows ZIP includes **Sign on this PC.cmd**, **Sign installed Chomp.cmd**, the PowerShell signing script, and instructions. Existing local Chomp/GatorSqoosh signing keys are reused where available; private keys stay on that computer.
-- CI tests previous-version installers, migration, repeat upgrades, user-data preservation, local signing, and signing-kit contents.
+Chomp now traces ordinary images into **real, editable SVG vector paths** and converts SVG files back into regular image formats. The entire process runs on your computer without an AI service, account, or uploads.
+
+## What's new
+
+- **Raster → SVG tracing:** Convert PNG, JPEG, WebP, or AVIF artwork into actual vector shapes, not an SVG containing an embedded bitmap. Choose **Simple**, **Balanced**, or **Detailed** tracing.
+- **Transparent logo conversion:** PNG transparency stays transparent in SVG exports; Chomp doesn't add a white background.
+- **Remove backgrounds without AI:** Optional corner-color detection works with plain white, black, or similarly colored image backgrounds, including JPG files.
+- **Choose the removal area:** **Edges only** (default) removes the connected outer background while preserving enclosed matching colors. **Everywhere** also removes matching background color in enclosed holes, such as letters **O, e, p, and a**. The latter may remove genuine same-colored details; adjust tolerance to suit your logo.
+- **SVG → PNG, WebP, JPEG, or AVIF:** Rasterize vector artwork with transparency preserved in supported formats. JPEG always has an opaque background.
+- **Batch and folder workflows:** SVG is available alongside the existing formats; original files remain untouched unless you explicitly select the existing replace-originals mode.
+- **New tests:** Automated SVG round trips, JPEG background removal, enclosed lettering, source preservation, and local build checks.
+
+**Best suited to:** logos, icons, flat illustrations, and other simple graphics. Photograph tracing is approximate; complex photo cutouts and AI masking are not included.
+
+## Windows upgrades and distribution
+
+- Windows Setup updates previously installed Chomp versions and migrates old installed GatorSqoosh copies, including old shortcuts and uninstall registration. Existing app data is retained. Portable copies must be replaced manually.
+- Windows ZIP bundles include **Sign on this PC.cmd**, **Sign installed Chomp.cmd**, the local PowerShell signing script, and instructions; the standalone EXEs have a separate **Chomp-Windows-Signing-Kit.zip**.
+- The optional local signing workflow keeps private keys on your computer and does not install certificate trust or bypass security policy. Self-signing does not guarantee Windows SmartScreen acceptance.
 
 ### Windows downloads
 
-- [Installer + signing kit](https://github.com/mcbasketball-cranjis/chomp/releases/download/v1.3.1/Chomp-1.3.1-win-x64-Setup.zip): extract everything, run **Sign on this PC.cmd**, then Setup.exe. After installing, use **Sign installed Chomp.cmd** if the installed app also needs signing.
-- [Single-file portable + signing kit](https://github.com/mcbasketball-cranjis/chomp/releases/download/v1.3.1/Chomp-1.3.1-win-x64-Portable.zip): extract everything, run **Sign on this PC.cmd**, then Portable.exe.
-- [Portable folder + signing kit](https://github.com/mcbasketball-cranjis/chomp/releases/download/v1.3.1/Chomp-1.3.1-win-x64.zip): extract everything, run **Sign on this PC.cmd**, then Chomp.exe. Keep its supporting app files together.
-- Standalone Setup.exe and Portable.exe remain available; download **Chomp-Windows-Signing-Kit.zip** beside either EXE for the same signing commands.
+After publication, download assets from the [Chomp 1.4.0 release](https://github.com/mcbasketball-cranjis/chomp/releases/tag/v1.4.0):
 
-From Windows PowerShell in the extracted folder:
+- **Installer + signing kit:** `Chomp-1.4.0-win-x64-Setup.zip`.
+- **Single-file portable + signing kit:** `Chomp-1.4.0-win-x64-Portable.zip`.
+- **Portable folder + signing kit:** `Chomp-1.4.0-win-x64.zip`.
+- The installer and portable EXEs are also available separately.
 
-```powershell
-powershell.exe -NoProfile -File ".\Sign-Locally.ps1"
-# After installation or an update:
-powershell.exe -NoProfile -File ".\Sign-Locally.ps1" -Installed
-```
+### macOS downloads
 
-The script creates/reuses a non-exportable local signing key after you approve it. It does not install certificate trust or change security policy. Self-signing can still be blocked by SmartScreen or company policy and does not verify the original publisher. Signing an installer does not sign its embedded app. Compare original EXE hashes with Defender-scan.json before signing; signing changes the hashes.
+Select the DMG for **Apple Silicon (arm64)** or **Intel (x64)**, then drag Chomp into Applications. macOS packages are currently unsigned and not notarized.
 
-### macOS
+## Verification
 
-Open the DMG for Apple Silicon (arm64) or Intel (x64) and drag Chomp into Applications. Apps are not Apple-signed or notarized.
+The release workflow checks Windows and both macOS architectures, desktop vector and compression flows, installers/upgrades, portable packages, and signing-kit contents before publishing. Windows Defender scan status and hashes are included when available.

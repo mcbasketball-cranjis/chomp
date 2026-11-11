@@ -1,0 +1,241 @@
+/**
+ * Dependency-free, local raster tracing for logos and illustrations.
+ * Transparent pixels are never assigned a fill; the generated SVG has no backdrop.
+ * Each palette color is represented by actual, editable paths (no embedded bitmap).
+ */
+
+const TRACE_PRESETS = {
+  simple: { colors: 8, edge: 384, tolerance: 1.7, minArea: 2 },
+  balanced: { colors: 20, edge: 640, tolerance: 0.85, minArea: 1 },
+  detailed: { colors: 36, edge: 896, tolerance: 0.35, minArea: 0.5 }
+};
+
+export function tracePreset(name = 'balanced') {
+  return TRACE_PRESETS[name] || TRACE_PRESETS.balanced;
+}
+
+function distanceSquared(data, p, color) {
+  const dr = data[p] - color[0], dg = data[p + 1] - color[1], db = data[p + 2] - color[2];
+  return dr * dr + dg * dg + db * db;
+}
+
+/**
+ * Remove a color sampled from agreeing opaque image corners (never assume white).
+ * 'edges' removes only connected exterior pixels; 'all' also clears enclosed
+ * background-colored holes in letterforms such as O, e, and p.
+ * This intentionally cannot distinguish other matching-colored logo details.
+ */
+export function removeBackgroundColor(image, tolerance = 28, mode = 'edges') {
+  if (!['edges', 'all'].includes(mode)) throw new Error('Invalid background removal mode.');
+  const { width, height, data } = image;
+  if (!width || !height || data.length < width * height * 4) throw new Error('Invalid image data.');
+  const limit = Math.max(0, Math.min(100, Number(tolerance) || 0));
+  const corners = [0, width - 1, (height - 1) * width, height * width - 1].filter(i => data[i * 4 + 3] >= 240);
+  if (corners.length < 2) return 0;
+  let seed = -1, matches = 0;
+  for (const i of corners) {
+    const other = corners.filter(j => distanceSquared(data, j * 4, [data[i * 4], data[i * 4 + 1], data[i * 4 + 2]]) <= limit * limit * 3).length;
+    if (other > matches) { seed = i; matches = other; }
+  }
+  if (matches < 2) return 0;
+  const background = [data[seed * 4], data[seed * 4 + 1], data[seed * 4 + 2]];
+  const maxDistance = limit * limit * 3;
+  if (mode === 'all') {
+    let removed = 0;
+    for (let index = 0; index < width * height; index++) {
+      const p = index * 4;
+      if (data[p + 3] >= 8 && distanceSquared(data, p, background) <= maxDistance) {
+        data[p + 3] = 0;
+        removed++;
+      }
+    }
+    return removed;
+  }
+  const visited = new Uint8Array(width * height);
+  const queue = new Uint32Array(width * height);
+  let head = 0, tail = 0, removed = 0;
+  function enqueue(index) {
+    if (visited[index]) return;
+    visited[index] = 1;
+    const p = index * 4;
+    if (data[p + 3] < 8 || distanceSquared(data, p, background) > limit * limit * 3) return;
+    queue[tail++] = index;
+  }
+  for (let x = 0; x < width; x++) { enqueue(x); enqueue((height - 1) * width + x); }
+  for (let y = 1; y < height - 1; y++) { enqueue(y * width); enqueue(y * width + width - 1); }
+  while (head < tail) {
+    const index = queue[head++], p = index * 4;
+    data[p + 3] = 0; removed++;
+    const x = index % width, y = Math.floor(index / width);
+    if (x) enqueue(index - 1);
+    if (x + 1 < width) enqueue(index + 1);
+    if (y) enqueue(index - width);
+    if (y + 1 < height) enqueue(index + width);
+  }
+  return removed;
+}
+
+// Preserve the original public helper and its edge-only behavior for callers.
+export function removeConnectedBackground(image, tolerance = 28) {
+  return removeBackgroundColor(image, tolerance, 'edges');
+}
+
+function medianCutPalette(data, colorCount) {
+  const count = data.length / 4, stride = Math.max(1, Math.ceil(count / 16000));
+  const samples = [];
+  for (let i = 0; i < count; i += stride) {
+    const p = i * 4;
+    if (data[p + 3] >= 8) samples.push([data[p], data[p + 1], data[p + 2], data[p + 3]]);
+  }
+  if (!samples.length) return [];
+  const boxes = [samples];
+  while (boxes.length < colorCount) {
+    let selected = -1, axis = 0, score = -1;
+    for (let b = 0; b < boxes.length; b++) {
+      const box = boxes[b];
+      if (box.length < 2) continue;
+      for (let channel = 0; channel < 4; channel++) {
+        let low = 255, high = 0;
+        for (const pixel of box) { low = Math.min(low, pixel[channel]); high = Math.max(high, pixel[channel]); }
+        const range = high - low;
+        const priority = range * Math.sqrt(box.length) * (channel === 3 ? 1.2 : 1);
+        if (range && priority > score) { score = priority; selected = b; axis = channel; }
+      }
+    }
+    if (selected < 0) break;
+    const box = boxes[selected].sort((a, b) => a[axis] - b[axis]);
+    const middle = Math.floor(box.length / 2);
+    boxes.splice(selected, 1, box.slice(0, middle), box.slice(middle));
+  }
+  return boxes.map(box => {
+    const total = [0, 0, 0, 0];
+    for (const p of box) for (let k = 0; k < 4; k++) total[k] += p[k];
+    return total.map(v => Math.round(v / box.length));
+  });
+}
+
+function perpendicularDistance(point, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  if (!dx && !dy) return Math.hypot(point[0] - a[0], point[1] - a[1]);
+  return Math.abs(dx * (a[1] - point[1]) - (a[0] - point[0]) * dy) / Math.hypot(dx, dy);
+}
+
+function simplifyOpen(points, tolerance) {
+  if (points.length <= 2) return points;
+  const keep = new Uint8Array(points.length);
+  keep[0] = keep[points.length - 1] = 1;
+  const stack = [[0, points.length - 1]];
+  while (stack.length) {
+    const [start, end] = stack.pop();
+    let farthest = 0, index = -1;
+    for (let i = start + 1; i < end; i++) {
+      const distance = perpendicularDistance(points[i], points[start], points[end]);
+      if (distance > farthest) { farthest = distance; index = i; }
+    }
+    if (farthest > tolerance && index > start) { keep[index] = 1; stack.push([start, index], [index, end]); }
+  }
+  return points.filter((_, i) => keep[i]);
+}
+
+function simplifyRing(points, tolerance) {
+  if (points.length <= 4) return points;
+  const a = points[0];
+  let farthest = 1, farDistance = 0;
+  for (let i = 1; i < points.length; i++) {
+    const d = (points[i][0] - a[0]) ** 2 + (points[i][1] - a[1]) ** 2;
+    if (d > farDistance) { farDistance = d; farthest = i; }
+  }
+  const first = simplifyOpen(points.slice(0, farthest + 1), tolerance);
+  const second = simplifyOpen([...points.slice(farthest), points[0]], tolerance);
+  const ring = [...first.slice(0, -1), ...second.slice(0, -1)];
+  return ring.length >= 3 ? ring : points;
+}
+
+function areaOf(points) {
+  let area = 0;
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i], b = points[(i + 1) % points.length];
+    area += a[0] * b[1] - b[0] * a[1];
+  }
+  return Math.abs(area / 2);
+}
+
+function colorContours(indices, width, height, color, tolerance, minArea) {
+  const outgoing = new Map(), edges = [];
+  const stride = width + 1;
+  function add(x, y, tx, ty, direction) {
+    const from = y * stride + x, to = ty * stride + tx;
+    const edge = { from, to, direction, used: false, x, y };
+    const index = edges.push(edge) - 1;
+    if (!outgoing.has(from)) outgoing.set(from, []);
+    outgoing.get(from).push(index);
+  }
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const p = y * width + x;
+    if (indices[p] !== color) continue;
+    if (!y || indices[p - width] !== color) add(x, y, x + 1, y, 0);
+    if (x === width - 1 || indices[p + 1] !== color) add(x + 1, y, x + 1, y + 1, 1);
+    if (y === height - 1 || indices[p + width] !== color) add(x + 1, y + 1, x, y + 1, 2);
+    if (!x || indices[p - 1] !== color) add(x, y + 1, x, y, 3);
+  }
+  const paths = [];
+  for (const first of edges) {
+    if (first.used) continue;
+    const loop = [];
+    let current = first, closed = false;
+    while (current && !current.used) {
+      current.used = true;
+      loop.push([current.x, current.y]);
+      if (current.to === first.from) { closed = true; break; }
+      const choices = (outgoing.get(current.to) || []).filter(i => !edges[i].used);
+      if (!choices.length) break;
+      // Prefer a right turn at corner-touching regions to keep diagonal islands distinct.
+      choices.sort((a, b) => ((edges[a].direction - current.direction + 4) % 4 || 4) - ((edges[b].direction - current.direction + 4) % 4 || 4));
+      current = edges[choices[0]];
+    }
+    if (!closed || loop.length < 4 || areaOf(loop) < minArea) continue;
+    const simplified = simplifyRing(loop, tolerance);
+    paths.push('M' + simplified.map(p => p[0] + ' ' + p[1]).join('L') + 'Z');
+  }
+  return paths.join('');
+}
+
+/**
+ * Generate genuine SVG paths from an RGBA ImageData-like object.
+ * Call on a downsampled canvas for predictable performance; preserve the desired
+ * document dimensions via width/height while viewBox uses the trace raster.
+ */
+export function traceImageData(image, options = {}) {
+  const { width, height, data } = image;
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1 || data.length !== width * height * 4) throw new Error('Invalid RGBA image for tracing.');
+  if (width * height > 1_200_000) throw new Error('Image is too large to trace. Reduce the trace resolution.');
+  const preset = tracePreset(options.detail);
+  const palette = medianCutPalette(data, preset.colors);
+  const indices = new Int16Array(width * height).fill(-1);
+  for (let i = 0; i < indices.length; i++) {
+    const p = i * 4, alpha = data[p + 3];
+    if (alpha < 8) continue;
+    let closest = 0, best = Infinity;
+    for (let c = 0; c < palette.length; c++) {
+      const color = palette[c];
+      const dr = data[p] - color[0], dg = data[p + 1] - color[1], db = data[p + 2] - color[2], da = alpha - color[3];
+      const error = dr * dr + dg * dg + db * db + 2 * da * da;
+      if (error < best) { best = error; closest = c; }
+    }
+    indices[i] = closest;
+  }
+  const docWidth = Math.max(1, Math.round(options.outputWidth || width));
+  const docHeight = Math.max(1, Math.round(options.outputHeight || height));
+  let svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + docWidth + '" height="' + docHeight +
+    '" viewBox="0 0 ' + width + ' ' + height + '">';
+  for (let c = 0; c < palette.length; c++) {
+    const path = colorContours(indices, width, height, c, preset.tolerance, preset.minArea);
+    if (!path) continue;
+    const color = palette[c];
+    const hex = '#' + color.slice(0, 3).map(n => n.toString(16).padStart(2, '0')).join('');
+    const opacity = color[3] < 255 ? ' fill-opacity="' + (color[3] / 255).toFixed(3) + '"' : '';
+    svg += '<path fill="' + hex + '"' + opacity + ' fill-rule="evenodd" d="' + path + '"/>';
+    if (svg.length > 12_000_000) throw new Error('Too many vector paths. Try Simple tracing or resize your image.');
+  }
+  return svg + '</svg>';
+}

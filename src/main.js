@@ -1,3 +1,4 @@
+import { decodeSvgBitmap } from './svg-input.js';
 import './style.css';
 const icons = {
   layers: '<rect x="4" y="4" width="11" height="11" rx="3"/><path d="M9 19h8a3 3 0 0 0 3-3V9"/>',
@@ -15,15 +16,17 @@ const icon = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
 document.querySelector('#app').innerHTML = `
 <div class="titlebar"><img src="./icon.png" alt=""><span>Chomp</span></div>
 <header class="topbar"><a class="brand" href="#" aria-label="Chomp home"><img class="brand-mark" src="./icon.png" alt="Chomp">Chomp</a></header>
-<main><section class="intro"><div><h1>Bulk image compression</h1><p>Compress images and save them to a folder.</p></div></section>
-<div class="workspace"><section class="queue-panel"><div class="panel-heading"><div><h2>Your images <span id="count" class="count">0</span></h2><p>JPEG, PNG, WebP & AVIF · up to 512 MB each</p></div><div class="add-actions"><button id="add-folder" class="button secondary">${icon('folder')}Add folder</button><button id="add" class="button secondary">${icon('plus')}Add images</button></div></div>
+<main><section class="intro"><div><h1>Compress & vectorize images</h1><p>Compress, convert, or trace images into editable SVG vectors. Everything stays on your device.</p></div></section>
+<div class="workspace"><section class="queue-panel"><div class="panel-heading"><div><h2>Your images <span id="count" class="count">0</span></h2><p>JPEG, PNG, WebP, AVIF & SVG · up to 512 MB each</p></div><div class="add-actions"><button id="add-folder" class="button secondary">${icon('folder')}Add folder</button><button id="add" class="button secondary">${icon('plus')}Add images</button></div></div>
 <button id="drop" class="dropzone"><span class="upload-icon">${icon('upload')}</span><strong>Drop images or folders here</strong><span>or <b>browse files</b> to get started</span><span class="drop-note">Folders include images in all subfolders.</span></button>
 <section id="quick-panel" class="quick-panel" hidden><div class="quick-heading"><h2>Quick compress</h2><span id="folder-count"></span></div><p id="source-folders"></p><fieldset id="folder-modes"><label class="mode-option"><input type="radio" name="folder-mode" value="copy" checked><span><strong>Duplicate folder</strong><small>Copy the folder and replace its images. Keep all other files.</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="images"><span><strong>Images only</strong><small>Export compressed images with the same subfolder structure.</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="replace"><span><strong>Replace originals</strong><small>Overwrite images in the source folders. Other files stay unchanged.</small></span></label></fieldset><p id="mode-note" class="mode-note"></p></section>
 <div id="queue" class="queue" aria-label="Image queue"></div>
 <div id="empty-note" class="empty-note"><img class="empty-logo" src="./icon.png" alt=""><strong>No images added</strong><p>Drop images above or click Add images.</p></div>
 <div class="queue-footer"><span id="total">No images added yet</span><button id="clear" class="text-button" disabled>Clear all</button></div>
 </section>
-<aside class="settings-panel"><div class="settings-title"><img class="tiny-icon" src="./icon.png" alt=""><h2>Compression settings</h2></div><fieldset id="settings"><label class="field-label" for="format">Output format</label><div class="select-wrap"><select id="format"><option value="original">Keep original format</option><option value="webp" selected>WebP</option><option value="jpg">JPEG</option><option value="png">PNG (lossless)</option><option value="avif">AVIF</option></select></div><p id="format-hint" class="hint">Supports transparency.</p>
+<aside class="settings-panel"><div class="settings-title"><img class="tiny-icon" src="./icon.png" alt=""><h2>Compression settings</h2></div><fieldset id="settings"><label class="field-label" for="format">Output format</label><div class="select-wrap"><select id="format"><option value="original">Keep original format</option><option value="webp" selected>WebP</option><option value="jpg">JPEG</option><option value="png">PNG (lossless)</option><option value="avif">AVIF</option><option value="svg">SVG (editable vectors)</option></select></div><p id="format-hint" class="hint">Supports transparency.</p>
+<div id="trace-controls" class="trace-controls" hidden><label class="field-label" for="trace-detail">Vector tracing detail</label><div class="select-wrap"><select id="trace-detail"><option value="simple">Simple · clean logos</option><option value="balanced" selected>Balanced · recommended</option><option value="detailed">Detailed · more colors and edges</option></select></div><p class="hint">Creates actual SVG paths, not a bitmap inside an SVG. Transparent pixels stay transparent.</p></div>
+<div class="divider"></div><label class="toggle-row"><span><strong>Remove background</strong><small>Optional. Detect a solid background at image edges.</small></span><input id="remove-bg" type="checkbox" role="switch"><span class="switch"></span></label><div id="background-controls" hidden><fieldset class="bg-scope"><legend class="field-label">Removal area</legend><label class="bg-mode-option"><input type="radio" name="bg-mode" value="edges" checked><span>Edges only</span></label><label class="bg-mode-option"><input type="radio" name="bg-mode" value="all"><span>Everywhere · including letter holes</span></label></fieldset><p id="bg-mode-hint" class="hint">Removes background connected to the outside. Enclosed areas stay untouched.</p><div class="label-row"><label class="field-label" for="bg-tolerance">Background tolerance</label><output id="bg-value">28</output></div><input type="range" id="bg-tolerance" min="0" max="100" value="28"></div>
 <div class="label-row"><label class="field-label" for="quality">Quality</label><output id="quality-value">80<span>%</span></output></div><input id="quality" type="range" min="1" max="100" value="80"><div class="range-labels"><span>Smaller file</span><span>More detail</span></div>
 <div class="presets" aria-label="Quality presets"><button data-quality="60">Smallest</button><button data-quality="80" class="selected">Balanced</button><button data-quality="92">Best quality</button></div>
 <div class="divider"></div><label class="toggle-row"><span><strong>Maximum file size</strong><small>Set a size limit for each image.</small></span><input id="limit-size" type="checkbox" role="switch"><span class="switch"></span></label><div id="limit-options" hidden><label class="field-label" for="max-bytes">Maximum per image</label><div class="size-input"><input id="max-bytes" type="number" min="0.001" step="any" value="500"><select id="size-unit" aria-label="File size unit"><option value="1024">KB</option><option value="1048576">MB</option></select></div><p class="hint">Lowers quality, then dimensions as needed. PNG may be resized.</p></div>
@@ -45,7 +48,8 @@ function notice(message) { $('notice').textContent = message; }
 function buttonState() {
   const replacing = mode() === 'replace';
   $('compress').disabled = running || scanning || (!replacing && !output) || !items.length;
-  $('compress').innerHTML = `${replacing ? 'Replace original images' : items.length && items.every(i => i.status === 'done') ? 'Compress again' : 'Compress batch'} ${icon('arrow')}`;
+  const converting = $('format').value === 'svg' || items.some(item => item.format === 'svg');
+  $('compress').innerHTML = `${replacing ? 'Replace original images' : items.length && items.every(i => i.status === 'done') ? 'Process again' : converting ? 'Convert batch' : 'Compress batch'} ${icon('arrow')}`;
   $('clear').disabled = running || scanning || (!items.length && !folderRoots.length);
   $('add').disabled = running || scanning;
   $('add-folder').disabled = running || scanning;
@@ -110,19 +114,32 @@ $('quality').oninput = quality;
 document.querySelectorAll('[data-quality]').forEach(el => el.onclick = () => { $('quality').value = el.dataset.quality; quality(); });
 $('resize').onchange = () => { $('resize-options').hidden = !$('resize').checked; };
 $('limit-size').onchange = () => { $('limit-options').hidden = !$('limit-size').checked; };
+$('remove-bg').onchange = () => { $('background-controls').hidden = !$('remove-bg').checked; };
+document.querySelectorAll('[name="bg-mode"]').forEach(el => el.onchange = () => {
+  const all = document.querySelector('[name="bg-mode"]:checked').value === 'all';
+  $('bg-mode-hint').textContent = all
+    ? 'Clears matching color anywhere, including inside O, e, and p. Same-colored logo details will also be removed.'
+    : 'Removes background connected to the outside. Enclosed areas stay untouched.';
+});
+$('bg-tolerance').oninput = () => { $('bg-value').textContent = $('bg-tolerance').value; };
 $('format').onchange = () => {
-  const format = $('format').value, lossless = format === 'png';
+  const format = $('format').value, lossless = format === 'png' || format === 'svg';
   $('quality').disabled = lossless;
   document.querySelectorAll('[data-quality]').forEach(el => el.disabled = lossless);
-  $('quality-value').innerHTML = lossless ? '<span>Lossless</span>' : `${$('quality').value}<span>%</span>`;
-  $('format-hint').textContent = lossless ? 'Keeps every pixel. Size savings vary by image.' : format === 'original' ? 'Keeps filenames and formats. PNG compression is lossless.' : format === 'jpg' ? 'Transparency becomes white.' : format === 'avif' ? 'Supports transparency. Slower to encode.' : 'Supports transparency.';
+  $('quality-value').innerHTML = format === 'svg' ? '<span>Vector</span>' : lossless ? '<span>Lossless</span>' : `${$('quality').value}<span>%</span>`;
+  $('trace-controls').hidden = format !== 'svg';
+  $('remove-bg').disabled = format === 'jpg';
+  if (format === 'jpg' && $('remove-bg').checked) { $('remove-bg').checked = false; $('remove-bg').onchange(); }
+  $('format-hint').textContent = format === 'svg' ? 'Editable shapes. Transparent areas remain transparent with no added backdrop.' : format === 'png' ? 'Keeps every pixel. Size savings vary by image.' : format === 'original' ? 'Keeps formats. Existing SVG vectors remain SVG.' : format === 'jpg' ? 'Transparency becomes white. Background removal needs PNG, WebP, AVIF or SVG.' : format === 'avif' ? 'Supports transparency. Slower to encode.' : 'Supports transparency.';
 };
-function encode(data, settings) {
+async function encode(data, settings) {
   if (!worker) worker = new Worker(new URL('./codec.worker.js', import.meta.url), { type: 'module' });
+  // SVG files must be decoded with an HTMLImageElement on the document thread.
+  const bitmap = settings.sourceFormat === 'svg' ? await decodeSvgBitmap(data) : null;
   return new Promise((resolve, reject) => {
     worker.onmessage = event => event.data.error ? reject(new Error(event.data.error)) : resolve(event.data);
     worker.onerror = () => { worker.terminate(); worker = null; reject(new Error('The image worker stopped. Try a smaller image.')); };
-    worker.postMessage({ bytes: data, ...settings }, [data.buffer]);
+    worker.postMessage({ bytes: data, bitmap, ...settings }, bitmap ? [data.buffer, bitmap] : [data.buffer]);
   });
 }
 function updateItem(item, text, state) { item.status = state; item.el.querySelector('.status').textContent = text; item.el.querySelector('.status').className = `status ${state}`; }
@@ -132,7 +149,8 @@ $('compress').onclick = async () => {
   if ($('resize').checked && (!Number.isInteger(maxSize) || maxSize < 64 || maxSize > 32768)) { notice('Enter a maximum edge between 64 and 32,768 pixels.'); $('max-size').focus(); return; }
   const maxBytes = $('limit-size').checked ? Math.floor(Number($('max-bytes').value) * Number($('size-unit').value)) : null;
   if (maxBytes !== null && (!Number.isInteger(maxBytes) || maxBytes < 1024 || maxBytes > 512 * 1024 * 1024)) { notice('Set a file size between 1 KB and 512 MB.'); $('max-bytes').focus(); return; }
-  const settings = { format: $('format').value, quality: Number($('quality').value), maxSize: $('resize').checked ? maxSize : null, maxBytes };
+  const settings = { format: $('format').value, quality: Number($('quality').value), maxSize: $('resize').checked ? maxSize : null, maxBytes, traceDetail: $('trace-detail').value, removeBackground: $('remove-bg').checked, bgTolerance: Number($('bg-tolerance').value), bgMode: document.querySelector('[name="bg-mode"]:checked').value };
+  if (settings.removeBackground && settings.format === 'original' && items.some(item => item.format === 'jpg')) { notice('JPEG cannot save transparency. Choose PNG, WebP, AVIF or SVG to remove the background.'); return; }
   const outputMode = mode();
   if (outputMode === 'replace' && items.some(item => !item.rootId)) { notice('Clear individual image files from the queue before replacing a folder in place.'); return; }
   running = true; stopped = false; buttonState(); notice(''); $('summary').hidden = true;
@@ -145,13 +163,13 @@ $('compress').onclick = async () => {
     batch = await api.beginBatch({ ids: pending.map(item => item.id), mode: outputMode, maxBytes });
     for (const item of pending) {
       if (stopped) break;
-      updateItem(item, 'Compressing…', 'working');
-      $('progress-text').textContent = 'Compressing images'; $('progress-count').textContent = `${completed + failed + 1} / ${pending.length}`;
+      updateItem(item, 'Processing…', 'working');
+      $('progress-text').textContent = 'Processing images'; $('progress-count').textContent = `${completed + failed + 1} / ${pending.length}`;
       try {
         const data = await api.readImage(item.id);
         const inputSize = data.byteLength;
         const format = settings.format === 'original' ? item.format : settings.format;
-        const result = await encode(data, { ...settings, format });
+        const result = await encode(data, { ...settings, format, sourceFormat: item.format });
         const saved = await api.saveImage({ id: item.id, batchId: batch.id, format, bytes: result.bytes });
         item.outputSize = result.bytes.byteLength;
         const saving = Math.round((1 - item.outputSize / inputSize) * 100);
@@ -172,7 +190,7 @@ $('compress').onclick = async () => {
     const delta = original - compressed;
     $('summary').replaceChildren();
     const mark = document.createElement('span'); mark.className = 'summary-icon'; mark.innerHTML = icon('check');
-    const text = document.createElement('div'); const title = document.createElement('strong'); title.textContent = startupError ? stopped ? 'Batch stopped' : 'Batch could not start' : stopped ? 'Batch stopped' : failed ? 'Compression finished with errors' : 'Compression complete';
+    const text = document.createElement('div'); const title = document.createElement('strong'); title.textContent = startupError ? stopped ? 'Batch stopped' : 'Batch could not start' : stopped ? 'Batch stopped' : failed ? 'Processing finished with errors' : 'Processing complete';
     const detail = document.createElement('p'); detail.textContent = `${completed} ${outputMode === 'replace' ? 'replaced' : 'saved'}${failed ? ` · ${failed} failed` : ''}${completed ? ` · ${delta >= 0 ? bytes(delta) + ' saved' : bytes(-delta) + ' larger'} · ${bytes(original)} → ${bytes(compressed)}` : ''}${stopped ? ' · Remaining images stay in the queue.' : ''}`;
     text.append(title, detail); const open = document.createElement('button'); open.className = 'button secondary'; open.innerHTML = `${icon('folder')}Open folder`; open.onclick = () => api.showOutput().catch(e => notice(e.message));
     $('summary').append(mark, text); if (batch) $('summary').append(open); $('summary').hidden = false;

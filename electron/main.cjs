@@ -81,7 +81,7 @@ app.whenReady().then(async () => {
     updateTheme(); return themeState();
   });
   handle('pick-images', async () => {
-    const pick = await dialog.showOpenDialog(win, { title: 'Add images', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'avif'] }] });
+    const pick = await dialog.showOpenDialog(win, { title: 'Add images', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'avif', 'svg'] }] });
     return register(pick.canceled ? [] : pick.filePaths);
   });
   handle('pick-folders', async () => {
