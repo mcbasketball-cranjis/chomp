@@ -4,7 +4,7 @@ Batch image compression for Windows and macOS. Uses Squoosh-derived codecs throu
 
 ## Usage
 
-1. Open GatorSqoosh. On Windows, extract the ZIP and run `GatorSqoosh.exe`.
+1. Windows: run `GatorSqoosh-<version>-win-x64-Setup.exe`. It installs the supporting files and a Start menu shortcut. macOS: open the DMG, drag GatorSqoosh into Applications, then eject the DMG.
 2. Drop images or folders into the window, or click **Add images** / **Add folder**.
 3. Choose an output format, set the quality, and optionally resize.
 4. Choose an output folder and click **Compress batch**.
@@ -80,7 +80,15 @@ pnpm build
 pnpm exec electron-builder --mac dmg zip --arm64 --x64
 ```
 
-The GitHub Actions workflow builds on Windows x64, macOS Intel, and macOS Apple Silicon when main is updated, a `v*` tag is pushed, or the workflow runs manually. Each packaged executable runs the desktop, folder, and appearance tests on its matching OS and architecture. Once all three pass, the workflow publishes the package version as a GitHub release with ZIPs and macOS DMGs. Existing releases are left unchanged. Verification screenshots are also available as workflow artifacts.
+The GitHub Actions workflow builds on Windows x64, macOS Intel, and macOS Apple Silicon when main is updated, a `v*` tag is pushed, or the workflow runs manually. Each packaged executable runs the desktop, folder, and appearance tests on its matching OS and architecture. Windows also tests installation, the installed app, shortcuts, and uninstallation on the disposable runner. macOS mounts the DMG and checks the app and Applications shortcut. Once all checks pass, the workflow publishes a GitHub release with the Windows installer, ZIPs, and macOS DMGs. Existing releases are left unchanged.
+
+Portable Windows ZIPs are also provided. Extract the entire folder and keep its files together; the EXE depends on the bundled resources. The installer handles these files automatically and does not require admin rights.
+
+## Windows security and signing
+
+An unknown-publisher SmartScreen warning is a reputation warning, not a named malware detection. Changing the package to an installer does not establish publisher reputation. The release workflow scans Windows outputs with Defender when the hosted scanner is available and publishes `Defender-scan.json` with the exact scan status and SHA-256 hashes. A scan detection or scanner failure blocks publication; an unavailable scanner is explicitly reported. Antivirus scan results do not establish SmartScreen reputation.
+
+To sign Windows installers and app executables, configure repository secrets `WINDOWS_CSC_LINK` (certificate URL or base64 PFX) and `WINDOWS_CSC_KEY_PASSWORD`. Use a trusted code-signing certificate; self-signed certificates do not fix unknown-publisher warnings. No signing certificate is included. Signing identifies the publisher but does not guarantee immediate SmartScreen acceptance, and managed work PCs may enforce stricter policies.
 
 Builds are unsigned and macOS builds are not notarized. Signed distribution requires Windows Authenticode or Apple signing and notarization credentials. For Mac signing, remove `mac.identity: null` from `package.json`.
 

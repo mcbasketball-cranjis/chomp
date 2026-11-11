@@ -44,11 +44,27 @@ jobs:
       - run: pnpm ${{ matrix.command }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          CSC_LINK: ${{ matrix.platform == 'win' && secrets.WINDOWS_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.platform == 'win' && secrets.WINDOWS_CSC_KEY_PASSWORD || '' }}
       - run: pnpm test:package
+      - name: Test Windows installation and uninstallation
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./tests/installer.ps1
+      - name: Scan Windows packages with Defender
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./scripts/defender-scan.ps1
+      - name: Verify Mac drag-to-Applications DMG
+        if: runner.os == 'macOS'
+        run: node scripts/verify-dmg.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: packages-${{ matrix.platform }}-${{ matrix.arch }}
           path: |
+            release/*-Setup.exe
+            release/Defender-*.json
+            release/Defender-*.txt
             release/*.zip
             release/*.dmg
           if-no-files-found: error
