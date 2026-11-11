@@ -97,3 +97,7 @@ Builds are unsigned and macOS builds are not notarized. Signed distribution requ
 ## License
 
 Apache-2.0. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and `licenses/` for codec licenses. GatorSqoosh is not affiliated with Google or the Squoosh team.
+
+## Internal self-signing
+
+On the Windows account/computer that owns the non-exportable signing key, run `./scripts/build-internal.ps1`. For a new identity, explicitly use `-CreateCertificate`. This creates a code-signing key in CurrentUser\My and exports only its public CER into the ignored `internal-release/` folder. It does not add certificate trust or bypass application-control policies. See [recipient instructions](docs/INTERNAL-DISTRIBUTION.md). These local builds are separate from public GitHub release builds and do not upload the private key.

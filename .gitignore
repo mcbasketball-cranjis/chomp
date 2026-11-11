@@ -7,3 +7,9 @@ test-results/
 build/
 public/icon.png
 
+
+internal-release/
+*.pfx
+*.p12
+*.key
+
