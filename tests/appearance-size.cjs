@@ -7,23 +7,28 @@ const root = path.resolve(__dirname, '..');
   await fs.mkdir(path.join(root, 'test-results'), { recursive: true });
   const work = await fs.mkdtemp(path.join(root, 'test-results', 'appearance-'));
   const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
-  const executablePath = process.env.GATORSQOOSH_TEST_EXECUTABLE;
+  const executablePath = process.env.CHOMP_TEST_EXECUTABLE;
   const options = { ...(executablePath ? { executablePath } : {}), args: [...(executablePath ? [] : [root]), `--user-data-dir=${path.join(work, 'profile')}`], env };
   let app = await electron.launch(options);
   try {
-    let page = await app.firstWindow(); await page.waitForSelector('#theme'); const errors = []; page.on('pageerror', e => errors.push(e.message));
+    let page = await app.firstWindow(); await page.waitForSelector('.brand'); const errors = []; page.on('pageerror', e => errors.push(e.message));
     for (const theme of ['dark', 'light']) {
-      await page.selectOption('#theme', theme); await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+      await page.evaluate(async theme => window.desktop.setAppearance(theme), theme); await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
       assert.equal(await app.evaluate(({ nativeTheme }) => nativeTheme.themeSource), theme);
       assert.equal((await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBackgroundColor())).toLowerCase(), theme === 'dark' ? '#101e25' : '#f1f8f7');
       assert.ok(await page.locator('.brand-mark').evaluate(img => img.complete && img.naturalWidth > 0));
-      await page.screenshot({ path: path.join(root, 'test-results', `GatorSqoosh-${theme}.png`), fullPage: true });
+      await page.screenshot({ path: path.join(root, 'test-results', `Chomp-${theme}.png`), fullPage: true });
     }
     const drag = await page.locator('.titlebar').evaluate(el => getComputedStyle(el).webkitAppRegion); assert.equal(drag, 'drag');
     if (process.platform === 'win32') assert.equal(await page.evaluate(() => navigator.windowControlsOverlay.visible), true);
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].maximize());
     await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isMaximized())).toBe(true);
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].unmaximize());
+    await app.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].setSize(960,720));
+    await page.check('#limit-size'); await page.check('#resize');
+    const layout=await page.evaluate(()=>({overflow:document.documentElement.scrollWidth>innerWidth,clipped:[...document.querySelectorAll('input,select,button')].filter(el=>el.getBoundingClientRect().width>0).some(el=>{const r=el.getBoundingClientRect();return r.left<0||r.right>innerWidth;})}));
+    assert.deepEqual(layout,{overflow:false,clipped:false}); await expect(page.locator('#theme')).toHaveCount(0); await expect(page.locator('.local-badge')).toHaveCount(0);
+    await page.uncheck('#limit-size'); await page.uncheck('#resize');
     const fixture = await page.evaluate(() => {
       const c = document.createElement('canvas'); c.width = 512; c.height = 320; const ctx = c.getContext('2d'); const pixels = ctx.createImageData(c.width, c.height);
       let seed = 7; for (let i = 0; i < pixels.data.length; i += 4) { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; pixels.data[i] = seed & 255; pixels.data[i+1] = seed >>> 8 & 255; pixels.data[i+2] = seed >>> 16 & 255; pixels.data[i+3] = 255; }
@@ -40,12 +45,12 @@ const root = path.resolve(__dirname, '..');
       const decoded = await page.evaluate(async bytes => { const b = await createImageBitmap(new Blob([new Uint8Array(bytes)])); const dimensions = [b.width, b.height]; b.close(); return dimensions; }, [...data]);
       assert.ok(decoded[0] > 0 && decoded[0] <= 512 && decoded[1] > 0 && decoded[1] <= 320);
     }
-    await page.fill('#max-bytes', '0'); await page.click('#compress'); await expect(page.locator('#notice')).toContainText('between 1 KB and 150 MB');
+    await page.fill('#max-bytes', '0'); await page.click('#compress'); await expect(page.locator('#notice')).toContainText('between 1 KB and 512 MB');
     assert.deepEqual(await fs.readFile(source), before); assert.deepEqual(errors, []);
-    await page.selectOption('#theme', 'dark'); await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await page.evaluate(async theme => window.desktop.setAppearance(theme), 'dark'); await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await app.close(); app = await electron.launch(options); page = await app.firstWindow();
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark'); await expect(page.locator('#theme')).toHaveValue('dark');
-    await page.selectOption('#theme', 'system'); await expect(page.locator('#theme')).toHaveValue('system'); assert.equal(await app.evaluate(({ nativeTheme }) => nativeTheme.themeSource), 'system');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', (await app.evaluate(({nativeTheme})=>nativeTheme.shouldUseDarkColors)) ? 'dark' : 'light');
+    await page.evaluate(async theme => window.desktop.setAppearance(theme), 'system');  assert.equal(await app.evaluate(({ nativeTheme }) => nativeTheme.themeSource), 'system');
     console.log('PASS: Icon loading, light/dark/system themes, persisted appearance, native title-bar overlay, maximize/restore, strict size caps for all four formats, invalid limits, and original preservation.');
   } finally { await app.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

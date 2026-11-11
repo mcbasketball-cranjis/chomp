@@ -7,12 +7,12 @@ const work = path.join(root, 'test-results');
 (async () => {
   await fs.mkdir(work, { recursive: true });
   const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
-  const executablePath = process.env.GATORSQOOSH_TEST_EXECUTABLE;
+  const executablePath = process.env.CHOMP_TEST_EXECUTABLE;
   const app = await electron.launch({ ...(executablePath ? { executablePath } : {}), args: [...(executablePath ? [] : [root]), `--user-data-dir=${path.join(work, 'profile')}`], env });
   try {
     const page = await app.firstWindow(); await page.waitForSelector('#compress');
     const errors = []; page.on('pageerror', e => errors.push(e.message));
-    await page.screenshot({ path: path.join(root, 'test-results', 'GatorSqoosh-preview.png') });
+    await page.screenshot({ path: path.join(root, 'test-results', 'Chomp-preview.png') });
     const fixture = await page.evaluate(() => {
       const c = document.createElement('canvas'); c.width = 600; c.height = 400; const ctx = c.getContext('2d');
       const gradient = ctx.createLinearGradient(0, 0, 600, 400); gradient.addColorStop(0, '#f2cb78'); gradient.addColorStop(1, '#176953'); ctx.fillStyle = gradient; ctx.fillRect(0, 0, 600, 400);

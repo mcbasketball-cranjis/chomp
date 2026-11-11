@@ -8,7 +8,7 @@ const root = path.resolve(__dirname, '..');
   const output = path.join(work, 'output'), source = path.join(work, 'project');
   await fs.mkdir(path.join(source, 'assets', 'nested'), { recursive: true }); await fs.mkdir(output); await fs.mkdir(path.join(source, 'empty'));
   const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
-  const executablePath = process.env.GATORSQOOSH_TEST_EXECUTABLE;
+  const executablePath = process.env.CHOMP_TEST_EXECUTABLE;
   const app = await electron.launch({ ...(executablePath ? { executablePath } : {}), args: [...(executablePath ? [] : [root]), `--user-data-dir=${path.join(work, 'profile')}`], env });
   try {
     const page = await app.firstWindow(); await page.waitForSelector('#compress'); const errors = []; page.on('pageerror', error => errors.push(error.message));
@@ -58,7 +58,7 @@ const root = path.resolve(__dirname, '..');
     await dropFolder(); await page.check('[name="folder-mode"][value="replace"]');
     await expect(page.locator('#format')).toBeDisabled(); await expect(page.locator('#output-controls')).toBeHidden();
     await page.evaluate(() => window.scrollTo(0, 0));
-    await page.screenshot({ path: path.join(root, 'test-results', 'GatorSqoosh-folders-preview.png'), fullPage: true });
+    await page.screenshot({ path: path.join(root, 'test-results', 'Chomp-folders-preview.png'), fullPage: true });
     await page.click('#compress'); await expect(page.locator('#summary')).toBeVisible({ timeout: 60000 }); await expect(page.locator('#summary')).toContainText('4 replaced'); await expect(page.locator('#summary')).toContainText('1 failed');
     for (const relative of imagePaths) assert.deepEqual(await dimensions(path.join(source, relative)), [64, 40]);
     for (const relative of ['broken.png', 'index.html', 'assets/data.bin']) assert.deepEqual(await fs.readFile(path.join(source, relative)), originals.get(relative));

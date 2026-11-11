@@ -5,7 +5,7 @@ const path = require('node:path');
 const os = require('node:os');
 const { scanFolder, prepareBatch, saveFolderImage, fingerprint } = require('../electron/folders.cjs');
 async function fixture(run) {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'gator-folder-'));
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'chomp-folder-'));
   const source = path.join(directory, 'site'), output = path.join(directory, 'output');
   await fs.mkdir(path.join(source, 'photos', 'deep'), { recursive: true });
   await fs.mkdir(path.join(source, 'empty')); await fs.mkdir(output);

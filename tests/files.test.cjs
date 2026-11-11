@@ -5,7 +5,7 @@ const path = require('node:path');
 const os = require('node:os');
 const { saveUnique, safeStem } = require('../electron/files.cjs');
 test('saving never overwrites existing files, even during concurrent writes', async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'gatorsqoosh-test-'));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'chomp-test-'));
   try {
     await fs.writeFile(path.join(dir, 'photo-compressed.webp'), 'original');
     const saved = await Promise.all(Array.from({ length: 8 }, (_, n) => saveUnique(dir, 'photo.png', 'webp', Buffer.from(`new-${n}`))));

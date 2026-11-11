@@ -29,7 +29,7 @@ self.onmessage = async ({ data: { bytes, format, quality, maxSize, maxBytes } })
       finally { decoder.close(); }
     }
     bitmap = await createImageBitmap(new Blob([bytes]), { imageOrientation: 'from-image' });
-    if (bitmap.width * bitmap.height > 48_000_000) throw new Error('Image exceeds the 48 megapixel limit. Resize it before adding.');
+    if (bitmap.width * bitmap.height > 160_000_000) throw new Error('Image exceeds the 160 megapixel limit. Resize it before adding.');
     const scale = maxSize ? Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height)) : 1;
     const width = Math.max(1, Math.round(bitmap.width * scale)), height = Math.max(1, Math.round(bitmap.height * scale));
     const canvas = new OffscreenCanvas(width, height);

@@ -1,11 +1,11 @@
-const { app, BrowserWindow, dialog, ipcMain, protocol, net, shell, session, nativeTheme } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, protocol, net, shell, session, nativeTheme, Menu } = require('electron');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { randomUUID } = require('node:crypto');
 const { supported, saveUnique } = require('./files.cjs');
 const { scanFolder, prepareBatch, saveFolderImage, verifyFile, fingerprint, formatFor, contained } = require('./folders.cjs');
-protocol.registerSchemesAsPrivileged([{ scheme: 'gatorsqoosh', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }]);
+protocol.registerSchemesAsPrivileged([{ scheme: 'chomp', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }]);
 let win;
 const inputs = new Map();
 const roots = new Map();
@@ -46,7 +46,7 @@ async function register(paths) {
         roots.set(root.id, root); addedRoots.push({ id: root.id, name: root.name, images: root.images });
         for (const entry of root.entries) if (entry.image) addEntry(entry, root);
         skipped += root.skipped; ignored += root.ignored;
-      } else if (stat.isFile() && supported.test(file) && stat.size <= 150 * 1024 * 1024) {
+      } else if (stat.isFile() && supported.test(file) && stat.size <= 512 * 1024 * 1024) {
         addEntry({ path: await fs.realpath(file), relative: path.basename(file), snapshot: fingerprint(stat) });
       } else ignored++;
     } catch (error) { warnings.push(`Could not add ${path.basename(file)}: ${error.message}`); }
@@ -55,15 +55,16 @@ async function register(paths) {
 }
 function handle(name, fn) {
   ipcMain.handle(name, async (event, ...args) => {
-    if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame || !event.senderFrame.url.startsWith('gatorsqoosh://app/')) throw new Error('Unauthorized request.');
+    if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame || !event.senderFrame.url.startsWith('chomp://app/')) throw new Error('Unauthorized request.');
     return fn(...args);
   });
 }
 app.whenReady().then(async () => {
   try { const saved = JSON.parse(await fs.readFile(path.join(app.getPath('userData'), 'preferences.json'), 'utf8')); if (['system', 'light', 'dark'].includes(saved.theme)) themePreference = saved.theme; } catch {}
+  if (process.platform !== 'darwin') themePreference = 'system';
   nativeTheme.themeSource = themePreference;
   nativeTheme.on('updated', updateTheme);
-  protocol.handle('gatorsqoosh', request => {
+  protocol.handle('chomp', request => {
     const url = new URL(request.url);
     if (url.host !== 'app') return new Response('', { status: 403 });
     const base = path.join(app.getAppPath(), 'dist');
@@ -106,7 +107,7 @@ app.whenReady().then(async () => {
     if (!Array.isArray(ids) || !ids.length || ids.some(id => !inputs.has(id))) throw new Error('Invalid image selection.');
     const selected = new Set(ids.map(id => inputs.get(id).rootId).filter(Boolean));
     if (!['copy', 'images', 'replace', 'files'].includes(mode)) throw new Error('Invalid output mode.');
-    if (maxBytes != null && (!Number.isInteger(maxBytes) || maxBytes < 1024 || maxBytes > 150 * 1024 * 1024)) throw new Error('Size limit must be between 1 KB and 150 MB.');
+    if (maxBytes != null && (!Number.isInteger(maxBytes) || maxBytes < 1024 || maxBytes > 512 * 1024 * 1024)) throw new Error('Size limit must be between 1 KB and 512 MB.');
     if (mode === 'replace' && ids.some(id => !inputs.get(id).rootId)) throw new Error('In-place mode requires folder inputs only. Clear individual files from the queue.');
     if (mode !== 'replace' && !outputFolder) throw new Error('Choose an output folder first.');
     preparing = true; cancelPreparation = false;
@@ -142,13 +143,15 @@ app.whenReady().then(async () => {
   handle('show-output', async () => { for (const folder of lastPaths.length ? lastPaths : [outputFolder].filter(Boolean)) { const error = await shell.openPath(folder); if (error) throw new Error(error); } });
   function createWindow() {
     const dark = nativeTheme.shouldUseDarkColors;
-    win = new BrowserWindow({ width: 1240, height: 940, minWidth: 960, minHeight: 720, backgroundColor: dark ? '#101e25' : '#f1f8f7', title: 'GatorSqoosh', icon: path.join(app.getAppPath(), 'dist', 'icon.png'), titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden', ...(process.platform !== 'darwin' ? { titleBarOverlay: { color: dark ? '#10242c' : '#e9f6f2', symbolColor: dark ? '#d8f6ed' : '#164e4d', height: 40 } } : {}), autoHideMenuBar: true, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true } });
+    win = new BrowserWindow({ width: 1240, height: 940, minWidth: 960, minHeight: 720, backgroundColor: dark ? '#101e25' : '#f1f8f7', title: 'Chomp', icon: path.join(app.getAppPath(), 'dist', 'icon.png'), titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden', ...(process.platform !== 'darwin' ? { titleBarOverlay: { color: dark ? '#10242c' : '#e9f6f2', symbolColor: dark ? '#d8f6ed' : '#164e4d', height: 40 } } : {}), autoHideMenuBar: true, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true } });
     if (process.platform === 'darwin') app.dock.setIcon(path.join(app.getAppPath(), 'dist', 'icon.png'));
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     win.webContents.on('will-navigate', event => event.preventDefault());
     win.on('close', event => { if (activeWrites || preparing || activeBatch) event.preventDefault(); });
-    win.loadURL('gatorsqoosh://app/index.html');
+    win.loadURL('chomp://app/index.html');
   }
+  if (process.platform === 'darwin') Menu.setApplicationMenu(Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { label: 'Appearance', submenu: ['system','light','dark'].map(theme => ({ label: theme[0].toUpperCase()+theme.slice(1), type: 'radio', checked: themePreference === theme, click: async () => { themePreference=theme; nativeTheme.themeSource=theme; await fs.writeFile(path.join(app.getPath('userData'),'preferences.json'),JSON.stringify({theme})); updateTheme(); } })) }, { role: 'windowMenu' }]));
+  else Menu.setApplicationMenu(null);
   createWindow();
   app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
 });

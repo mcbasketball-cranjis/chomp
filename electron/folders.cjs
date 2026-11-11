@@ -29,7 +29,7 @@ async function scanFolder(source) {
       const entry = { path: full, relative: path.relative(root.path, full), directory: stat.isDirectory(), snapshot: fingerprint(stat) };
       root.entries.push(entry);
       if (entry.directory) directories.push(full);
-      else if (supported.test(full) && stat.size <= 150 * 1024 * 1024) { entry.image = true; root.images++; }
+      else if (supported.test(full) && stat.size <= 512 * 1024 * 1024) { entry.image = true; root.images++; }
       else { root.ignored++; }
     }
   }
@@ -48,7 +48,7 @@ async function verifyParent(file) {
 }
 async function atomicReplace(target, bytes, expected, mode) {
   await verifyParent(target);
-  const temporary = path.join(path.dirname(target), `.gatorsqoosh-${randomUUID()}.tmp`);
+  const temporary = path.join(path.dirname(target), `.chomp-${randomUUID()}.tmp`);
   let handle;
   try {
     handle = await fs.open(temporary, 'wx', mode);

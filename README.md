@@ -1,19 +1,19 @@
-# GatorSqoosh
+# Chomp
 
 Batch image compression for Windows and macOS. Uses Squoosh-derived codecs through [jSquash](https://github.com/jamsinclair/jSquash). Images are processed locally.
 
 ## Usage
 
-1. Windows: run `GatorSqoosh-<version>-win-x64-Setup.exe`. It installs the supporting files and a Start menu shortcut. macOS: open the DMG, drag GatorSqoosh into Applications.
+1. Windows: run `Chomp-<version>-win-x64-Setup.exe`. It installs the supporting files and a Start menu shortcut. macOS: open the DMG, drag Chomp into Applications.
 2. Drop images or folders into the window, or click **Add images** / **Add folder**.
 3. Choose an output format, set the quality, and optionally resize.
 4. Choose an output folder and click **Compress batch**.
 
 ## Appearance and size limits
 
-Choose **System**, **Light**, or **Dark** in the header. The preference is saved between launches. 
+Appearance follows the system theme. Mac users can optionally select System, Light, or Dark from the Appearance menu. 
 
-Enable **Maximum file size**, enter a value, and select KB or MB. The app first lowers quality within your selected quality setting, then reduces image dimensions if necessary. PNG fitting uses resizing because PNG compression is lossless. Limits range from 1 KB to 150 MB (1 KB = 1,024 bytes). Successful exports never exceed the limit. Failed images are not replaced; in full-folder copies, their original copies remain and may exceed the limit.
+Enable **Maximum file size**, enter a value, and select KB or MB. The app first lowers quality within your selected quality setting, then reduces image dimensions if necessary. PNG fitting uses resizing because PNG compression is lossless. Limits range from 1 KB to 512 MB (1 KB = 1,024 bytes). Successful exports never exceed the limit. Failed images are not replaced; in full-folder copies, their original copies remain and may exceed the limit.
 
 Individual image exports use `name-compressed.ext`. Duplicate names receive a number. Existing exports are not overwritten.
 
@@ -35,7 +35,7 @@ Failed files can be retried. **Stop after this image** saves the current file an
 
 ## Formats and limits
 
-- Inputs: still JPEG, PNG, WebP, and AVIF; up to 150 MB and 48 megapixels per image.
+- Inputs: still JPEG, PNG, WebP, and AVIF; up to 512 MB and 160 megapixels per image.
 - Outputs: JPEG (MozJPEG), WebP, PNG (OxiPNG), and AVIF (libavif).
 - JPEG replaces transparency with white. PNG preserves decoded pixels; its quality control is disabled.
 - Images are converted to 8-bit sRGB. Orientation is applied and metadata is removed.
@@ -96,8 +96,9 @@ Builds are unsigned and macOS builds are not notarized. Signed distribution requ
 
 ## License
 
-Apache-2.0. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and `licenses/` for codec licenses. GatorSqoosh is not affiliated with Google or the Squoosh team.
+Apache-2.0. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and `licenses/` for codec licenses. Chomp is not affiliated with Google or the Squoosh team.
 
 ## Internal self-signing
 
 On the Windows account/computer that owns the non-exportable signing key, run `./scripts/build-internal.ps1`. For a new identity, explicitly use `-CreateCertificate`. This creates a code-signing key in CurrentUser\My and exports only its public CER into the ignored `internal-release/` folder. It does not add certificate trust or bypass application-control policies. See [recipient instructions](docs/INTERNAL-DISTRIBUTION.md). These local builds are separate from public GitHub release builds and do not upload the private key.
+

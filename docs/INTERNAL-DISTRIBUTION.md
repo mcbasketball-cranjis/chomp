@@ -1,12 +1,12 @@
-# GatorSqoosh internal Windows installation
+# Chomp internal Windows installation
 
 This is an internally self-signed build, not a publicly verified publisher. The signature identifies the same signing key across builds and detects changes to signed executable files. It is not an antivirus clearance and does not establish SmartScreen reputation.
 
 ## Files to send
 
 Send the complete internal-distribution ZIP containing:
-- GatorSqoosh-1.2.1-Internal-Setup.exe
-- GatorSqoosh-Internal.cer (PUBLIC certificate only)
+- Chomp-1.2.1-Internal-Setup.exe
+- Chomp-Internal.cer (PUBLIC certificate only)
 - CERTIFICATE-THUMBPRINT.txt
 - SHA256SUMS.txt
 - These instructions
@@ -20,17 +20,17 @@ Confirm the certificate fingerprint with the sender through a separate trusted c
 Expected certificate SHA-1 thumbprint (identifier, not the signing algorithm):
 B7A00841A601BA11D88F36B588C9922E172D313B
 
-Subject: CN=GatorSqoosh Internal Signing
+Subject: CN=Chomp Internal Signing
 Certificate expires: November 11, 2028. Check the certificate's actual validity dates in Windows. Signatures use SHA-256. Timestamp availability is shown in the accompanying signing report; without a trusted timestamp, builds need re-signing before certificate expiration.
 
-Double-click GatorSqoosh-Internal.cer, select Details, and compare Thumbprint. Or run this read-only PowerShell command from the extracted ZIP folder:
+Double-click Chomp-Internal.cer, select Details, and compare Thumbprint. Or run this read-only PowerShell command from the extracted ZIP folder:
 
-    $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new((Join-Path $PWD 'GatorSqoosh-Internal.cer'))
+    $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new((Join-Path $PWD 'Chomp-Internal.cer'))
     $cert | Format-List Subject, Thumbprint, NotAfter, HasPrivateKey
 
 HasPrivateKey must be False. Check the installer hash against SHA256SUMS.txt, ideally with the expected hash confirmed separately:
 
-    Get-FileHash .\GatorSqoosh-1.2.1-Internal-Setup.exe -Algorithm SHA256
+    Get-FileHash .\Chomp-1.2.1-Internal-Setup.exe -Algorithm SHA256
 
 ## Company-managed computers
 
