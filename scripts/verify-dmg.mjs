@@ -35,11 +35,14 @@ try {
   const signature = run('/usr/bin/codesign', ['-dv', '--verbose=4', app]);
   if (!/Signature=adhoc/i.test(signature)) throw new Error(`Expected ad-hoc signed Chomp app in ${dmg}: ${signature}`);
   const resources = path.join(mount, 'Chomp.app', 'Contents', 'Resources');
-  const iconNames = (await fs.readdir(resources)).filter(name => name.endsWith('.icns'));
-  if (!iconNames.length) throw new Error(`Packaged ${arch} app icon missing.`);
-  const icon = await fs.readFile(path.join(resources, iconNames[0]));
-  if (icon.toString('ascii', 0, 4) !== 'icns') throw new Error(`Packaged ${arch} app icon invalid.`);
-  console.log(`PASS: ${arch} DMG and ZIP present, ad-hoc code signature valid, executable architecture and icon verified.`);
+  // Icon Composer projects compile into an Assets.car instead of the legacy ICNS.
+  // Check the asset catalog and Info.plist so packaging cannot silently ship the old icon.
+  const assetCatalog = path.join(resources, 'Assets.car');
+  const catalogStat = await fs.stat(assetCatalog);
+  if (!catalogStat.isFile() || catalogStat.size < 1024) throw new Error(`Packaged ${arch} Icon Composer asset catalog missing or empty.`);
+  const iconName = run('/usr/bin/plutil', ['-extract', 'CFBundleIconName', 'raw', '-o', '-', path.join(app, 'Contents', 'Info.plist')]);
+  if (!iconName || !/chomp/i.test(iconName)) throw new Error(`Native Icon Composer name missing from ${arch} Info.plist: ${iconName}`);
+  console.log(`PASS: ${arch} DMG and ZIP present, ad-hoc code signature valid, architecture and Icon Composer asset catalog verified.`);
   if (process.arch !== arch) console.log(`NOTE: ${arch} build statically verified only; runtime testing requires ${arch} hardware.`);
 } finally {
   run('hdiutil', ['detach', mount]);
