@@ -113,7 +113,7 @@ else { applyAppearance({ dark: matchMedia('(prefers-color-scheme: dark)').matche
 let items = [], folderRoots = [], output = null, running = false, stopped = false, worker = null, scanning = false;
 const mode = () => folderRoots.length ? document.querySelector('[name="folder-mode"]:checked').value : 'files';
 const urls = new Set();
-let workspaceMode='vectorize',selectedId=null,previewTimer=null,previewVersion=0,previewWorker=null,previewOriginalUrl=null,previewResultUrl=null;
+let workspaceMode='compress',selectedId=null,previewTimer=null,previewVersion=0,previewWorker=null,previewOriginalUrl=null,previewResultUrl=null;
 const MIME={jpg:'image/jpeg',png:'image/png',svg:'image/svg+xml',webp:'image/webp',avif:'image/avif'};
 const workspaceCopy={
   compress:['LESS WEIGHT, SAME IMPACT','Compress your images.','Smaller files, beautiful results. Control quality and size.','Compression settings'],
@@ -407,4 +407,4 @@ $('compress').onclick = async () => {
     if(selectedItem())queuePreview();
   }
 };
-$('format').onchange();updatePreviewSplit();buttonState();
+setWorkspace('compress');updatePreviewSplit();buttonState();
