@@ -144,7 +144,7 @@ app.whenReady().then(async () => {
   function createWindow() {
     const dark = nativeTheme.shouldUseDarkColors;
     win = new BrowserWindow({ width: 1240, height: 940, minWidth: 960, minHeight: 720, backgroundColor: dark ? '#101e25' : '#f1f8f7', title: 'Chomp', icon: path.join(app.getAppPath(), 'dist', 'icon.png'), titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden', ...(process.platform !== 'darwin' ? { titleBarOverlay: { color: dark ? '#10242c' : '#e9f6f2', symbolColor: dark ? '#d8f6ed' : '#164e4d', height: 40 } } : {}), autoHideMenuBar: true, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true } });
-    if (process.platform === 'darwin') app.dock.setIcon(path.join(app.getAppPath(), 'dist', 'icon.png'));
+    // Let macOS use the native Icon Composer asset in the packaged app.
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     win.webContents.on('will-navigate', event => event.preventDefault());
     win.on('close', event => { if (activeWrites || preparing || activeBatch) event.preventDefault(); });
