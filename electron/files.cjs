@@ -5,7 +5,7 @@ function safeStem(name) {
   return path.parse(path.basename(name)).name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/[. ]+$/g, '').slice(0, 120) || 'image';
 }
 async function saveUnique(folder, name, extension, bytes) {
-  if (!['jpg', 'png', 'webp'].includes(extension)) throw new Error('Unsupported output format.');
+  if (!['jpg', 'png', 'webp', 'avif'].includes(extension)) throw new Error('Unsupported output format.');
   const stem = safeStem(name) + '-compressed';
   for (let n = 0; n < 10000; n++) {
     const filename = `${stem}${n ? ` (${n})` : ''}.${extension}`;

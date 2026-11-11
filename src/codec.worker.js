@@ -5,16 +5,20 @@ import jpegWasm from '@jsquash/jpeg/codec/enc/mozjpeg_enc.wasm?url';
 import webpWasm from '@jsquash/webp/codec/enc/webp_enc.wasm?url';
 import webpSimdWasm from '@jsquash/webp/codec/enc/webp_enc_simd.wasm?url';
 import pngWasm from '@jsquash/oxipng/codec/pkg/squoosh_oxipng_bg.wasm?url';
+import avifEncoder from '@jsquash/avif/codec/enc/avif_enc.js';
+import { initEmscriptenModule } from '@jsquash/avif/utils.js';
+import { defaultOptions as avifOptions } from '@jsquash/avif/meta.js';
+import avifWasm from '@jsquash/avif/codec/enc/avif_enc.wasm?url';
 const initialized = {};
 async function init(format) {
   if (initialized[format]) return initialized[format];
-  initialized[format] = format === 'jpg' ? initJpeg({ locateFile: () => jpegWasm }) : format === 'webp' ? initWebp({ locateFile: name => name.includes('simd') ? webpSimdWasm : webpWasm }) : initPng(pngWasm);
+  initialized[format] = format === 'jpg' ? initJpeg({ locateFile: () => jpegWasm }) : format === 'webp' ? initWebp({ locateFile: name => name.includes('simd') ? webpSimdWasm : webpWasm }) : format === 'avif' ? initEmscriptenModule(avifEncoder, undefined, { locateFile: () => avifWasm }) : initPng(pngWasm);
   return initialized[format];
 }
 self.onmessage = async ({ data: { bytes, format, quality, maxSize } }) => {
   let bitmap;
   try {
-    if (!['jpg', 'png', 'webp'].includes(format)) throw new Error('Unsupported output format.');
+    if (!['jpg', 'png', 'webp', 'avif'].includes(format)) throw new Error('Unsupported output format.');
     // ImageDecoder exposes animation metadata before flattening a file.
     const signature = new Uint8Array(bytes.buffer, bytes.byteOffset, Math.min(32, bytes.byteLength));
     const type = signature[0] === 0xff && signature[1] === 0xd8 ? 'image/jpeg' : signature[0] === 0x89 && signature[1] === 0x50 ? 'image/png' : String.fromCharCode(...signature.slice(0, 4)) === 'RIFF' ? 'image/webp' : 'image/avif';
@@ -33,7 +37,14 @@ self.onmessage = async ({ data: { bytes, format, quality, maxSize } }) => {
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(bitmap, 0, 0, width, height); bitmap.close(); bitmap = null;
     const pixels = ctx.getImageData(0, 0, width, height);
     await init(format);
-    const buffer = format === 'jpg' ? await encodeJpeg(pixels, { quality }) : format === 'webp' ? await encodeWebp(pixels, { quality, method: 4 }) : optimise_raw(pixels.data, width, height, 2, false, false).buffer;
+    let buffer;
+    if (format === 'jpg') buffer = await encodeJpeg(pixels, { quality });
+    else if (format === 'webp') buffer = await encodeWebp(pixels, { quality, method: 4 });
+    else if (format === 'avif') {
+      const result = (await initialized.avif).encode(new Uint8Array(pixels.data.buffer), width, height, { ...avifOptions, quality, speed: 8 });
+      if (!result) throw new Error('AVIF encoding failed.');
+      buffer = result.buffer;
+    } else buffer = optimise_raw(pixels.data, width, height, 2, false, false).buffer;
     const small = new OffscreenCanvas(80, 80); const preview = small.getContext('2d');
     preview.drawImage(canvas, 0, 0, 80, 80);
     const thumbnail = await (await small.convertToBlob({ type: 'image/webp', quality: .7 })).arrayBuffer();

@@ -27,6 +27,7 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: pnpm test:desktop
+      - run: pnpm test:folders
       - run: pnpm ${{ matrix.command }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
