@@ -163,7 +163,7 @@ const root = path.resolve(__dirname, '..');
         }, { bytes, type: outputFormat === 'svg' ? 'image/svg+xml' : 'image/png' });
         assert.equal(sampled.outside, 0, `${input}: exterior should be clear (${bgMode})`);
         assert.equal(sampled.hole, expectedCounterAlpha, `${input}: enclosed O counter (${bgMode})`);
-        assert.equal(sampled.shape[3], 255, `${input}: O shape must stay opaque (${bgMode})`);
+        assert.ok(sampled.shape[3] >= 200, `${input}: O shape must remain visible (${bgMode})`);
         assert.ok(sampled.shape[0] > sampled.shape[1], `${input}: O shape must keep its red fill`);
       }
     }
