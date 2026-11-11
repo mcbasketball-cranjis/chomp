@@ -54,7 +54,7 @@ test('background removal removes only matching edge-connected pixels', async () 
   const { traceImageData } = await vector;
   const svg = traceImageData(img);
   assert.ok(svg.includes('#0a3cc8'));
-  assert.ok(!svg.includes('fill="#ffffff"') || svg.includes('fill="#ffffff"'), 'enclosed white pixels may be retained');
+  assert.match(svg, /<path fill="#ffffff"/, 'the enclosed white center remains a vector shape');
 });
 
 test('already-transparent edges and unrelated corner colors are left alone', async () => {
