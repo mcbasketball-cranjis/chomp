@@ -1,6 +1,6 @@
 {
   "name": "chomp",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "private": true,
   "type": "module",
   "description": "Batch image compression for Windows and macOS",
@@ -81,7 +81,8 @@
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
       "allowElevation": false,
-      "packElevateHelper": false
+      "packElevateHelper": false,
+      "include": "installer/migrate.nsh"
     },
     "dmg": {
       "contents": [

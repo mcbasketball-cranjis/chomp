@@ -47,6 +47,9 @@ jobs:
           CSC_LINK: ${{ matrix.platform == 'win' && secrets.WINDOWS_CSC_LINK || '' }}
           CSC_KEY_PASSWORD: ${{ matrix.platform == 'win' && secrets.WINDOWS_CSC_KEY_PASSWORD || '' }}
       - run: pnpm test:package
+      - name: Build previous-version upgrade fixtures
+        if: runner.os == 'Windows'
+        run: node scripts/build-upgrade-fixtures.mjs
       - name: Test Windows installation and uninstallation
         if: runner.os == 'Windows'
         shell: powershell
@@ -54,6 +57,14 @@ jobs:
       - name: Verify Windows single-file portable app
         if: runner.os == 'Windows'
         run: node scripts/verify-portable.cjs
+      - name: Bundle local signing helpers with Windows downloads
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./scripts/package-windows.ps1
+      - name: Test local signing and download contents
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./tests/local-signing.ps1
       - name: Scan Windows packages with Defender
         if: runner.os == 'Windows'
         shell: powershell

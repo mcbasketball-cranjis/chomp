@@ -80,7 +80,7 @@ pnpm build
 pnpm exec electron-builder --mac dmg zip --arm64 --x64
 ```
 
-The GitHub Actions workflow builds on Windows x64, macOS Intel, and macOS Apple Silicon when main is updated, a `v*` tag is pushed, or the workflow runs manually. Each packaged executable runs the desktop, folder, and appearance tests on its matching OS and architecture. Windows also tests installation, the installed app, shortcuts, and uninstallation on the disposable runner. macOS mounts the DMG and checks the app and Applications shortcut. Once all checks pass, the workflow publishes a GitHub release with the Windows installer, ZIPs, and macOS DMGs. Existing releases are left unchanged.
+The GitHub Actions workflow builds on Windows x64, macOS Intel, and macOS Apple Silicon when main is updated, a `v*` tag is pushed, or the workflow runs manually. Each packaged executable runs the desktop, folder, and appearance tests on its matching OS and architecture. Windows also tests installation, the installed app, shortcuts, and uninstallation on the disposable runner. macOS mounts the DMG and checks the app and Applications shortcut. Once all checks pass, the workflow publishes a GitHub release with the Windows installer, ZIPs, and macOS DMGs. Old GatorSqoosh releases are removed after Chomp is published.
 
 Portable Windows ZIPs are also provided. Extract the entire folder and keep its files together; the EXE depends on the bundled resources. The installer handles these files automatically and does not require admin rights.
 
@@ -88,7 +88,7 @@ Portable Windows ZIPs are also provided. Extract the entire folder and keep its 
 
 An unknown-publisher SmartScreen warning is a reputation warning, not a named malware detection. Changing the package to an installer does not establish publisher reputation. The release workflow scans Windows outputs with Defender when the hosted scanner is available and publishes `Defender-scan.json` with the exact scan status and SHA-256 hashes. A scan detection or scanner failure blocks publication; an unavailable scanner is explicitly reported. Antivirus scan results do not establish SmartScreen reputation.
 
-To sign Windows installers and app executables, configure repository secrets `WINDOWS_CSC_LINK` (certificate URL or base64 PFX) and `WINDOWS_CSC_KEY_PASSWORD`. Use a trusted code-signing certificate; self-signed certificates do not fix unknown-publisher warnings. No signing certificate is included. Signing identifies the publisher but does not guarantee immediate SmartScreen acceptance, and managed work PCs may enforce stricter policies.
+To sign Windows installers and app executables, configure repository secrets `WINDOWS_CSC_LINK` (certificate URL or base64 PFX) and `WINDOWS_CSC_KEY_PASSWORD`. Use a trusted code-signing certificate; self-signed certificates are not publicly trusted and do not establish SmartScreen reputation. No signing certificate is included. Signing identifies the publisher but does not guarantee immediate SmartScreen acceptance, and managed work PCs may enforce stricter policies.
 
 Builds are unsigned and macOS builds are not notarized. Signed distribution requires Windows Authenticode or Apple signing and notarization credentials. For Mac signing, remove `mac.identity: null` from `package.json`.
 
@@ -102,3 +102,17 @@ Apache-2.0. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and `licenses/`
 
 On the Windows account/computer that owns the non-exportable signing key, run `./scripts/build-internal.ps1`. For a new identity, explicitly use `-CreateCertificate`. This creates a code-signing key in CurrentUser\My and exports only its public CER into the ignored `internal-release/` folder. It does not add certificate trust or bypass application-control policies. See [recipient instructions](docs/INTERNAL-DISTRIBUTION.md). These local builds are separate from public GitHub release builds and do not upload the private key.
 
+
+## Windows upgrades and local signing
+
+Run the newest Setup.exe to update Chomp. It also removes installed GatorSqoosh versions for the same Windows user, retaining app data. Portable copies are independent files/folders and must be replaced manually; setup does not search Downloads or remove compressed images.
+
+Every Windows Setup.zip, Portable.zip, and portable folder ZIP includes the local signing script, **Sign on this PC.cmd**, **Sign installed Chomp.cmd**, and [instructions](windows-signing/READ-ME-FIRST.txt). Extract the complete ZIP, run the launcher, and type SIGN. The standalone EXEs have the same helpers in Chomp-Windows-Signing-Kit.zip.
+
+```powershell
+powershell.exe -NoProfile -File ".\Sign-Locally.ps1"
+# After installing or updating:
+powershell.exe -NoProfile -File ".\Sign-Locally.ps1" -Installed
+```
+
+The script reuses an existing Chomp/GatorSqoosh local signing key when available. No private key is distributed, trust is not installed, and security policy is not changed. Signing a setup executable does not sign the app inside it. Updates replace executables, so sign new copies again as needed. A self-signed file may still be blocked by SmartScreen or company policy.

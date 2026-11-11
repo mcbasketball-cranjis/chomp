@@ -1,23 +1,26 @@
-## Chomp 1.3.0
+## Chomp 1.3.1
 
-- Renamed GatorSqoosh to Chomp.
-- Cleaner layout with contained scrolling and no in-app theme selector or processing badge.
-- System appearance on Windows; optional Appearance menu on Mac.
-- Supports image inputs up to 512 MB and 160 megapixels; resize edge up to 32,768 pixels.
-- Windows portable ZIP and setup installer. Portable packaging does not bypass Windows security policy.
+- Windows setup updates installed Chomp versions and removes installed GatorSqoosh copies for the same Windows user, including old shortcuts and uninstall registration. User data is retained. Portable copies must be replaced manually.
+- Every Windows ZIP includes **Sign on this PC.cmd**, **Sign installed Chomp.cmd**, the PowerShell signing script, and instructions. Existing local Chomp/GatorSqoosh signing keys are reused where available; private keys stay on that computer.
+- CI tests previous-version installers, migration, repeat upgrades, user-data preservation, local signing, and signing-kit contents.
 
-- Windows setup wizard installs the application and supporting files, creates a Start menu shortcut, and provides an uninstaller. No admin rights are required.
-- Portable Windows ZIP remains available; its extracted files must stay together.
-- Mac DMGs support the standard drag-to-Applications installation.
-- Optional Windows Authenticode signing through protected repository certificate secrets.
-- Windows installer lifecycle tests and explicit Defender scan/signature reports in CI.
+### Windows downloads
 
-### Downloads
+- [Installer + signing kit](https://github.com/mcbasketball-cranjis/chomp/releases/download/v1.3.1/Chomp-1.3.1-win-x64-Setup.zip): extract everything, run **Sign on this PC.cmd**, then Setup.exe. After installing, use **Sign installed Chomp.cmd** if the installed app also needs signing.
+- [Single-file portable + signing kit](https://github.com/mcbasketball-cranjis/chomp/releases/download/v1.3.1/Chomp-1.3.1-win-x64-Portable.zip): extract everything, run **Sign on this PC.cmd**, then Portable.exe.
+- [Portable folder + signing kit](https://github.com/mcbasketball-cranjis/chomp/releases/download/v1.3.1/Chomp-1.3.1-win-x64.zip): extract everything, run **Sign on this PC.cmd**, then Chomp.exe. Keep its supporting app files together.
+- Standalone Setup.exe and Portable.exe remain available; download **Chomp-Windows-Signing-Kit.zip** beside either EXE for the same signing commands.
 
-- Windows x64: run `Chomp-1.3.0-win-x64-Setup.exe`.
-- Mac Apple Silicon: open the `mac-arm64` DMG and drag Chomp into Applications.
-- Mac Intel: open the `mac-x64` DMG and drag Chomp into Applications.
+From Windows PowerShell in the extracted folder:
 
-All apps pass packaged desktop tests on their matching OS and architecture. Windows also tests the installed app and uninstallation; Mac checks the DMG's app and Applications shortcut.
+```powershell
+powershell.exe -NoProfile -File ".\Sign-Locally.ps1"
+# After installation or an update:
+powershell.exe -NoProfile -File ".\Sign-Locally.ps1" -Installed
+```
 
-The installer does not by itself remove SmartScreen's unknown-publisher warning. Windows packages remain unsigned unless a trusted certificate is configured. See `Defender-scan.json` for the hosted scanner result and exact hashes; a clean antivirus result does not establish SmartScreen reputation. Mac apps are not Apple-signed or notarized and may require approval in system security settings.
+The script creates/reuses a non-exportable local signing key after you approve it. It does not install certificate trust or change security policy. Self-signing can still be blocked by SmartScreen or company policy and does not verify the original publisher. Signing an installer does not sign its embedded app. Compare original EXE hashes with Defender-scan.json before signing; signing changes the hashes.
+
+### macOS
+
+Open the DMG for Apple Silicon (arm64) or Intel (x64) and drag Chomp into Applications. Apps are not Apple-signed or notarized.

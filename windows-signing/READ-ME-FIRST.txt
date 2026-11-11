@@ -1,0 +1,39 @@
+CHOMP - WINDOWS LOCAL SIGNING
+
+1. Extract the ENTIRE ZIP into a writable folder.
+2. Compare the original EXE's SHA256 with the release's Defender-scan.json.
+3. Double-click "Sign on this PC.cmd", review the file path, and type SIGN.
+4. Run the signed Setup.exe, Portable.exe, or Chomp.exe beside this file.
+
+For the installer: after installation, you can also double-click
+"Sign installed Chomp.cmd" to sign the installed app itself. Signing the
+installer does not sign the app executable inside it. Every update replaces
+that executable; sign the new download and installed app again as needed.
+
+The same commands, from Windows PowerShell in this extracted folder:
+    powershell.exe -NoProfile -File ".\Sign-Locally.ps1"
+    powershell.exe -NoProfile -File ".\Sign-Locally.ps1" -Installed
+
+To select one file explicitly (replace the path):
+    powershell.exe -NoProfile -File ".\Sign-Locally.ps1" -Path "C:\path\Chomp.exe"
+
+No developer tools or paid certificate are required. The script reuses your
+existing Chomp/GatorSqoosh local signing key if available; otherwise it creates
+a non-exportable key in YOUR CurrentUser personal certificate store. Only a
+PUBLIC certificate and signing report are exported. Never share a private key.
+
+Signing changes the file hash and identifies your local key, not the original
+developer. It is not antivirus clearance. The script does not install trust or
+disable protections. An untrusted-root status is expected unless your device
+owner/IT has already approved that key. SmartScreen, Smart App Control, or
+company policy can still block it. If scripts are disabled, ask IT; this kit
+does not override execution policy. No public timestamp is added; re-sign
+before certificate expiration.
+
+SETUP AND UPDATES
+Run the newest Setup.exe to replace an installed Chomp version and remove an
+installed GatorSqoosh version for the same Windows user. App data is retained.
+Portable copies are independent files/folders: close and replace them yourself.
+Setup does not search Downloads or remove portable copies or compressed images.
+
+The Windows signing kit does not sign or notarize Mac applications.

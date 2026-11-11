@@ -12,4 +12,8 @@ internal-release/
 *.pfx
 *.p12
 *.key
+legacy-release/
+previous-release/
+windows-signing/THIS-PC-PUBLIC-CERTIFICATE.cer
+windows-signing/LOCAL-SIGNING-RESULT.txt
 
