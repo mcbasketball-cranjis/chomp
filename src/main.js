@@ -285,38 +285,62 @@ async function add(result) {
   if(!selectedItem()&&items.length)selectItem(items[0]);
   notice([result.ignored ? `${result.ignored} non-image or oversized file(s) excluded from compression.` : '', result.skipped ? `${result.skipped} symbolic links or special files skipped.` : '', duplicates ? `${duplicates} duplicate image(s) skipped.` : '', ...(result.warnings || []), !items.length && folderRoots.length ? 'No supported images found in the selected folders.' : ''].filter(Boolean).join(' '));
 }
-async function importFiles(load) { if (running || scanning) return; scanning = true; buttonState(); try { await add(await load()); } catch (e) { notice(e.message); } finally { scanning = false; buttonState(); } }
+async function importFiles(load) { if (running || scanning) return; scanning = true; buttonState(); try { await add(await load()); } catch (e) { notice(e.message); } finally { scanning = false; buttonState(); if(selectedItem()) queuePreview(); } }
 async function pick() { if (!api) { notice('Open the desktop app to select images and output folders.'); return; } await importFiles(() => api.pickImages()); }
-$('add').onclick = pick; $('drop').onclick = pick;
+$('add').onclick=pick;$('add-sidebar').onclick=pick;$('drop').onclick=pick;
+$('help').onclick=()=>notice('Add images or folders, choose a tool, inspect the result, choose a save destination, and export. Everything is processed locally.');
+document.querySelectorAll('[data-workspace]').forEach(el=>el.onclick=()=>setWorkspace(el.dataset.workspace));
+$('compare-slider').oninput=updatePreviewSplit;
+$('compare-view').onclick=()=>{
+  $('preview-stage').classList.remove('result-only');
+  $('compare-view').classList.add('selected');$('result-view').classList.remove('selected');
+};
+$('result-view').onclick=()=>{
+  $('preview-stage').classList.add('result-only');
+  $('result-view').classList.add('selected');$('compare-view').classList.remove('selected');
+};
+document.querySelectorAll('[data-trace]').forEach(el=>el.onclick=()=>{
+  $('trace-detail').value=el.dataset.trace;
+  document.querySelectorAll('[data-trace]').forEach(button=>button.classList.toggle('selected',button===el));
+  $('trace-hint').textContent=el.dataset.trace==='simple'?'Cleaner shapes and fewer colors. Great for simple icons.':el.dataset.trace==='detailed'?'More colors and contours for detailed artwork.':'Balanced shapes and colors. Great for logos.';
+  queuePreview();
+});
 $('add-folder').onclick = () => api ? importFiles(() => api.pickFolders()) : notice('Open the desktop app to select folders.');
-document.querySelectorAll('[name="folder-mode"]').forEach(el => el.onchange = () => { if (mode() === 'replace') $('format').value = 'original'; $('format').onchange(); buttonState(); });
+document.querySelectorAll('[name="folder-mode"]').forEach(el => el.onchange = () => { if(mode()==='replace'){$('format').value='original';workspaceMode='compress';}else if($('format').value==='original')$('format').value=preferredFormats[workspaceMode];$('format').onchange();buttonState(); });
 window.addEventListener('dragover', e => { e.preventDefault(); if (!running) $('drop').classList.add('dragging'); });
 window.addEventListener('dragleave', e => { if (!e.relatedTarget) $('drop').classList.remove('dragging'); });
 window.addEventListener('drop', async e => { e.preventDefault(); $('drop').classList.remove('dragging'); if (running || !api) return; const files = [...e.dataTransfer.files]; await importFiles(() => api.dropImages(files)); });
-$('clear').onclick = async () => { try { await api.clearInputs(); for (const url of urls) URL.revokeObjectURL(url); urls.clear(); items = []; folderRoots = []; $('queue').replaceChildren(); $('summary').hidden = true; notice(''); buttonState(); } catch (e) { notice(e.message); } };
+$('clear').onclick = async () => { try { await api.clearInputs(); for (const url of urls) URL.revokeObjectURL(url); urls.clear(); items = []; folderRoots = []; $('queue').replaceChildren(); $('summary').hidden = true; notice(''); selectItem(null); buttonState(); } catch (e) { notice(e.message); } };
 $('folder').onclick = async () => { if (!api) return; try { const folder = await api.pickOutput(); if (folder) { output = folder; $('folder-label').textContent = folder.split(/[\\/]/).filter(Boolean).pop() || folder; $('folder').title = folder; buttonState(); } } catch (e) { notice(e.message); } };
-function quality() { $('quality-value').innerHTML = `${$('quality').value}<span>%</span>`; document.querySelectorAll('[data-quality]').forEach(el => el.classList.toggle('selected', el.dataset.quality === $('quality').value)); }
+function quality() { $('quality-value').innerHTML = `${$('quality').value}<span>%</span>`; document.querySelectorAll('[data-quality]').forEach(el => el.classList.toggle('selected', el.dataset.quality === $('quality').value));queuePreview(); }
 $('quality').oninput = quality;
 document.querySelectorAll('[data-quality]').forEach(el => el.onclick = () => { $('quality').value = el.dataset.quality; quality(); });
-$('resize').onchange = () => { $('resize-options').hidden = !$('resize').checked; };
-$('limit-size').onchange = () => { $('limit-options').hidden = !$('limit-size').checked; };
-$('remove-bg').onchange = () => { $('background-controls').hidden = !$('remove-bg').checked; };
+$('resize').onchange=()=>{$('resize-options').hidden=!$('resize').checked;queuePreview();};
+$('limit-size').onchange=()=>{$('limit-options').hidden=!$('limit-size').checked;queuePreview();};
+$('remove-bg').onchange=()=>{$('background-controls').hidden=!$('remove-bg').checked;queuePreview();};
 document.querySelectorAll('[name="bg-mode"]').forEach(el => el.onchange = () => {
   const all = document.querySelector('[name="bg-mode"]:checked').value === 'all';
   $('bg-mode-hint').textContent = all
     ? 'Clears matching color anywhere, including inside O, e, and p. Same-colored logo details will also be removed.'
     : 'Removes background connected to the outside. Enclosed areas stay untouched.';
+  queuePreview();
 });
-$('bg-tolerance').oninput = () => { $('bg-value').textContent = $('bg-tolerance').value; };
+$('bg-tolerance').oninput=()=>{$('bg-value').textContent=$('bg-tolerance').value;queuePreview();};
+['max-size','max-bytes','size-unit'].forEach(id=>{$(id).onchange=queuePreview;});
+$('trace-detail').onchange=queuePreview;
 $('format').onchange = () => {
   const format = $('format').value, lossless = format === 'png' || format === 'svg';
   $('quality').disabled = lossless;
   document.querySelectorAll('[data-quality]').forEach(el => el.disabled = lossless);
   $('quality-value').innerHTML = format === 'svg' ? '<span>Vector</span>' : lossless ? '<span>Lossless</span>' : `${$('quality').value}<span>%</span>`;
-  $('trace-controls').hidden = format !== 'svg';
+  $('trace-controls').hidden=format!=='svg';
+  $('compression-controls').hidden=lossless;
+  $('preview-after-label').textContent=format==='svg'?'VECTOR':'RESULT';
+  $('preview-badge').textContent=format==='svg'?'SVG · transparent':format==='original'?'Original format':format.toUpperCase()+(format==='jpg'?' · opaque':' · transparency');
   $('remove-bg').disabled = format === 'jpg';
   if (format === 'jpg' && $('remove-bg').checked) { $('remove-bg').checked = false; $('remove-bg').onchange(); }
   $('format-hint').textContent = format === 'svg' ? 'Editable shapes. Transparent areas remain transparent with no added backdrop.' : format === 'png' ? 'Keeps every pixel. Size savings vary by image.' : format === 'original' ? 'Keeps formats. Existing SVG vectors remain SVG.' : format === 'jpg' ? 'Transparency becomes white. Background removal needs PNG, WebP, AVIF or SVG.' : format === 'avif' ? 'Supports transparency. Slower to encode.' : 'Supports transparency.';
+  queuePreview();buttonState();
 };
 async function encode(data, settings) {
   if (!worker) worker = new Worker(new URL('./codec.worker.js', import.meta.url), { type: 'module' });
@@ -339,7 +363,7 @@ $('compress').onclick = async () => {
   if (settings.removeBackground && settings.format === 'original' && items.some(item => item.format === 'jpg')) { notice('JPEG cannot save transparency. Choose PNG, WebP, AVIF or SVG to remove the background.'); return; }
   const outputMode = mode();
   if (outputMode === 'replace' && items.some(item => !item.rootId)) { notice('Clear individual image files from the queue before replacing a folder in place.'); return; }
-  running = true; stopped = false; buttonState(); notice(''); $('summary').hidden = true;
+  stopPreview();running=true;stopped=false;buttonState();notice('');$('summary').hidden=true;$('preview-status').textContent='Exporting…';
   $('compress').hidden = true; $('cancel').hidden = false; $('cancel').disabled = false; $('cancel').textContent = 'Stop after this image'; $('progress-wrap').hidden = false;
   document.querySelectorAll('.remove').forEach(el => el.disabled = true);
   const pending = folderRoots.length || items.every(i => i.status === 'done') ? [...items] : items.filter(i => i.status !== 'done'); let completed = 0, failed = 0, original = 0, compressed = 0, batch = null, startupError = null;
@@ -379,7 +403,8 @@ $('compress').onclick = async () => {
     const text = document.createElement('div'); const title = document.createElement('strong'); title.textContent = startupError ? stopped ? 'Batch stopped' : 'Batch could not start' : stopped ? 'Batch stopped' : failed ? 'Processing finished with errors' : 'Processing complete';
     const detail = document.createElement('p'); detail.textContent = `${completed} ${outputMode === 'replace' ? 'replaced' : 'saved'}${failed ? ` · ${failed} failed` : ''}${completed ? ` · ${delta >= 0 ? bytes(delta) + ' saved' : bytes(-delta) + ' larger'} · ${bytes(original)} → ${bytes(compressed)}` : ''}${stopped ? ' · Remaining images stay in the queue.' : ''}`;
     text.append(title, detail); const open = document.createElement('button'); open.className = 'button secondary'; open.innerHTML = `${icon('folder')}Open folder`; open.onclick = () => api.showOutput().catch(e => notice(e.message));
-    $('summary').append(mark, text); if (batch) $('summary').append(open); $('summary').hidden = false;
+    $('summary').append(mark,text);if(batch)$('summary').append(open);$('summary').hidden=false;
+    if(selectedItem())queuePreview();
   }
 };
-buttonState();
+$('format').onchange();updatePreviewSplit();buttonState();
