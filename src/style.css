@@ -6,3 +6,9 @@ main{max-width:1400px;margin:auto;padding:28px 40px 20px}.intro{margin-bottom:24
 /* Chomp 1.3: contained scrolling and aligned controls. */
 html,body,#app{height:100%;overflow:hidden}#app{display:flex;flex-direction:column}.titlebar,.topbar{flex-shrink:0}.topbar{height:64px}main{width:100%;flex:1;min-height:0;overflow:auto;scrollbar-gutter:stable;padding-top:24px}.workspace{align-items:start}.settings-panel{position:static}.queue{max-height:360px}.settings-title{margin-bottom:18px}.settings-panel{padding:20px}.divider{margin:15px 0}.hint{margin-bottom:13px}h1{font-size:29px}.intro{margin-bottom:22px}.panel-heading{flex-wrap:wrap}.add-actions{flex-wrap:wrap}.brand{gap:0}.image-row{min-width:0}.summary>div{min-width:180px}.quick-panel{overflow-wrap:anywhere}footer>span:empty{display:none}input,select{max-width:100%}.size-input{min-width:0}.dropzone.compact{min-height:76px}.empty-note{min-height:145px}
 .presets button.selected{background:var(--gradient);color:#fff}
+
+/* Vector conversion controls: match existing settings, including compact layouts. */
+.trace-controls{margin:15px 0 0;padding:13px;border:1px solid var(--line);border-radius:9px;background:var(--surface2)}
+.trace-controls .hint{margin:8px 0 0}.trace-controls .field-label{margin-bottom:7px}
+#background-controls{margin-top:15px;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--surface3)}
+#background-controls .label-row output{font-size:13px}#background-controls .hint{margin:0}
