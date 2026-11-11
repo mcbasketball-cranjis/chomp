@@ -12,3 +12,11 @@ html,body,#app{height:100%;overflow:hidden}#app{display:flex;flex-direction:colu
 .trace-controls .hint{margin:8px 0 0}.trace-controls .field-label{margin-bottom:7px}
 #background-controls{margin-top:15px;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--surface3)}
 #background-controls .label-row output{font-size:13px}#background-controls .hint{margin:0}
+
+/* Background removal scope: compact two-choice control. */
+.bg-scope{margin:0 0 2px;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.bg-scope legend{margin-bottom:8px}
+.bg-mode-option{min-width:0;display:flex;gap:7px;align-items:flex-start;border:1px solid var(--line);border-radius:7px;padding:9px 7px;font-size:10px;line-height:1.4;color:var(--muted);cursor:pointer;background:var(--surface)}
+.bg-mode-option:has(input:checked){border-color:var(--accent);background:var(--surface2);color:var(--ink)}
+.bg-mode-option input{accent-color:var(--accent);margin:1px 0 0;flex-shrink:0}
+#bg-mode-hint{margin:8px 0 15px!important}
