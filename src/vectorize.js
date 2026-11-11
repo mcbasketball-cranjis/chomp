@@ -20,11 +20,13 @@ function distanceSquared(data, p, color) {
 }
 
 /**
- * Remove only the background connected to the canvas edge.
- * The background color is inferred from agreeing opaque corners, NOT white by default.
- * Internal same-color objects and enclosed holes are retained.
+ * Remove a color sampled from agreeing opaque image corners (never assume white).
+ * 'edges' removes only connected exterior pixels; 'all' also clears enclosed
+ * background-colored holes in letterforms such as O, e, and p.
+ * This intentionally cannot distinguish other matching-colored logo details.
  */
-export function removeConnectedBackground(image, tolerance = 28) {
+export function removeBackgroundColor(image, tolerance = 28, mode = 'edges') {
+  if (!['edges', 'all'].includes(mode)) throw new Error('Invalid background removal mode.');
   const { width, height, data } = image;
   if (!width || !height || data.length < width * height * 4) throw new Error('Invalid image data.');
   const limit = Math.max(0, Math.min(100, Number(tolerance) || 0));
@@ -37,6 +39,18 @@ export function removeConnectedBackground(image, tolerance = 28) {
   }
   if (matches < 2) return 0;
   const background = [data[seed * 4], data[seed * 4 + 1], data[seed * 4 + 2]];
+  const maxDistance = limit * limit * 3;
+  if (mode === 'all') {
+    let removed = 0;
+    for (let index = 0; index < width * height; index++) {
+      const p = index * 4;
+      if (data[p + 3] >= 8 && distanceSquared(data, p, background) <= maxDistance) {
+        data[p + 3] = 0;
+        removed++;
+      }
+    }
+    return removed;
+  }
   const visited = new Uint8Array(width * height);
   const queue = new Uint32Array(width * height);
   let head = 0, tail = 0, removed = 0;
@@ -59,6 +73,11 @@ export function removeConnectedBackground(image, tolerance = 28) {
     if (y + 1 < height) enqueue(index + width);
   }
   return removed;
+}
+
+// Preserve the original public helper and its edge-only behavior for callers.
+export function removeConnectedBackground(image, tolerance = 28) {
+  return removeBackgroundColor(image, tolerance, 'edges');
 }
 
 function medianCutPalette(data, colorCount) {
