@@ -43,8 +43,23 @@ const work = path.join(root, 'test-results');
     assert.deepEqual(await fs.readFile(source), sourceBefore);
     await page.click('#compress'); await expect(page.locator('#summary')).toBeVisible({ timeout: 60000 }); await expect(page.locator('#summary')).toContainText('1 saved');
     const beforeStop = await page.locator('.image-row').first().getAttribute('title'); assert.ok(beforeStop.includes('('), 'Recompression receives a unique filename');
-    await page.click('#clear'); await select([source, broken]); await page.click('#add');
-    await page.click('#compress'); await page.click('#cancel'); await expect(page.locator('#summary')).toBeVisible({ timeout: 60000 }); await expect(page.locator('#summary')).toContainText('Batch stopped');
+    // Use a real multi-image workload: a two-item batch may finish before
+    // Playwright's stable-element click can reach the transient Stop button.
+    const stopInputs = [source, broken];
+    for (let n = 0; n < 16; n++) {
+      const copy = path.join(work, `stop-fixture-${n}.png`);
+      await fs.copyFile(source, copy);
+      stopInputs.push(copy);
+    }
+    await page.click('#clear'); await select(stopInputs); await page.click('#add');
+    await expect(page.locator('.image-row')).toHaveCount(stopInputs.length);
+    await page.click('#compress');
+    await expect(page.locator('#cancel')).toBeVisible({ timeout: 5000 });
+    // A direct DOM click avoids the automatic 2-frame stability wait; cancellation
+    // itself is still processed by the real app's button handler.
+    await page.locator('#cancel').evaluate(el => { if (el.disabled) throw new Error('Stop button unexpectedly disabled.'); el.click(); });
+    await expect(page.locator('#summary')).toBeVisible({ timeout: 60000 });
+    await expect(page.locator('#summary')).toContainText('Batch stopped');
     await page.screenshot({ path: path.join(work, 'completed.png') });
     assert.deepEqual(errors, []); console.log('PASS: Native dialogs, sandbox bridge, real WASM exports (WebP/JPEG/PNG), resize, corrupt image recovery, filename collisions, source preservation, and cancellation.');
   } finally { await app.close(); }
