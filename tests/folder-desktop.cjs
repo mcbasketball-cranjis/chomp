@@ -58,7 +58,7 @@ const root = path.resolve(__dirname, '..');
     await dropFolder(); await page.check('[name="folder-mode"][value="replace"]');
     await expect(page.locator('#format')).toBeDisabled(); await expect(page.locator('#output-controls')).toBeHidden();
     await page.evaluate(() => window.scrollTo(0, 0));
-    await page.screenshot({ path: path.join(root, '..', 'GatorSqoosh-folders-preview.png'), fullPage: true });
+    await page.screenshot({ path: path.join(root, 'test-results', 'GatorSqoosh-folders-preview.png'), fullPage: true });
     await page.click('#compress'); await expect(page.locator('#summary')).toBeVisible({ timeout: 60000 }); await expect(page.locator('#summary')).toContainText('4 replaced'); await expect(page.locator('#summary')).toContainText('1 failed');
     for (const relative of imagePaths) assert.deepEqual(await dimensions(path.join(source, relative)), [64, 40]);
     for (const relative of ['broken.png', 'index.html', 'assets/data.bin']) assert.deepEqual(await fs.readFile(path.join(source, relative)), originals.get(relative));

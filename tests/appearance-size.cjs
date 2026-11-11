@@ -17,7 +17,7 @@ const root = path.resolve(__dirname, '..');
       assert.equal(await app.evaluate(({ nativeTheme }) => nativeTheme.themeSource), theme);
       assert.equal((await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBackgroundColor())).toLowerCase(), theme === 'dark' ? '#101e25' : '#f1f8f7');
       assert.ok(await page.locator('.brand-mark').evaluate(img => img.complete && img.naturalWidth > 0));
-      await page.screenshot({ path: path.join(root, '..', `GatorSqoosh-${theme}.png`), fullPage: true });
+      await page.screenshot({ path: path.join(root, 'test-results', `GatorSqoosh-${theme}.png`), fullPage: true });
     }
     const drag = await page.locator('.titlebar').evaluate(el => getComputedStyle(el).webkitAppRegion); assert.equal(drag, 'drag');
     if (process.platform === 'win32') assert.equal(await page.evaluate(() => navigator.windowControlsOverlay.visible), true);

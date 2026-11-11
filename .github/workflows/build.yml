@@ -6,6 +6,9 @@ on:
     tags: ['v*']
 permissions:
   contents: read
+concurrency:
+  group: gatorsqoosh-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   build:
     timeout-minutes: 30
@@ -54,7 +57,6 @@ jobs:
         with:
           name: verification-${{ matrix.platform }}-${{ matrix.arch }}
           path: |
-            ../GatorSqoosh-*.png
             test-results/*.png
           if-no-files-found: ignore
   release:

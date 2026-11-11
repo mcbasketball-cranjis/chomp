@@ -12,7 +12,7 @@ const work = path.join(root, 'test-results');
   try {
     const page = await app.firstWindow(); await page.waitForSelector('#compress');
     const errors = []; page.on('pageerror', e => errors.push(e.message));
-    await page.screenshot({ path: path.join(root, '..', 'GatorSqoosh-preview.png') });
+    await page.screenshot({ path: path.join(root, 'test-results', 'GatorSqoosh-preview.png') });
     const fixture = await page.evaluate(() => {
       const c = document.createElement('canvas'); c.width = 600; c.height = 400; const ctx = c.getContext('2d');
       const gradient = ctx.createLinearGradient(0, 0, 600, 400); gradient.addColorStop(0, '#f2cb78'); gradient.addColorStop(1, '#176953'); ctx.fillStyle = gradient; ctx.fillRect(0, 0, 600, 400);

@@ -14,9 +14,9 @@
     "test": "node --test tests/*.test.cjs",
     "test:desktop": "node tests/desktop.cjs",
     "test:folders": "node tests/folder-desktop.cjs",
-    "pack": "node scripts/icons.mjs && vite build && electron-builder --dir",
-    "dist:win": "node scripts/icons.mjs && vite build && electron-builder --win zip",
-    "dist:mac": "node scripts/icons.mjs && vite build && electron-builder --mac dmg zip",
+    "pack": "node scripts/icons.mjs && vite build && electron-builder --dir --publish never",
+    "dist:win": "node scripts/icons.mjs && vite build && electron-builder --win zip --publish never",
+    "dist:mac": "node scripts/icons.mjs && vite build && electron-builder --mac dmg zip --publish never",
     "icons": "node scripts/icons.mjs",
     "test:appearance": "node tests/appearance-size.cjs",
     "test:package": "node scripts/verify-package.mjs"
