@@ -1,3 +1,4 @@
+import { decodeSvgBitmap } from './svg-input.js';
 import './style.css';
 const icons = {
   layers: '<rect x="4" y="4" width="11" height="11" rx="3"/><path d="M9 19h8a3 3 0 0 0 3-3V9"/>',
@@ -125,12 +126,14 @@ $('format').onchange = () => {
   if (format === 'jpg' && $('remove-bg').checked) { $('remove-bg').checked = false; $('remove-bg').onchange(); }
   $('format-hint').textContent = format === 'svg' ? 'Editable shapes. Transparent areas remain transparent with no added backdrop.' : format === 'png' ? 'Keeps every pixel. Size savings vary by image.' : format === 'original' ? 'Keeps formats. Existing SVG vectors remain SVG.' : format === 'jpg' ? 'Transparency becomes white. Background removal needs PNG, WebP, AVIF or SVG.' : format === 'avif' ? 'Supports transparency. Slower to encode.' : 'Supports transparency.';
 };
-function encode(data, settings) {
+async function encode(data, settings) {
   if (!worker) worker = new Worker(new URL('./codec.worker.js', import.meta.url), { type: 'module' });
+  // SVG files must be decoded with an HTMLImageElement on the document thread.
+  const bitmap = settings.sourceFormat === 'svg' ? await decodeSvgBitmap(data) : null;
   return new Promise((resolve, reject) => {
     worker.onmessage = event => event.data.error ? reject(new Error(event.data.error)) : resolve(event.data);
     worker.onerror = () => { worker.terminate(); worker = null; reject(new Error('The image worker stopped. Try a smaller image.')); };
-    worker.postMessage({ bytes: data, ...settings }, [data.buffer]);
+    worker.postMessage({ bytes: data, bitmap, ...settings }, bitmap ? [data.buffer, bitmap] : [data.buffer]);
   });
 }
 function updateItem(item, text, state) { item.status = state; item.el.querySelector('.status').textContent = text; item.el.querySelector('.status').className = `status ${state}`; }
