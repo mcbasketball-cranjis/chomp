@@ -113,23 +113,131 @@ else { applyAppearance({ dark: matchMedia('(prefers-color-scheme: dark)').matche
 let items = [], folderRoots = [], output = null, running = false, stopped = false, worker = null, scanning = false;
 const mode = () => folderRoots.length ? document.querySelector('[name="folder-mode"]:checked').value : 'files';
 const urls = new Set();
+let workspaceMode='vectorize',selectedId=null,previewTimer=null,previewVersion=0,previewWorker=null,previewOriginalUrl=null,previewResultUrl=null;
+const MIME={jpg:'image/jpeg',png:'image/png',svg:'image/svg+xml',webp:'image/webp',avif:'image/avif'};
+const workspaceCopy={
+  compress:['LESS WEIGHT, SAME IMPACT','Compress your images.','Smaller files, beautiful results. Control quality and size.','Compression settings'],
+  convert:['EVERY FORMAT, ONE PLACE','Convert your images.','Switch between PNG, JPEG, WebP, AVIF and SVG without uploads.','Conversion settings'],
+  vectorize:['PIXELS, MEET PATHS','Vectorize your images.','Turn logos and illustrations into beautiful, editable SVGs.','Vector settings']
+};
+const preferredFormats={compress:'webp',convert:'png',vectorize:'svg'};
+function selectedItem(){return items.find(item=>item.id===selectedId)||null;}
+function releasePreviewUrls(){
+  if(previewOriginalUrl)URL.revokeObjectURL(previewOriginalUrl);
+  if(previewResultUrl)URL.revokeObjectURL(previewResultUrl);
+  previewOriginalUrl=previewResultUrl=null;
+}
+function stopPreview(){
+  ++previewVersion;clearTimeout(previewTimer);
+  if(previewWorker){previewWorker.terminate();previewWorker=null;}
+}
+function selectItem(item){
+  selectedId=item?.id??null;
+  document.querySelectorAll('.image-row').forEach(el=>el.classList.toggle('selected',el.dataset.id===String(selectedId)));
+  $('selected-name').textContent=item?(item.relative||item.name):'No image selected';
+  $('metric-original').textContent=item?bytes(item.size):'—';
+  $('metric-output').textContent='—';$('metric-savings').textContent='—';
+  $('stage-caption').textContent=item?item.name+' · '+item.format.toUpperCase():'Select an image to see its preview';
+  $('preview-stage').classList.toggle('is-empty',!item);
+  $('original-img').hidden=true;$('result-img').hidden=true;
+  releasePreviewUrls();stopPreview();buttonState();
+  if(item)queuePreview();
+}
+function queuePreview(){
+  if(!selectedItem()||!api||running||scanning)return;
+  stopPreview();$('preview-status').textContent='Rendering…';
+  $('metric-output').textContent='—';$('metric-savings').textContent='—';
+  previewTimer=setTimeout(renderPreview,350);
+}
+async function renderPreview(){
+  const item=selectedItem(),token=++previewVersion;
+  if(!item||!api||running)return;
+  if(item.size>32*1024*1024){$('preview-status').textContent='Large image · export supported';return;}
+  try{
+    const data=await api.readImage(item.id);
+    if(token!==previewVersion||selectedId!==item.id||running)return;
+    releasePreviewUrls();
+    previewOriginalUrl=URL.createObjectURL(new Blob([data],{type:MIME[item.format]||'application/octet-stream'}));
+    $('original-img').src=previewOriginalUrl;$('original-img').hidden=false;
+    const target=$('format').value==='original'?item.format:$('format').value;
+    if(target==='jpg'&&$('remove-bg').checked){$('preview-status').textContent='JPEG cannot keep transparency';return;}
+    const bitmap=item.format==='svg'?await decodeSvgBitmap(data):null;
+    if(token!==previewVersion||running){bitmap?.close();return;}
+    const local=new Worker(new URL('./codec.worker.js',import.meta.url),{type:'module'});
+    previewWorker=local;
+    local.onmessage=({data:result})=>{
+      if(token!==previewVersion)return;
+      previewWorker=null;local.terminate();
+      if(result.error){$('preview-status').textContent='Preview unavailable';return;}
+      previewResultUrl=URL.createObjectURL(new Blob([result.bytes],{type:MIME[target]}));
+      $('result-img').src=previewResultUrl;$('result-img').hidden=false;
+      $('metric-output').textContent=bytes(result.bytes.byteLength);
+      const percent=Math.round((1-result.bytes.byteLength/item.size)*100);
+      $('metric-savings').textContent=percent>=0?percent+'% smaller':Math.abs(percent)+'% larger';
+      $('preview-status').textContent='Preview ready';
+      $('stage-caption').textContent=item.format.toUpperCase()+' · '+result.width+' × '+result.height;
+      if(result.thumbnail&&!item.url){
+        const url=URL.createObjectURL(new Blob([result.thumbnail],{type:'image/webp'}));
+        urls.add(url);item.url=url;
+        const img=document.createElement('img');img.src=url;img.alt='';
+        item.el.querySelector('.thumbnail').replaceChildren(img);
+      }
+    };
+    local.onerror=()=>{
+      if(token!==previewVersion)return;
+      previewWorker=null;local.terminate();$('preview-status').textContent='Preview unavailable';
+    };
+    const payload={
+      bytes:data,bitmap,format:target,sourceFormat:item.format,
+      quality:Number($('quality').value),maxSize:$('resize').checked?Number($('max-size').value):null,
+      maxBytes:$('limit-size').checked?Math.floor(Number($('max-bytes').value)*Number($('size-unit').value)):null,
+      traceDetail:$('trace-detail').value,removeBackground:$('remove-bg').checked,
+      bgTolerance:Number($('bg-tolerance').value),bgMode:document.querySelector('[name="bg-mode"]:checked').value
+    };
+    local.postMessage(payload,bitmap?[data.buffer,bitmap]:[data.buffer]);
+  }catch(error){if(token===previewVersion)$('preview-status').textContent='Preview unavailable';}
+}
+function setWorkspace(next){
+  if(running||!workspaceCopy[next])return;
+  if(workspaceMode!==next&&!$('format').disabled)preferredFormats[workspaceMode]=$('format').value;
+  workspaceMode=next;
+  const [eyebrow,title,desc,settingsTitle]=workspaceCopy[next];
+  $('workspace-eyebrow').textContent=eyebrow;$('workspace-title').textContent=title;
+  $('workspace-description').textContent=desc;$('settings-title').textContent=settingsTitle;
+  document.querySelectorAll('[data-workspace]').forEach(el=>{
+    el.classList.toggle('active',el.dataset.workspace===next);
+    el.setAttribute('aria-current',el.dataset.workspace===next?'page':'false');
+  });
+  $('format').value=mode()==='replace'?'original':preferredFormats[next];
+  $('format').onchange();buttonState();
+}
+function updatePreviewSplit(){
+  const value=$('compare-slider').value;
+  $('original-layer').style.clipPath='inset(0 '+(100-value)+'% 0 0)';
+  $('comparison-line').style.left=value+'%';$('comparison-handle').style.left=value+'%';
+}
 const bytes = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`;
 function notice(message) { $('notice').textContent = message; }
 function buttonState() {
   const replacing = mode() === 'replace';
   $('compress').disabled = running || scanning || (!replacing && !output) || !items.length;
   const converting = $('format').value === 'svg' || items.some(item => item.format === 'svg');
-  $('compress').innerHTML = `${replacing ? 'Replace original images' : items.length && items.every(i => i.status === 'done') ? 'Process again' : converting ? 'Convert batch' : 'Compress batch'} ${icon('arrow')}`;
+  const amount=items.length+' image'+(items.length===1?'':'s');
+  const label=replacing?'Replace original images':items.length&&items.every(i=>i.status==='done')?'Export again':workspaceMode==='vectorize'&&$('format').value==='svg'?'Export '+items.length+' SVG'+(items.length===1?'':'s'):workspaceMode==='convert'?'Convert '+amount:'Compress '+amount;
+  $('compress').innerHTML=icon('upload')+' '+label;
   $('clear').disabled = running || scanning || (!items.length && !folderRoots.length);
   $('add').disabled = running || scanning;
   $('add-folder').disabled = running || scanning;
   $('drop').disabled = running || scanning;
+  $('add-sidebar').disabled=running||scanning;
+  document.querySelectorAll('[data-workspace]').forEach(el=>el.disabled=running);
   $('folder-modes').disabled = running || scanning;
   $('settings').disabled = running;
   $('total').textContent = items.length ? `${items.length} image${items.length === 1 ? '' : 's'} · ${bytes(items.reduce((s, i) => s + i.size, 0))} total` : 'No images added yet';
   $('count').textContent = items.length;
   $('empty-note').hidden = items.length > 0;
-  $('drop').classList.toggle('compact', items.length > 0);
+  $('drop').hidden=items.length>0;
+  $('preview-stage').classList.toggle('is-empty',!items.length);
   $('quick-panel').hidden = !folderRoots.length;
   $('folder-count').textContent = `${folderRoots.length} folder${folderRoots.length === 1 ? '' : 's'}`;
   $('source-folders').textContent = folderRoots.map(root => root.name).join(' · ');
@@ -141,7 +249,10 @@ function buttonState() {
   $('action-note').textContent = scanning ? 'Scanning subfolders…' : running ? 'Compressing locally. You can stop after the current image.' : !items.length ? 'Add images or a folder to begin.' : replacing ? 'Only successfully encoded images will be replaced.' : !output ? 'Choose where to save your compressed images.' : 'Ready to compress.';
 }
 function row(item) {
-  const el = document.createElement('div'); el.className = 'image-row'; el.dataset.id = item.id;
+  const el=document.createElement('div');el.className='image-row';el.dataset.id=item.id;
+  el.tabIndex=0;el.setAttribute('role','button');el.setAttribute('aria-label','Preview '+item.name);
+  el.onclick=()=>{if(!running)selectItem(item);};
+  el.onkeydown=e=>{if((e.key==='Enter'||e.key===' ')&&e.target===el){e.preventDefault();if(!running)selectItem(item);}};
   const thumb = document.createElement('div'); thumb.className = 'thumbnail'; thumb.innerHTML = icon('image');
   const info = document.createElement('div'); info.className = 'image-info';
   const name = document.createElement('strong'); name.textContent = item.rootId ? item.relative : item.name; name.title = item.relative || item.name;
@@ -149,14 +260,18 @@ function row(item) {
   info.append(name, detail);
   const status = document.createElement('span'); status.className = 'status'; status.textContent = 'Ready';
   const remove = document.createElement('button'); remove.className = 'remove'; remove.innerHTML = icon('x'); remove.setAttribute('aria-label', `Remove ${item.name}`);
-  remove.onclick = async () => { if (running) return; items = items.filter(i => i !== item); api.forgetImages([item.id]); if (item.url) { URL.revokeObjectURL(item.url); urls.delete(item.url); } el.remove(); buttonState(); };
+  remove.onclick=async e=>{e.stopPropagation();if(running)return;
+    items=items.filter(i=>i!==item);await api.forgetImages([item.id]);
+    if(item.url){URL.revokeObjectURL(item.url);urls.delete(item.url);}
+    el.remove();if(selectedId===item.id)selectItem(items[0]||null);else buttonState();
+  };
   el.append(thumb, info, status, remove); item.el = el;
   return el;
 }
 async function add(result) {
   const firstFolder = !folderRoots.length && result.roots?.length;
   folderRoots.push(...(result.roots || []));
-  if (firstFolder) { $('format').value = 'original'; $('format').onchange(); }
+  if(firstFolder){setWorkspace('compress');$('format').value='original';$('format').onchange();}
   let duplicates = 0;
   for (const file of result.files) {
     const existing = items.find(i => i.key === file.key);
@@ -166,7 +281,8 @@ async function add(result) {
     } else if (existing) { duplicates++; api.forgetImages([file.id]); continue; }
     const item = { ...file, status: 'ready' }; items.push(item); $('queue').append(row(item));
   }
-  $('summary').hidden = true; buttonState();
+  $('summary').hidden=true;buttonState();
+  if(!selectedItem()&&items.length)selectItem(items[0]);
   notice([result.ignored ? `${result.ignored} non-image or oversized file(s) excluded from compression.` : '', result.skipped ? `${result.skipped} symbolic links or special files skipped.` : '', duplicates ? `${duplicates} duplicate image(s) skipped.` : '', ...(result.warnings || []), !items.length && folderRoots.length ? 'No supported images found in the selected folders.' : ''].filter(Boolean).join(' '));
 }
 async function importFiles(load) { if (running || scanning) return; scanning = true; buttonState(); try { await add(await load()); } catch (e) { notice(e.message); } finally { scanning = false; buttonState(); } }
