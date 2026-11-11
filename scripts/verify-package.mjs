@@ -10,7 +10,7 @@ if (process.platform === 'darwin') {
   if (!icons.length) throw new Error('Packaged macOS icon is missing.');
   const icon = await fs.readFile(path.join(resources, icons[0])); if (icon.toString('ascii', 0, 4) !== 'icns') throw new Error('Invalid macOS icon.');
 }
-for (const test of ['tests/desktop.cjs', 'tests/folder-desktop.cjs', 'tests/appearance-size.cjs']) {
+for (const test of ['tests/desktop.cjs', 'tests/vector-desktop.cjs', 'tests/folder-desktop.cjs', 'tests/appearance-size.cjs']) {
   const result = spawnSync(process.execPath, [test], { stdio: 'inherit', env: { ...process.env, CHOMP_TEST_EXECUTABLE: executable } });
   if (result.status !== 0) process.exit(result.status || 1);
 }
