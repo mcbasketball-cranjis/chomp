@@ -18,7 +18,7 @@ document.querySelector('#app').innerHTML = `
 <div class="titlebar"><img src="./icon.png" alt=""><span>Chomp — Image workspace</span><span class="titlebar-status">${icon('shield')} Desktop app · private by design</span></div>
 <div class="app-shell">
   <aside class="sidebar">
-    <div class="sidebar-brand"><img src="./icon.png" class="brand-mark" alt=""><strong>Chomp</strong><span class="brand-version">2.0</span></div>
+    <div class="sidebar-brand brand"><img src="./icon.png" class="brand-mark" alt=""><strong>Chomp</strong><span class="brand-version">2.0</span></div>
     <div class="sidebar-caption">TOOLS</div>
     <nav class="tool-nav" aria-label="Image tools">
       <button type="button" data-workspace="compress">${icon('layers')}<span>Compress</span></button>
