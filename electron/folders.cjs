@@ -3,7 +3,7 @@ const { constants } = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { supported } = require('./files.cjs');
-const formats = new Set(['jpg', 'png', 'webp', 'avif']);
+const formats = new Set(['jpg', 'png', 'webp', 'avif', 'svg']);
 const fingerprint = s => ({ size: s.size, mtimeMs: s.mtimeMs, ino: s.ino, dev: s.dev });
 const unchanged = (s, before) => Object.keys(before).every(key => s[key] === before[key]);
 const formatFor = file => path.extname(file).slice(1).toLowerCase().replace('jpeg', 'jpg');
