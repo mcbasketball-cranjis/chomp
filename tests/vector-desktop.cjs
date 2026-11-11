@@ -30,6 +30,18 @@ const root = path.resolve(__dirname, '..');
     const transparent = path.join(work, 'transparent.png'), white = path.join(work, 'white.png');
     await fs.writeFile(transparent, Buffer.from(samples[0], 'base64'));
     await fs.writeFile(white, Buffer.from(samples[1], 'base64'));
+    const jpegSamples = await page.evaluate(() => {
+      return ['white', 'black'].map(background => {
+        const canvas = document.createElement('canvas'); canvas.width = 96; canvas.height = 96;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = background; ctx.fillRect(0, 0, 96, 96);
+        ctx.fillStyle = '#ee3322'; ctx.fillRect(24, 24, 48, 48);
+        return canvas.toDataURL('image/jpeg', .88).split(',')[1];
+      });
+    });
+    const whiteJpeg = path.join(work, 'white-logo.jpg'), blackJpeg = path.join(work, 'black-logo.jpg');
+    await fs.writeFile(whiteJpeg, Buffer.from(jpegSamples[0], 'base64'));
+    await fs.writeFile(blackJpeg, Buffer.from(jpegSamples[1], 'base64'));
     const before = await fs.readFile(transparent);
     async function choose(files) {
       await app.evaluate(({ dialog }, data) => {
@@ -72,8 +84,48 @@ const root = path.resolve(__dirname, '..');
     assert.ok(!removedXml.includes('fill="#ffffff"'), 'background removal must not trace the white exterior');
     assert.match(removedXml, /<path\b/);
 
+    // JPEG has no alpha channel, so remove its plain white/black background on export.
+    // Test both true vector output and an ordinary transparent PNG output.
+    for (const [input, outputFormat] of [[whiteJpeg, 'svg'], [blackJpeg, 'png']]) {
+      await page.click('#clear'); await choose([input]); await page.click('#add');
+      await page.selectOption('#format', outputFormat);
+      await page.check('#remove-bg'); await page.click('#compress');
+      const destination = await saved();
+      const rgba = await page.evaluate(async ({ bytes, type }) => {
+        const blob = new Blob([new Uint8Array(bytes)], { type });
+        let bitmap;
+        if (type === 'image/svg+xml') {
+          const url = URL.createObjectURL(blob);
+          try {
+            const image = new Image();
+            image.src = url;
+            await image.decode();
+            bitmap = await createImageBitmap(image);
+          } finally { URL.revokeObjectURL(url); }
+        } else {
+          bitmap = await createImageBitmap(blob);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = bitmap.width; canvas.height = bitmap.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(bitmap, 0, 0); bitmap.close();
+        return {
+          corner: ctx.getImageData(0, 0, 1, 1).data[3],
+          logo: [...ctx.getImageData(48, 48, 1, 1).data]
+        };
+      }, {
+        bytes: [...await fs.readFile(destination)],
+        type: outputFormat === 'svg' ? 'image/svg+xml' : 'image/png'
+      });
+      assert.equal(rgba.corner, 0, `${path.basename(input)} must not retain the background`);
+      assert.equal(rgba.logo[3], 255, `${path.basename(input)} must preserve the logo`);
+      assert.ok(rgba.logo[0] > rgba.logo[1], `${path.basename(input)} must retain the red logo fill`);
+    }
+
     assert.deepEqual(await fs.readFile(transparent), before);
+    assert.deepEqual(await fs.readFile(whiteJpeg), Buffer.from(jpegSamples[0], 'base64'));
+    assert.deepEqual(await fs.readFile(blackJpeg), Buffer.from(jpegSamples[1], 'base64'));
     assert.deepEqual(errors, []);
-    console.log('PASS: transparent PNG -> actual SVG paths -> transparent PNG, optional background removal, source preservation.');
+    console.log('PASS: transparent PNG -> actual SVG paths -> transparent PNG, white/black JPEG background removal, source preservation.');
   } finally { await app.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
