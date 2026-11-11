@@ -25,7 +25,8 @@ try {
   const binary = path.join(mount, 'Chomp.app', 'Contents', 'MacOS', 'Chomp');
   await fs.access(binary);
   const arches = run('/usr/bin/lipo', ['-archs', binary]).split(/\s+/);
-  if (!arches.includes(arch)) throw new Error(`Packaged ${dmg} executable is not ${arch}: ${arches.join(', ')}`);
+  const binaryArch = arch === 'x64' ? 'x86_64' : 'arm64';
+  if (!arches.includes(binaryArch)) throw new Error(`Packaged ${dmg} executable is not ${binaryArch}: ${arches.join(', ')}`);
   const resources = path.join(mount, 'Chomp.app', 'Contents', 'Resources');
   const iconNames = (await fs.readdir(resources)).filter(name => name.endsWith('.icns'));
   if (!iconNames.length) throw new Error(`Packaged ${arch} app icon missing.`);
