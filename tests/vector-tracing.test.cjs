@@ -68,3 +68,37 @@ test('already-transparent edges and unrelated corner colors are left alone', asy
     .forEach((p, i) => mixed.data.set(p, i * 4));
   assert.equal(removeConnectedBackground(mixed, 20), 0);
 });
+
+test('everywhere mode clears enclosed O-shaped holes on white or black backgrounds', async () => {
+  const { removeBackgroundColor } = await vector;
+  for (const shade of [255, 0]) {
+    const background = [shade, shade, shade, 255];
+    const original = image(12, 12, background);
+    // Simulate a solid red O with a 4x4 background-colored counter (letter hole).
+    for (let y = 2; y < 10; y++) for (let x = 2; x < 10; x++) {
+      if (x < 4 || x >= 8 || y < 4 || y >= 8) pixel(original, x, y, [240, 60, 20, 255]);
+    }
+    const outside = { ...original, data: new Uint8ClampedArray(original.data) };
+    const everywhere = { ...original, data: new Uint8ClampedArray(original.data) };
+    assert.equal(removeBackgroundColor(outside, 28, 'edges'), 80);
+    assert.equal(alpha(outside, 0, 0), 0);
+    assert.equal(alpha(outside, 5, 5), 255, 'edge-only mode must protect enclosed pixels');
+    assert.equal(alpha(outside, 3, 3), 255, 'edge-only mode must preserve the red O');
+    assert.equal(removeBackgroundColor(everywhere, 28, 'all'), 96);
+    assert.equal(alpha(everywhere, 0, 0), 0);
+    assert.equal(alpha(everywhere, 5, 5), 0, 'everywhere mode must clear the letter hole');
+    assert.equal(alpha(everywhere, 3, 3), 255, 'everywhere mode must preserve the red O');
+    assert.equal(alpha(original, 5, 5), 255, 'source image is unchanged');
+  }
+});
+
+test('everywhere mode preserves different-colored details and existing transparency', async () => {
+  const { removeBackgroundColor } = await vector;
+  const img = image(8, 8, [255, 255, 255, 255]);
+  pixel(img, 3, 3, [0, 0, 0, 255]);
+  pixel(img, 4, 4, [255, 255, 255, 0]);
+  assert.equal(removeBackgroundColor(img, 28, 'all'), 62);
+  assert.equal(alpha(img, 3, 3), 255);
+  assert.equal(alpha(img, 4, 4), 0);
+  assert.throws(() => removeBackgroundColor(img, 28, 'unexpected'), /Invalid background removal mode/);
+});
