@@ -31,6 +31,10 @@ jobs:
   mac-icon:
     runs-on: macos-15-intel
     timeout-minutes: 40
+    # Only ad-hoc signing: no Apple Developer credentials or signing secrets in PR jobs.
+    env:
+      CSC_FOR_PULL_REQUEST: 'true'
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
