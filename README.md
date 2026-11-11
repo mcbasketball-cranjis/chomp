@@ -1,12 +1,12 @@
 # Chomp
 
-Batch image compression for Windows and macOS. Uses Squoosh-derived codecs through [jSquash](https://github.com/jamsinclair/jSquash). Images are processed locally.
+Batch image compression and vector conversion for Windows and macOS. Uses Squoosh-derived codecs through [jSquash](https://github.com/jamsinclair/jSquash) and a built-in JavaScript SVG tracer. Images are processed locally, without uploads.
 
 ## Usage
 
 1. Windows: run `Chomp-<version>-win-x64-Setup.exe`. It installs the supporting files and a Start menu shortcut. macOS: open the DMG, drag Chomp into Applications.
 2. Drop images or folders into the window, or click **Add images** / **Add folder**.
-3. Choose an output format, set the quality, and optionally resize.
+3. Choose an output format. Select **SVG (editable vectors)** to trace raster artwork into actual vector paths, or choose PNG/WebP/JPEG/AVIF to rasterize an SVG. Optionally resize or remove a solid background.
 4. Choose an output folder and click **Compress batch**.
 
 ## Appearance and size limits
@@ -19,7 +19,7 @@ Individual image exports use `name-compressed.ext`. Duplicate names receive a nu
 
 ## Folder quick compress
 
-Dropping a folder scans all subfolders for JPEG, PNG, WebP, and AVIF images. Non-image files are excluded from compression. Choose one mode:
+Dropping a folder scans all subfolders for JPEG, PNG, WebP, AVIF, and SVG images. Non-image files are excluded from compression. Choose one mode:
 
 - **Duplicate folder**: create `folder-compressed` in the chosen output location, copy the full folder structure and all regular files, and replace successfully compressed images in that copy. Non-image contents stay byte-for-byte unchanged. Failed images keep their original copies. Source files are unchanged.
 - **Images only**: create a new output folder containing only successfully compressed images, with the same relative subfolder paths.
@@ -35,11 +35,21 @@ Failed files can be retried. **Stop after this image** saves the current file an
 
 ## Formats and limits
 
-- Inputs: still JPEG, PNG, WebP, and AVIF; up to 512 MB and 160 megapixels per image.
-- Outputs: JPEG (MozJPEG), WebP, PNG (OxiPNG), and AVIF (libavif).
-- JPEG replaces transparency with white. PNG preserves decoded pixels; its quality control is disabled.
+- Inputs: still JPEG, PNG, WebP, AVIF, and SVG; up to 512 MB per image. Raster decoding is limited to 160 megapixels.
+- Outputs: JPEG (MozJPEG), WebP, PNG (OxiPNG), AVIF (libavif), and SVG (editable vector paths).
+- JPEG replaces transparency with white. PNG and SVG support transparent output; their quality control is disabled.
 - Images are converted to 8-bit sRGB. Orientation is applied and metadata is removed.
 - Animated images are rejected. Output files can be larger than their sources; size changes are shown in the queue.
+
+## SVG conversion and transparency
+
+- **Raster → SVG:** Choose **SVG (editable vectors)** as the output format. Choose Simple (clean shapes), Balanced (default), or Detailed (more colors and contours). The tracer generates real colored SVG paths, **not an SVG wrapper around an embedded raster image**.
+- **Transparent PNG → SVG:** Existing transparent pixels are ignored by tracing, so the output SVG has **no added solid background**. Partially transparent regions are represented using fill opacity. The viewBox retains the image's aspect ratio.
+- **Optional background removal:** Enable **Remove background** and adjust the tolerance if the image has a solid or near-solid backdrop. The app detects a consistent opaque color at the corners and removes only matching regions connected to the image edge. Enclosed same-color details are protected; this is not a full subject-segmentation or AI-matting tool for complex photo backgrounds.
+- **SVG → raster:** Add SVG files and choose PNG, WebP, AVIF, or JPEG. Rasterization occurs locally. Select PNG, WebP, or AVIF to preserve transparency; JPEG is always opaque.
+- **SVG → SVG:** Existing vector artwork is kept intact instead of being retraced. Background removal is intended for bitmap input, or SVG rendered to a raster output. SVGs with external resources, scripts, or active markup are rejected for safety.
+
+For photographs, detailed gradients, and complex textures, automatic vector tracing is an approximation and may produce large files. It is intended primarily for logos, icons, illustrations, and flatter artwork. The optional file-size limit is enforced on exported SVG files, but SVG path data cannot be quality-compressed like JPEG/WebP.
 
 ## Development
 
@@ -60,11 +70,12 @@ pnpm start
 pnpm test
 pnpm build
 pnpm test:desktop
+pnpm test:vector
 pnpm test:folders
 pnpm test:appearance
 ```
 
-The desktop tests cover exports, resizing, failed images, duplicate filenames, source preservation, and stopping a batch. Folder tests use actual directory drag-and-drop and check all three output modes with nested mixed files and all four codecs. Appearance tests check themes, persistence, Windows title-bar overlay, native maximize/restore, and strict size limits for all formats.
+The desktop tests cover exports, resizing, failed images, duplicate filenames, source preservation, and stopping a batch. The vector tests check true SVG path output, transparency round trips, and optional edge-connected background removal. Folder tests use actual directory drag-and-drop and check all three output modes with nested mixed files and all four codecs. Appearance tests check themes, persistence, Windows title-bar overlay, native maximize/restore, and strict size limits for all formats.
 
 ## Packaging
 
