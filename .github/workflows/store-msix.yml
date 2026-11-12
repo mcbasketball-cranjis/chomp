@@ -1,19 +1,12 @@
 name: Build Microsoft Store MSIX
 on:
   workflow_dispatch:
-    inputs:
-      package_name:
-        description: "Exact Package/Identity/Name from Partner Center > Product identity"
-        type: string
-        required: true
-      publisher:
-        description: "Exact Package/Identity/Publisher (e.g. CN=...)"
-        type: string
-        required: true
-      publisher_display_name:
-        description: "Exact Properties/PublisherDisplayName"
-        type: string
-        required: true
+  push:
+    branches: [main]
+    paths:
+      - store/identity.json
+      - scripts/build-store-msix.mjs
+      - .github/workflows/store-msix.yml
 
 permissions:
   contents: write
@@ -23,9 +16,6 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 40
     env:
-      CHOMP_STORE_PACKAGE_NAME: ${{ inputs.package_name }}
-      CHOMP_STORE_PUBLISHER: ${{ inputs.publisher }}
-      CHOMP_STORE_PUBLISHER_DISPLAY_NAME: ${{ inputs.publisher_display_name }}
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
       - uses: actions/checkout@v4
