@@ -256,7 +256,19 @@ export function smoothCoverageContours(coverage, width, height, tolerance = .35,
       end = edge.a.key === end.key ? edge.b : edge.a;
     }
     if (!closed || ring.length < 3 || areaOf(ring) < minArea) continue;
-    const simplified = simplifyRing(ring, tolerance);
+    // High-detail text needs the fractional outlines, but clean box-shaped
+    // symbols should not become rounded rectangles. Strongly axis-aligned
+    // large contours can be simplified more aggressively at their corners.
+    let axisAligned = 0, perimeter = 0;
+    for (let k = 0; k < ring.length; k++) {
+      const p = ring[k], q = ring[(k + 1) % ring.length];
+      const dx = Math.abs(q[0] - p[0]), dy = Math.abs(q[1] - p[1]);
+      const distance = Math.hypot(dx, dy);
+      perimeter += distance;
+      if (Math.min(dx, dy) < 0.08 * Math.max(dx, dy)) axisAligned += distance;
+    }
+    const rectilinear = areaOf(ring) >= 400 && perimeter && axisAligned / perimeter > .88;
+    const simplified = simplifyRing(ring, rectilinear ? Math.max(.9, tolerance) : tolerance);
     if (simplified.length >= 3) paths.push(curvePath(simplified, 1.05));
   }
   return paths.join('');
