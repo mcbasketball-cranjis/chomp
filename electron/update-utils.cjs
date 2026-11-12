@@ -39,4 +39,18 @@ function verifiedRelease(release, platform, arch, currentVersion) {
   return { version, url, filename };
 }
 
-module.exports = { REPO, API_URL, newer, expectedAsset, verifiedRelease };
+// macOS currently uses a custom verified ZIP installer instead of Squirrel.Mac:
+// ad-hoc signatures cannot establish a stable Apple Team ID for Squirrel updates.
+function verifiedMacRelease(release, arch, currentVersion) {
+  if (!release || release.draft || release.prerelease || !newer(release.tag_name, currentVersion)) return null;
+  if (!['x64','arm64'].includes(arch)) return null;
+  const version = release.tag_name.replace(/^v/, '');
+  const filename = `Chomp-${version}-mac-${arch}.zip`;
+  const url = RELEASE_BASE + encodeURIComponent(release.tag_name) + '/' + encodeURIComponent(filename);
+  const asset = Array.isArray(release.assets) ? release.assets.find(x => x.name === filename) : null;
+  const hash = /^sha256:([0-9a-f]{64})$/i.exec(asset?.digest || '');
+  if (!asset || !hash || asset.browser_download_url !== url ||
+      !Number.isSafeInteger(asset.size) || asset.size < 1024*1024 || asset.size > 512*1024*1024) return null;
+  return { version, filename, url, sha256: hash[1].toLowerCase(), size: asset.size, arch };
+}
+module.exports = { REPO, API_URL, newer, expectedAsset, verifiedRelease, verifiedMacRelease };
