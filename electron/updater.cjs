@@ -6,12 +6,13 @@ const https = require('node:https');
 const path = require('node:path');
 const { API_URL, verifiedRelease, verifiedMacRelease } = require('./update-utils.cjs');
 const { macInstallMode, stageMacUpdate, installMacUpdate } = require('./mac-update.cjs');
+const { isStorePackage } = require('./store-package.cjs');
 
 const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
 const START_DELAY_MS = 15 * 1000;
 
 function installedWindowsBuild() {
-  if (process.platform !== 'win32' || !app.isPackaged || process.env.PORTABLE_EXECUTABLE_FILE || process.env.PORTABLE_EXECUTABLE_DIR) return false;
+  if (process.platform !== 'win32' || !app.isPackaged || isStorePackage() || process.env.PORTABLE_EXECUTABLE_FILE || process.env.PORTABLE_EXECUTABLE_DIR) return false;
   // NSIS places an uninstaller next to Chomp.exe; ZIP and portable builds do not.
   return fs.existsSync(path.join(path.dirname(process.execPath), 'Uninstall Chomp.exe'));
 }
@@ -50,12 +51,13 @@ function latestRelease() {
 
 function createUpdateService({ send, canRestart }) {
   const mode = !app.isPackaged ? 'unavailable' :
+    isStorePackage() ? 'store' :
     process.platform === 'darwin' ? macInstallMode() :
     installedWindowsBuild() ? 'automatic' : 'manual';
   let state = {
     version: app.getVersion(),
     mode,
-    status: mode === 'mac-move' ? 'move-required' : 'idle',
+    status: mode === 'store' ? 'store' : mode === 'mac-move' ? 'move-required' : 'idle',
     availableVersion: null,
     progress: 0,
     error: null,
@@ -100,7 +102,7 @@ function createUpdateService({ send, canRestart }) {
   }
 
   async function check() {
-    if (mode === 'unavailable') return change({ status: 'unavailable' });
+    if (mode === 'unavailable' || mode === 'store') return change({ status: mode });
     if (mode === 'mac-move') return change({ status: 'move-required', error: null });
     if (state.status === 'downloading' || state.status === 'ready') return snapshot();
     if (checking) return checking;
@@ -203,7 +205,7 @@ function createUpdateService({ send, canRestart }) {
   }
 
   function start() {
-    if (process.env.CI || mode === 'unavailable') return;
+    if (process.env.CI || mode === 'unavailable' || mode === 'store') return;
     startup = setTimeout(() => { check().catch(error => console.error(error)); }, START_DELAY_MS);
     startup.unref?.();
     interval = setInterval(() => { check().catch(error => console.error(error)); }, CHECK_EVERY_MS);
