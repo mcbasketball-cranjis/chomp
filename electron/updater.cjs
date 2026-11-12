@@ -65,6 +65,7 @@ function createUpdateService({ send, canRestart }) {
   let updater = null;
   let macInfo = null;
   let stagedMac = null;
+  let installing = false;
   let interval = null;
   let startup = null;
 
@@ -175,23 +176,30 @@ function createUpdateService({ send, canRestart }) {
   }
 
   async function install() {
+    if (installing) return { started: false };
     if (state.status !== 'ready') throw new Error('No update is ready to install.');
     if (!canRestart()) throw new Error('Finish the current batch before restarting.');
-    if (mode === 'mac') {
-      if (!stagedMac) throw new Error('No verified Mac update has been staged.');
-      await installMacUpdate(stagedMac);
-      // The helper has already copied and verified the replacement before it
-      // signals ready. Discard the large ZIP/extraction before we quit so Mac
-      // updates do not accumulate hundreds of MB in the temporary directory.
-      await fs.promises.rm(stagedMac.root, { recursive: true, force: true })
-        .catch(error => console.warn('Mac update staging cleanup:', error));
-      // The helper now waits for Chomp to exit before swapping and relaunching.
-      app.quit();
+    installing = true;
+    change({ status: 'installing', error: null });
+    try {
+      if (mode === 'mac') {
+        if (!stagedMac) throw new Error('No verified Mac update has been staged.');
+        await installMacUpdate(stagedMac);
+        // The helper owns a protected, verified copy of the ZIP. Delete the
+        // original temporary download before quitting to conserve disk space.
+        await fs.promises.rm(stagedMac.root, { recursive: true, force: true })
+          .catch(error => console.warn('Mac update staging cleanup:', error));
+        app.quit();
+        return { started: true };
+      }
+      if (mode !== 'automatic' || !updater) throw new Error('Unsupported update installation.');
+      updater.quitAndInstall(true, true);
       return { started: true };
+    } catch (error) {
+      installing = false;
+      change({ status: 'ready', error: error.message });
+      throw error;
     }
-    if (mode !== 'automatic' || !updater) throw new Error('Unsupported update installation.');
-    updater.quitAndInstall(true, true);
-    return { started: true };
   }
 
   function start() {
