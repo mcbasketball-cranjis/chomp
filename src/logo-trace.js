@@ -58,7 +58,7 @@ function backgroundStats(image, matte) {
   }
   return {nearFraction:near/sampled,opaqueFraction:opaque/sampled,transparentFraction:transparent/sampled};
 }
-function binColors(image, matte, matteAware, detail) {
+function binColors(image, matte, matteAware, detail, colorLimit = 0) {
   const {data}=image,n=data.length/4,stride=Math.max(1,Math.ceil(n/40000));
   let maximumAlpha=0;
   for(let p=3;p<data.length;p+=4)maximumAlpha=Math.max(maximumAlpha,data[p]);
@@ -78,7 +78,7 @@ function binColors(image, matte, matteAware, detail) {
   const candidates=[...bins.values()].map(bin=>({
     n:bin.n,rgb:[Math.round(bin.r/bin.n),Math.round(bin.g/bin.n),Math.round(bin.b/bin.n)]
   })).sort((a,b)=>b.n*(matteAware?colorDistance2(b.rgb,matte):65536)-a.n*(matteAware?colorDistance2(a.rgb,matte):65536));
-  const maxColors=detail==='simple'?3:detail==='detailed'?6:5;
+  const maxColors=colorLimit ? Math.min(12, colorLimit) : detail==='simple'?3:detail==='detailed'?6:5;
   const seeds=[];
   for(const candidate of candidates){
     if(candidate.n<Math.max(2,Math.ceil(count*.002)))continue;
@@ -123,13 +123,14 @@ function removeSpeckles(indices,width,height,minPixels) {
     if(tail<minPixels)for(let i=0;i<tail;i++)indices[queue[i]]=-1;
   }
 }
-export function flatLogoLayers(image, detail='balanced', matteHint=null) {
+export function flatLogoLayers(image, detail='balanced', matteHint=null, overrides={}) {
   const {width,height,data}=image;
   const corners=matteCandidates(image);
   const stats=backgroundStats(image,corners.rgb);
-  const opaqueBackground=corners.opaque&&corners.consistent&&stats.nearFraction>=.45&&stats.opaqueFraction>.96;
-  // A transparent canvas should only qualify if most surviving ink is solid.
-  const transparentLogo=stats.transparentFraction>.12&&stats.opaqueFraction>.015;
+  const opaqueBackground=corners.opaque&&corners.consistent&&stats.nearFraction>=(overrides.force?.08:.45)&&stats.opaqueFraction>.96;
+  // Explicit Logo & text mode accepts lower background coverage, but still
+  // requires a coherent matte and a few stable ink colors.
+  const transparentLogo=stats.transparentFraction>(overrides.force?.01:.12)&&stats.opaqueFraction>.015;
   if(!opaqueBackground&&!transparentLogo)return null;
   // The background remover keeps RGB while clearing alpha. On a JPEG the
   // resulting transparent corner may still be white: reuse that matte so
@@ -141,7 +142,7 @@ export function flatLogoLayers(image, detail='balanced', matteHint=null) {
   const matteAware = opaqueBackground || recoveredMatte;
   const matte = opaqueBackground ? corners.rgb :
     recoveredMatte ? (hintedMatte || corners.rgb) : [0,0,0];
-  const clustered=binColors(image,matte,matteAware,detail);
+  const clustered=binColors(image,matte,matteAware,detail,overrides.colors);
   if(!clustered)return null;
   const {seeds,maximumAlpha}=clustered;
   const indices=new Int16Array(width*height).fill(-1);
