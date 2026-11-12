@@ -332,3 +332,38 @@ progress{width:100%;height:6px;margin-bottom:10px;accent-color:var(--accent)}
   font-family:ui-monospace,SFMono-Regular,Consolas,monospace;padding:0 7px}
 .vector-shape-hex:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .vector-shape-hex:disabled{opacity:.45}
+
+/* Compact inspector for selecting contours too small to click on the canvas. */
+.vector-inspector[hidden]{display:none!important}
+.vector-inspector{border-top:1px solid var(--line);background:var(--raised);padding:10px 14px 11px}
+.vector-inspector-header{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-bottom:8px}
+.vector-inspector-header strong{font-size:11px;font-weight:760;margin-right:3px}
+.vector-inspector-header label{display:flex;gap:5px;align-items:center;font-size:10px;color:var(--muted);cursor:pointer}
+.vector-inspector-header label input{accent-color:var(--accent);width:13px;height:13px}
+#vector-inspector-count{font-size:10px;color:var(--faint);margin-right:auto}
+.vector-inspector-header button,.vector-inspector-footer button{border:1px solid var(--line);background:var(--surface);
+ border-radius:6px;min-height:25px;padding:3px 8px;font-size:10px;color:var(--muted);font-weight:700;cursor:pointer}
+.vector-inspector-header button:disabled,.vector-inspector-footer button:disabled{opacity:.4;cursor:default}
+.vector-inspector-header button:hover:not(:disabled),.vector-inspector-footer button:hover:not(:disabled){color:var(--accent-ink);background:var(--soft)}
+.vector-inspector-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(133px,1fr));
+ gap:5px;max-height:143px;overflow:auto;scrollbar-width:thin}
+.vector-inspector-item{min-width:0;display:flex;align-items:center;gap:6px;text-align:left;
+ border:1px solid var(--line);border-radius:7px;background:var(--surface);padding:6px 8px;
+ color:var(--ink);font-size:10px;cursor:pointer}
+.vector-inspector-item strong{font-size:10px;font-weight:750;white-space:nowrap}
+.vector-inspector-item small{font-size:9px;color:var(--faint);margin-left:auto;white-space:nowrap}
+.vector-inspector-item.selected,.vector-inspector-item:hover{border-color:var(--accent);background:var(--soft)}
+.vector-inspector-item:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.vector-inspector-footer{display:flex;gap:6px;align-items:center;margin-top:8px}
+#vector-inspector-page{font-size:10px;color:var(--faint);min-width:40px}
+#vector-point-help{font-size:10px;color:var(--muted);margin-left:auto}
+#vector-point-help[hidden]{display:none}
+#vector-point-mode.selected{background:var(--soft);color:var(--accent-ink);border-color:var(--accent)}
+.vector-points{pointer-events:none}
+.vector-point-handle{fill:var(--surface);stroke:var(--accent-ink);stroke-width:1.4;cursor:grab;
+  pointer-events:all;vector-effect:non-scaling-stroke}
+.vector-point-handle.control{fill:var(--soft);stroke:var(--muted);stroke-dasharray:2 1}
+.vector-point-handle.active{stroke:var(--accent);stroke-width:2.5;fill:var(--accent)}
+.preview-stage.editing-vector .vector-point-handle{pointer-events:all;cursor:grab}
+.preview-stage.editing-vector .vector-point-handle:active{cursor:grabbing}
+@media(max-width:760px){.vector-inspector-list{grid-template-columns:repeat(auto-fill,minmax(115px,1fr));max-height:105px}}
