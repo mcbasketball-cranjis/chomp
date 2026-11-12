@@ -36,7 +36,7 @@ export function normalizeTraceOptions(value = {}) {
 export function contourSettings(detail, raw) {
   const opts = normalizeTraceOptions(raw);
   const baseTolerance = detail === 'detailed' ? 0.45 : detail === 'simple' ? 1.1 : 0.8;
-  const baseMinArea = detail === 'detailed' ? 0.35 : detail === 'simple' ? 1.5 : 0.5;
+  const baseMinArea = detail === 'detailed' ? 0.35 : detail === 'simple' ? 2 : 1;
   return {
     // The neutral midpoint precisely preserves existing smoothing and cleanup.
     toleranceFactor: Math.pow(2, (opts.smoothing - 50) / 50),
