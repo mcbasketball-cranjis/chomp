@@ -150,3 +150,46 @@ test('antialiased edges do not get split into opaque pixel-color bands', async (
   assert.equal((svg.match(/<path /g) || []).length, 1);
   assert.match(svg, /C[\d.]+/);
 });
+
+
+test('JPEG-like white-background logos produce two solid inks, not hundreds of edge shades', async () => {
+  const { traceImageData } = await vector;
+  const { flatLogoLayers } = await import('../src/logo-trace.js');
+  const logo = image(520, 140);
+  for (let y = 0; y < logo.height; y++) for (let x = 0; x < logo.width; x++) {
+    const noise = (x * 29 + y * 31 + x * y * 3) % 9 - 4;
+    const gold = x >= 26 && x < 111 && y >= 29 && y < 109;
+    const text = x >= 156 && x < 489 && y >= 61 && y < 93 &&
+      (x % 21 < 4 || (y % 15 < 3 && x % 21 < 17));
+    const rgb = gold ? [201, 136, 19] : text ? [106, 115, 137] : [251, 251, 250];
+    pixel(logo, x, y, [...rgb.map(c => Math.min(255, Math.max(0, c + noise))), 255]);
+  }
+  const layers = flatLogoLayers(logo);
+  assert.ok(layers, 'should detect a flat wordmark on a matte');
+  assert.equal(layers.colors.length, 2, 'JPEG-colored pixels should not spawn additional inks');
+  const svg = traceImageData(logo);
+  assert.equal((svg.match(/<path /g) || []).length, 3, 'a backdrop and two solid ink layers');
+  assert.ok(svg.length < 12000, 'SVG must not be dominated by pixel-edge fragments');
+  assert.ok(!svg.includes('<image'), 'export remains editable vector paths');
+  assert.ok(layers.colors.some(c => c[0] > c[2] + 70), 'gold symbol color preserved');
+  assert.ok(layers.colors.some(c => c[2] > c[0]), 'cool gray type color preserved');
+
+  const clean = { width: logo.width, height: logo.height, data: new Uint8ClampedArray(logo.data) };
+  const { removeBackgroundColor } = await vector;
+  assert.ok(removeBackgroundColor(clean, 28, 'all') > 50000);
+  const withoutMatte = flatLogoLayers(clean);
+  assert.ok(withoutMatte, 'removed JPEG matte should still use the logo tracer');
+  assert.equal(withoutMatte.colors.length, 2, 'removed backdrop must not become a third fringe color');
+  const transparentSvg = traceImageData(clean);
+  assert.equal((transparentSvg.match(/<path /g) || []).length, 2);
+  assert.ok(transparentSvg.length < 12000);
+});
+
+test('photo-like gradient content is not flattened into an arbitrary logo palette', async () => {
+  const { flatLogoLayers } = await import('../src/logo-trace.js');
+  const img = image(160, 100, [255,255,255,255]);
+  for (let y = 20; y < 80; y++) for (let x = 10; x < 150; x++) {
+    pixel(img, x, y, [Math.round(255*x/160), Math.round(255*y/100), Math.round(200-100*x/160), 255]);
+  }
+  assert.equal(flatLogoLayers(img), null);
+});
