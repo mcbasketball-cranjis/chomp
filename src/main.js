@@ -261,6 +261,8 @@ function currentVectorEditor(item=selectedItem()){
 }
 function closeVectorEditor(){
   editorActive=false;editorPending=false;editorSelection=null;
+  // Bulk actions are opt-in per editing session; never carry them to a new file.
+  $('vector-match-colors').checked=false;
   if(editorSvg){editorSvg.remove();editorSvg=null;}
   $('vector-edit-toolbar').hidden=true;
   $('vector-palette').hidden=true;
