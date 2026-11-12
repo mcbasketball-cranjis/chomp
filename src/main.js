@@ -214,7 +214,19 @@ function renderZoom(){
   const transform='translate('+previewX+'px, '+previewY+'px) scale('+previewZoom+')';
   $('original-img').style.transform=transform;
   $('result-img').style.transform=transform;
-  if(editorSvg)editorSvg.style.transform=transform;
+  if(editorSvg){
+    editorSvg.style.transform=transform;
+    const doc=currentVectorEditor();
+    if(doc){
+      const stage=$('preview-stage');
+      const scale=Math.min(Math.max(1,stage.clientWidth-84)/Math.max(1,doc.boxWidth),
+        Math.max(1,stage.clientHeight-76)/Math.max(1,doc.boxHeight))*previewZoom;
+      editorSvg.querySelectorAll('.vector-point-handle').forEach(circle=>{
+        const size=circle.classList.contains('anchor')?4.25:3.1;
+        circle.setAttribute('r',String(Math.min(80,size/Math.max(.0001,scale))));
+      });
+    }
+  }
   $('zoom-value').textContent=Math.round(previewZoom*100)+'%';
   const enabled=previewPanMode&&previewZoom>1;
   $('zoom-pan').disabled=previewZoom===1;
@@ -287,6 +299,7 @@ function closeVectorEditor(){
   inspectorBoundsCache.clear();
   // Bulk actions are opt-in per editing session; never carry them to a new file.
   $('vector-match-colors').checked=false;
+  $('vector-only-small').checked=false;
   if(editorSvg){editorSvg.remove();editorSvg=null;}
   $('vector-edit-toolbar').hidden=true;
   $('vector-palette').hidden=true;
@@ -928,8 +941,14 @@ document.addEventListener('keydown',event=>{
      ['arrowleft','arrowright','arrowup','arrowdown'].includes(key)){
     const doc=currentVectorEditor();
     const shape=doc?.shapes.find(s=>s.id===editorSelection&&!s.hidden);
-    const node=shape && vectorPathPoints(shape.d,480).nodes.find(node=>
-      node.index===editorPointSelection.index && node.role===editorPointSelection.role);
+    let node=null;
+    if(shape){
+      try{
+        node=vectorPathPoints(shape.d,480).nodes.find(candidate=>
+          candidate.index===editorPointSelection.index &&
+          candidate.role===editorPointSelection.role);
+      }catch{ /* An oversized path cannot be nudged interactively. */ }
+    }
     if(node){
       const delta=event.shiftKey ? .25 : 1;
       const dx=key==='arrowleft'?-delta:key==='arrowright'?delta:0;
