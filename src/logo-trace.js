@@ -33,6 +33,10 @@ function matteCandidates(image) {
   const consistent = samples.every(s=>colorDistance2(s,rgb)<30*30*3);
   return { rgb, opaque, consistent };
 }
+export function sampleSolidMatte(image) {
+  const corners=matteCandidates(image);
+  return corners.opaque && corners.consistent ? corners.rgb : null;
+}
 function lineMatch(rgb, seed, matte) {
   const dr=seed[0]-matte[0], dg=seed[1]-matte[1], db=seed[2]-matte[2];
   const magnitude=dr*dr+dg*dg+db*db;
@@ -119,7 +123,7 @@ function removeSpeckles(indices,width,height,minPixels) {
     if(tail<minPixels)for(let i=0;i<tail;i++)indices[queue[i]]=-1;
   }
 }
-export function flatLogoLayers(image, detail='balanced') {
+export function flatLogoLayers(image, detail='balanced', matteHint=null) {
   const {width,height,data}=image;
   const corners=matteCandidates(image);
   const stats=backgroundStats(image,corners.rgb);
@@ -130,10 +134,13 @@ export function flatLogoLayers(image, detail='balanced') {
   // The background remover keeps RGB while clearing alpha. On a JPEG the
   // resulting transparent corner may still be white: reuse that matte so
   // pale, antialiased letter edges are not mistaken for additional inks.
-  const recoveredMatte = transparentLogo && corners.consistent &&
-    corners.rgb.some(value => value > 30);
+  const hintedMatte = Array.isArray(matteHint) && matteHint.length === 3 &&
+    matteHint.every(value => Number.isFinite(value) && value >= 0 && value <= 255) ? matteHint : null;
+  const recoveredMatte = transparentLogo && (!!hintedMatte ||
+    (corners.consistent && corners.rgb.some(value => value > 30)));
   const matteAware = opaqueBackground || recoveredMatte;
-  const matte = matteAware ? corners.rgb : [0,0,0];
+  const matte = opaqueBackground ? corners.rgb :
+    recoveredMatte ? (hintedMatte || corners.rgb) : [0,0,0];
   const clustered=binColors(image,matte,matteAware,detail);
   if(!clustered)return null;
   const {seeds,maximumAlpha}=clustered;
