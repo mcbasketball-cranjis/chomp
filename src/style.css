@@ -274,3 +274,37 @@ progress{width:100%;height:6px;margin-bottom:10px;accent-color:var(--accent)}
 #bg-manual-controls{display:flex;gap:10px;align-items:center;margin-top:9px;color:var(--faint);font-size:10px}
 #bg-manual-controls[hidden]{display:none}
 #bg-color{height:34px;width:54px;border-radius:7px;border:1px solid var(--line);background:var(--raised);padding:3px;cursor:pointer}
+
+/* Local, opt-in shape cleanup; standard comparisons are unchanged. */
+.vector-edit-open{border:1px solid var(--line);border-radius:7px;background:var(--surface);
+  color:var(--accent-ink);font-size:10px;font-weight:760;min-height:33px;padding:6px 10px;cursor:pointer}
+.vector-edit-open:hover{background:var(--soft)}
+.vector-edit-open:disabled{opacity:.5;cursor:default}
+.vector-edit-open[hidden],.vector-edit-toolbar[hidden]{display:none!important}
+.vector-edit-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:9px;padding:9px 14px;
+  border-top:1px solid var(--line);background:var(--raised);min-height:52px}
+.vector-edit-label{font-size:10px;font-weight:750;color:var(--ink);min-width:120px;flex:1}
+.vector-edit-toolbar label{font-size:10px;color:var(--faint);font-weight:700}
+.vector-edit-toolbar input[type=color]{height:29px;width:38px;padding:2px;border:1px solid var(--line);
+  border-radius:6px;background:var(--surface);cursor:pointer}
+.vector-edit-toolbar input[type=color]:disabled{opacity:.35;cursor:default}
+.vector-edit-toolbar button{border:1px solid var(--line);border-radius:7px;background:var(--surface);
+  min-height:29px;padding:5px 9px;color:var(--muted);font-size:10px;font-weight:720;cursor:pointer}
+.vector-edit-toolbar button:hover:not(:disabled){background:var(--soft);color:var(--accent-ink)}
+.vector-edit-toolbar button:disabled{opacity:.45;cursor:default}
+.vector-edit-toolbar .vector-edit-done{background:var(--accent);color:white;border-color:var(--accent)}
+.vector-edit-toolbar .vector-edit-done:hover{background:var(--accent);color:white}
+.vector-edit-spacer{flex:1;min-width:5px}
+.preview-stage.editing-vector #original-layer,.preview-stage.editing-vector .comparison-line,
+.preview-stage.editing-vector .comparison-handle,.preview-stage.editing-vector .compare-slider,
+.preview-stage.editing-vector .before-chip,.preview-stage.editing-vector .after-chip{display:none}
+.preview-stage.editing-vector #result-layer{z-index:3;pointer-events:auto}
+.vector-edit-svg{width:100%;height:100%;padding:38px 42px;box-sizing:border-box;
+  display:block;overflow:hidden;pointer-events:auto;transform-origin:center center}
+.vector-edit-svg path{cursor:pointer;pointer-events:visiblePainted}
+.vector-edit-svg path:hover{stroke:var(--accent);stroke-width:1;vector-effect:non-scaling-stroke}
+.vector-edit-svg path.selected-vector-shape{stroke:var(--accent);stroke-width:2;vector-effect:non-scaling-stroke;
+  stroke-dasharray:5 3;stroke-linejoin:round}
+.preview-stage.editing-vector.pan-mode .vector-edit-svg path{cursor:grab}
+.preview-stage.editing-vector.dragging-pan .vector-edit-svg path{cursor:grabbing}
+@media(max-width:720px){.vector-edit-label{flex-basis:100%}.vector-edit-spacer{display:none}}
