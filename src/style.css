@@ -367,3 +367,7 @@ progress{width:100%;height:6px;margin-bottom:10px;accent-color:var(--accent)}
 .preview-stage.editing-vector .vector-point-handle{pointer-events:all;cursor:grab}
 .preview-stage.editing-vector .vector-point-handle:active{cursor:grabbing}
 @media(max-width:760px){.vector-inspector-list{grid-template-columns:repeat(auto-fill,minmax(115px,1fr));max-height:105px}}
+
+.vector-point-guides{pointer-events:none}
+.vector-point-guides line{stroke:var(--accent);stroke-width:1;stroke-dasharray:3 3;
+  opacity:.65;vector-effect:non-scaling-stroke;pointer-events:none}
