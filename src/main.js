@@ -318,7 +318,7 @@ function renderVectorPalette() {
     const number=document.createElement('small');
     number.textContent=String(count);
     button.append(swatch,label,number);
-    button.onclick=()=>{editorSelection=shapeId;renderShapeOverlay();};
+    button.onclick=()=>selectEditorShape(shapeId);
     target.append(button);
   }
 }
@@ -371,6 +371,9 @@ function selectEditorShape(id,focus=false){
   if(!doc || (id && !doc.shapes.some(s=>s.id===id&&!s.hidden)))return;
   if(editorSelection!==id)editorPointSelection=null;
   editorSelection=id;
+  const entries=inspectorShapes();
+  const index=entries.findIndex(shape=>shape.id===id);
+  if(index>=0)inspectorPage=Math.floor(index/INSPECTOR_PAGE_SIZE);
   renderShapeOverlay();
   if(focus)focusEditorShape();
 }
@@ -411,8 +414,6 @@ function renderShapeInspector(){
   if(!editorActive)return;
   const entries=inspectorShapes();
   const pageCount=Math.max(1,Math.ceil(entries.length/INSPECTOR_PAGE_SIZE));
-  const selectedIndex=entries.findIndex(s=>s.id===editorSelection);
-  if(selectedIndex>=0)inspectorPage=Math.floor(selectedIndex/INSPECTOR_PAGE_SIZE);
   inspectorPage=Math.max(0,Math.min(inspectorPage,pageCount-1));
   $('vector-inspector-count').textContent=entries.length+' shapes';
   $('vector-inspector-page').textContent=(inspectorPage+1)+' / '+pageCount;
@@ -445,6 +446,42 @@ function renderShapeInspector(){
   }
 }
 
+function renderSelectedPathPoints(svg,shape){
+  if(!editorPointMode || !shape)return;
+  const points=vectorPathPoints(shape.d,480);
+  const group=document.createElementNS(SVG_NS,'g');
+  group.classList.add('vector-points');
+  if(points.tooMany){
+    $('vector-point-help').textContent='This path has too many points to display. Try less detail or higher cleanup.';
+    svg.append(group);return;
+  }
+  $('vector-point-help').textContent='Drag anchors or Bézier handles to reshape this path. Arrow keys nudge the selected point.';
+  for(const node of points.nodes){
+    const circle=document.createElementNS(SVG_NS,'circle');
+    circle.classList.add('vector-point-handle',node.role==='anchor'?'anchor':'control');
+    circle.setAttribute('cx',node.x);circle.setAttribute('cy',node.y);
+    circle.setAttribute('r',node.role==='anchor'?'3.5':'2.8');
+    circle.setAttribute('data-node-index',String(node.index));
+    circle.setAttribute('data-node-role',node.role);
+    circle.setAttribute('aria-label',node.role+' '+node.index);
+    if(editorPointSelection && node.index===editorPointSelection.index &&
+       node.role===editorPointSelection.role)circle.classList.add('active');
+    circle.addEventListener('pointerdown',event=>{
+      if(event.button!==0)return;
+      event.stopPropagation();event.preventDefault();
+      editorPointSelection={index:node.index,role:node.role};
+      editorPointDrag={
+        pointerId:event.pointerId,shapeId:shape.id,original:shape.d,
+        current:shape.d,index:node.index,role:node.role,circle,
+        path:svg.querySelector('path[data-chomp-shape="'+shape.id+'"]')
+      };
+      svg.setPointerCapture(event.pointerId);
+      circle.classList.add('active');
+    });
+    group.append(circle);
+  }
+  svg.append(group);
+}
 function renderShapeOverlay(){
   if(editorSvg){editorSvg.remove();editorSvg=null;}
   if(!editorActive)return;
@@ -466,16 +503,48 @@ function renderShapeOverlay(){
     if(shape.id===editorSelection)path.classList.add('selected-vector-shape');
     svg.append(path);
   }
+  const chosen=doc.shapes.find(shape=>shape.id===editorSelection && !shape.hidden);
+  renderSelectedPathPoints(svg,chosen);
+  svg.addEventListener('pointermove',event=>{
+    const drag=editorPointDrag;
+    if(!drag || drag.pointerId!==event.pointerId)return;
+    const matrix=svg.getScreenCTM();
+    if(!matrix)return;
+    const point=svg.createSVGPoint();point.x=event.clientX;point.y=event.clientY;
+    const position=point.matrixTransform(matrix.inverse());
+    try{
+      const candidate=moveVectorPathPoint(drag.original,drag.index,drag.role,position.x,position.y);
+      drag.current=candidate;
+      drag.path?.setAttribute('d',candidate);
+      drag.circle?.setAttribute('cx',String(position.x));
+      drag.circle?.setAttribute('cy',String(position.y));
+    }catch{ /* Do not commit coordinates outside the supported vector range. */ }
+    event.preventDefault();
+  });
+  svg.addEventListener('pointerup',event=>{
+    const drag=editorPointDrag;
+    if(!drag || drag.pointerId!==event.pointerId)return;
+    editorPointDrag=null;
+    const doc=currentVectorEditor();
+    if(doc && drag.current!==drag.original &&
+       modifyVectorShape(doc,drag.shapeId,{d:drag.current}))afterShapeEdit();
+    else renderShapeOverlay();
+    event.preventDefault();
+  });
+  svg.addEventListener('pointercancel',event=>{
+    if(!editorPointDrag || editorPointDrag.pointerId!==event.pointerId)return;
+    editorPointDrag=null;renderShapeOverlay();
+  });
   svg.addEventListener('click',event=>{
     if(previewPanMode && previewZoom>1)return;
+    if(event.target.closest('circle[data-node-index]') || (editorPointMode && event.target===svg))return;
     const path=event.target.closest('path[data-chomp-shape]');
-    editorSelection=path?.getAttribute('data-chomp-shape')||null;
-    renderShapeOverlay();
+    selectEditorShape(path?.getAttribute('data-chomp-shape')||null);
   });
   editorSvg=svg;
   $('result-layer').append(svg);
   $('result-img').hidden=true;
-  renderZoom();editorToolbar();renderVectorPalette();
+  renderZoom();editorToolbar();renderVectorPalette();renderShapeInspector();
 }
 function editedSvgBytes(doc){
   return new TextEncoder().encode(serializeVectorDocument(doc));
