@@ -115,7 +115,62 @@ function curvePath(points, minCornerLength = 1.65, maxBend = Infinity, cornerSha
   return path + 'Z';
 }
 
-export function smoothColorContours(indices, width, height, color, tolerance, minArea, cornerSharpness = 50) {
+
+/**
+ * Group an outer contour with its immediate holes so one selectable SVG
+ * path corresponds to one connected filled region. Nested filled islands
+ * become separate shapes. Only used by the opt-in vector editor; ordinary
+ * tracing keeps the legacy per-color combined path byte-for-byte.
+ */
+function editableRegions(rings) {
+  if (rings.length > 2048)
+    throw new Error('Too many separate shapes to edit. Reduce tracing detail or increase noise cleanup.');
+  const records = rings.map(({ points, path }) => {
+    const xs = points.map(p => p[0]), ys = points.map(p => p[1]);
+    return {
+      points, path, area: areaOf(points),
+      bounds: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)],
+      parent: -1, depth: -1, holes: []
+    };
+  });
+  function contains(polygon, point) {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const a = polygon[i], b = polygon[j];
+      if ((a[1] > point[1]) !== (b[1] > point[1]) &&
+        point[0] < (b[0] - a[0]) * (point[1] - a[1]) / (b[1] - a[1]) + a[0])
+        inside = !inside;
+    }
+    return inside;
+  }
+  for (let i = 0; i < records.length; i++) {
+    const child = records[i], point = child.points[0];
+    let smallest = Infinity;
+    for (let j = 0; j < records.length; j++) {
+      const candidate = records[j];
+      if (i === j || candidate.area <= child.area || candidate.area >= smallest) continue;
+      const [x0, y0, x1, y1] = candidate.bounds;
+      if (point[0] <= x0 || point[0] >= x1 || point[1] <= y0 || point[1] >= y1) continue;
+      if (!contains(candidate.points, point)) continue;
+      child.parent = j; smallest = candidate.area;
+    }
+  }
+  function depth(index) {
+    const node = records[index];
+    if (node.depth >= 0) return node.depth;
+    return node.depth = node.parent < 0 ? 0 : depth(node.parent) + 1;
+  }
+  records.forEach((node, i) => depth(i));
+  records.forEach(node => { node.holes = []; });
+  records.forEach((node, i) => {
+    if (node.parent >= 0 && node.depth % 2 === 1)
+      records[node.parent].holes.push(i);
+  });
+  return records.filter(node => node.depth % 2 === 0)
+    .map(node => node.path + node.holes.map(i => records[i].path).join(''));
+}
+
+export function smoothColorContours(indices, width, height, color, tolerance, minArea, cornerSharpness = 50, separateRegions = false) {
   // One ghost-pixel border lets the contour close naturally at the image edge.
   const stride = width + 2, mask = new Uint8Array((width + 2) * (height + 2));
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
@@ -167,9 +222,12 @@ export function smoothColorContours(indices, width, height, color, tolerance, mi
     }
     if (!closed || ring.length < 3 || areaOf(ring) < minArea) continue;
     const simplified = simplifyRing(ring, tolerance);
-    if (simplified.length >= 3) paths.push(curvePath(simplified, 1.65, Infinity, cornerSharpness));
+    if (simplified.length >= 3) {
+      const path = curvePath(simplified, 1.65, Infinity, cornerSharpness);
+      paths.push(separateRegions ? {points: simplified, path} : path);
+    }
   }
-  return paths.join('');
+  return separateRegions ? editableRegions(paths) : paths.join('');
 }
 
 
@@ -185,7 +243,7 @@ export function smoothColorContours(indices, width, height, color, tolerance, mi
  * Only use this for the confidently detected flat-logo color layers. Photos,
  * already-transparent art and unrelated color regions keep the binary tracer.
  */
-export function smoothCoverageContours(coverage, width, height, tolerance = .35, minArea = .5, maxCurveBend = Infinity, cornerSharpness = 50) {
+export function smoothCoverageContours(coverage, width, height, tolerance = .35, minArea = .5, maxCurveBend = Infinity, cornerSharpness = 50, separateRegions = false) {
   if (!coverage || coverage.length !== width * height) throw new Error('Invalid coverage raster.');
   const stride = width + 2, field = new Float32Array((width + 2) * (height + 2));
   for (let y = 0; y < height; y++) {
@@ -279,7 +337,10 @@ export function smoothCoverageContours(coverage, width, height, tolerance = .35,
     }
     const rectilinear = areaOf(ring) >= 400 && perimeter && axisAligned / perimeter > .88;
     const simplified = simplifyRing(ring, rectilinear ? Math.max(.9, tolerance) : tolerance);
-    if (simplified.length >= 3) paths.push(curvePath(simplified, 1.05, maxCurveBend, cornerSharpness));
+    if (simplified.length >= 3) {
+      const path = curvePath(simplified, 1.05, maxCurveBend, cornerSharpness);
+      paths.push(separateRegions ? {points: simplified, path} : path);
+    }
   }
-  return paths.join('');
+  return separateRegions ? editableRegions(paths) : paths.join('');
 }
