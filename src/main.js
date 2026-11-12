@@ -1,6 +1,7 @@
 import { decodeSvgBitmap } from './svg-input.js';
 import { normalizeTraceOptions } from './trace-options.js';
-import { openVectorDocument, modifyVectorShape, undoVectorEdit, redoVectorEdit,
+import { openVectorDocument, modifyVectorShape, modifyVectorShapes,
+  matchingShapeIds, vectorPalette, undoVectorEdit, redoVectorEdit,
   resetVectorEdits, hasVectorEdits, serializeVectorDocument } from './vector-editor.js';
 import './style.css';
 const icons = {
@@ -60,11 +61,16 @@ document.querySelector('#app').innerHTML = `
             <label for="vector-shape-color">Fill</label>
             <input type="color" id="vector-shape-color" aria-label="Selected shape color" value="#000000" disabled>
             <button type="button" id="vector-delete-shape" disabled>Remove</button>
+            <label class="vector-match-option" for="vector-match-colors"><input id="vector-match-colors" type="checkbox"> All matching colors</label>
             <div class="vector-edit-spacer"></div>
             <button type="button" id="vector-undo" disabled>Undo</button>
             <button type="button" id="vector-redo" disabled>Redo</button>
             <button type="button" id="vector-reset" disabled>Reset</button>
             <button type="button" id="vector-done" class="vector-edit-done">Done</button>
+          </div>
+          <div id="vector-palette" class="vector-palette" hidden>
+            <span class="vector-palette-title">Colors</span>
+            <div id="vector-palette-swatches" class="vector-palette-swatches" aria-label="Vector artwork colors"></div>
           </div>
         </section>
         <div class="metrics"><div class="metric"><span>Original</span><strong id="metric-original">—</strong>${icon('image')}</div><div class="metric"><span>Output</span><strong id="metric-output">—</strong>${icon('folder')}</div><div class="metric"><span>Difference</span><strong id="metric-savings">—</strong>${icon('layers')}</div></div>
@@ -256,9 +262,35 @@ function closeVectorEditor(){
   editorActive=false;editorPending=false;editorSelection=null;
   if(editorSvg){editorSvg.remove();editorSvg=null;}
   $('vector-edit-toolbar').hidden=true;
+  $('vector-palette').hidden=true;
   $('preview-stage').classList.remove('editing-vector');
   $('preview-stage').classList.toggle('result-only', $('result-view').classList.contains('selected'));
   $('result-img').hidden=!previewResultUrl;
+}
+function renderVectorPalette() {
+  const doc=currentVectorEditor();
+  const target=$('vector-palette-swatches');
+  target.replaceChildren();
+  if(!doc || !editorActive)return;
+  const selectedFill=doc.shapes.find(shape=>shape.id===editorSelection)?.fill;
+  for(const {fill,count,shapeId} of vectorPalette(doc)){
+    const button=document.createElement('button');
+    button.type='button';button.className='vector-palette-swatch';
+    button.title=fill+' · '+count+' shape'+(count===1?'':'s');
+    button.setAttribute('aria-label',button.title);
+    button.setAttribute('aria-pressed',String(selectedFill===fill));
+    button.classList.toggle('active',selectedFill===fill);
+    const swatch=document.createElement('span');
+    swatch.className='vector-swatch-dot';
+    swatch.style.backgroundColor=fill;
+    const label=document.createElement('span');
+    label.textContent=fill;
+    const number=document.createElement('small');
+    number.textContent=String(count);
+    button.append(swatch,label,number);
+    button.onclick=()=>{editorSelection=shapeId;renderShapeOverlay();};
+    target.append(button);
+  }
 }
 function editorToolbar(){
   const doc=currentVectorEditor();
@@ -273,6 +305,7 @@ function editorToolbar(){
   $('vector-undo').disabled=!doc?.undoStack.length;
   $('vector-redo').disabled=!doc?.redoStack.length;
   $('vector-reset').disabled=!doc || !hasVectorEdits(doc);
+  $('vector-match-colors').disabled=!shape;
 }
 function renderShapeOverlay(){
   if(editorSvg){editorSvg.remove();editorSvg=null;}
@@ -304,7 +337,7 @@ function renderShapeOverlay(){
   editorSvg=svg;
   $('result-layer').append(svg);
   $('result-img').hidden=true;
-  renderZoom();editorToolbar();
+  renderZoom();editorToolbar();renderVectorPalette();
 }
 function editedSvgBytes(doc){
   return new TextEncoder().encode(serializeVectorDocument(doc));
@@ -327,7 +360,8 @@ function refreshEditedPreview(){
 function openShapeEditor(){
   const item=selectedItem();
   if(!item || running || scanning || editorPending || workspaceMode!=='vectorize' ||
-     $('format').value!=='svg' || item.format==='svg' || item.size>32*1024*1024)return;
+     $('format').value!=='svg' || (item.format==='svg' && !item.canEditSvg) ||
+     item.size>32*1024*1024)return;
   if(!currentVectorEditor(item)){
     editorPending=true;buttonState();queuePreview();return;
   }
@@ -335,6 +369,7 @@ function openShapeEditor(){
   $('preview-stage').classList.add('editing-vector');
   $('preview-stage').classList.add('result-only');
   $('vector-edit-toolbar').hidden=false;
+  $('vector-palette').hidden=false;
   refreshEditedPreview();
   buttonState();
 }
@@ -517,7 +552,7 @@ function buttonState() {
   $('action-note').textContent = scanning ? 'Scanning…' : (!replacing && items.length && !output) ? 'Choose an output folder.' : '';
   $('action-note').hidden = !$('action-note').textContent;
   const editable=workspaceMode==='vectorize' && $('format').value==='svg' &&
-    selectedItem()?.format!=='svg' && !!selectedItem() &&
+    !!selectedItem() && (selectedItem().format!=='svg' || selectedItem().canEditSvg) &&
     selectedItem().size<=32*1024*1024 && !replacing;
   $('vector-edit-open').hidden=!editable || editorActive;
   $('vector-edit-open').disabled=!editable || scanning || running || editorPending;
@@ -585,12 +620,16 @@ $('vector-done').onclick=()=>{
 $('vector-shape-color').onchange=()=>{
   const doc=currentVectorEditor();
   if(!doc || !editorSelection)return;
-  if(modifyVectorShape(doc,editorSelection,{fill:$('vector-shape-color').value}))afterShapeEdit();
+  const ids=$('vector-match-colors').checked
+    ? matchingShapeIds(doc,editorSelection) : [editorSelection];
+  if(modifyVectorShapes(doc,ids,{fill:$('vector-shape-color').value}))afterShapeEdit();
 };
 $('vector-delete-shape').onclick=()=>{
   const doc=currentVectorEditor();
   if(!doc || !editorSelection)return;
-  if(modifyVectorShape(doc,editorSelection,{hidden:true}))afterShapeEdit();
+  const ids=$('vector-match-colors').checked
+    ? matchingShapeIds(doc,editorSelection) : [editorSelection];
+  if(modifyVectorShapes(doc,ids,{hidden:true}))afterShapeEdit();
 };
 $('vector-undo').onclick=()=>{
   const doc=currentVectorEditor();
