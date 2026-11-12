@@ -1,0 +1,59 @@
+name: Build Microsoft Store MSIX
+on:
+  workflow_dispatch:
+    inputs:
+      package_name:
+        description: "Exact Package/Identity/Name from Partner Center > Product identity"
+        type: string
+        required: true
+      publisher:
+        description: "Exact Package/Identity/Publisher (e.g. CN=...)"
+        type: string
+        required: true
+      publisher_display_name:
+        description: "Exact Properties/PublisherDisplayName"
+        type: string
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-msix:
+    runs-on: windows-2022
+    timeout-minutes: 40
+    env:
+      CHOMP_STORE_PACKAGE_NAME: ${{ inputs.package_name }}
+      CHOMP_STORE_PUBLISHER: ${{ inputs.publisher }}
+      CHOMP_STORE_PUBLISHER_DISPLAY_NAME: ${{ inputs.publisher_display_name }}
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node node_modules/electron/install.js
+      - run: pnpm test
+      - name: Package and verify unsigned MSIX
+        run: pnpm dist:store
+      - name: Attach upload-only MSIX to the existing version's GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          tag="v${version}"
+          if ! gh release view "$tag" --json isDraft >/dev/null 2>&1; then
+            echo "Create the normal Chomp release before packaging its Store variant" >&2
+            exit 1
+          fi
+          file="release/Chomp-${version}-win-x64-Store-unsigned.msix"
+          test -s "$file"
+          gh release upload "$tag" "$file" --clobber
+          echo "MSIX uploaded as Store-only unsigned package. Submit via Partner Center for Microsoft signing."
