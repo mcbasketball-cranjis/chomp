@@ -502,13 +502,14 @@ function renderUpdateState(state) {
     ready: 'Update downloaded.',
     error: state.error || 'Update check failed.',
     unavailable: 'Update checks are available in the installed app.',
+    store: 'Updates are managed by Microsoft Store.',
     'move-required': 'Move Chomp to Applications to enable in-app updates.'
   };
   $('updates-message').textContent = messages[state.status] || 'Check for updates.';
   $('updates-progress-wrap').hidden = state.status !== 'downloading';
   $('updates-progress').value = state.progress || 0;
   $('updates-percent').textContent = (state.progress || 0) + '%';
-  $('updates-check').disabled = ['checking', 'downloading', 'ready', 'installing'].includes(state.status) || state.mode === 'unavailable';
+  $('updates-check').disabled = ['checking', 'downloading', 'ready', 'installing'].includes(state.status) || ['unavailable', 'store'].includes(state.mode);
   $('updates-action').hidden = !['available', 'ready', 'move-required'].includes(state.status);
   $('updates-action').disabled = state.status === 'downloading' || running;
   $('updates-action').textContent = state.status === 'ready' ? 'Restart & install' :
