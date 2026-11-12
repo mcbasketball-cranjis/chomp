@@ -408,10 +408,9 @@ const root = path.resolve(__dirname, '..');
     await page.click('#vector-edit-open');
     await expect(page.locator('.vector-edit-svg path')).toHaveCount(1);
     await page.locator('.vector-edit-svg path').first().click();
-    await page.locator('#vector-shape-color').evaluate(input=>{
-      input.value='#105abb';
-      input.dispatchEvent(new Event('change',{bubbles:true}));
-    });
+    await page.locator('#vector-shape-hex').fill('#105abb');
+    await page.locator('#vector-shape-hex').press('Tab');
+    await expect(page.locator('#vector-shape-color')).toHaveValue('#105abb');
     await page.click('#vector-done');
     await page.click('#compress');
     const reedited=await fs.readFile(await saved(),'utf8');
