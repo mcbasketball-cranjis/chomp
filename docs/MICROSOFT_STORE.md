@@ -41,9 +41,85 @@ click-to-install download for normal Windows users. Windows requires trusted
 signatures for MSIX installation outside the Store.
 
 Future versioned releases automatically build and upload an MSIX using
-`store/identity.json`, without requiring extra GitHub repository variables.
+`store/identity.json`, without requiring extra GitHub repository variables
+for **packaging**. Automatic Partner Center submission is separately gated
+by the two variables and four secrets described below.
 The build script permits explicit `CHOMP_STORE_...` environment overrides,
 but they must also match the identity of the intended Store listing.
+
+## Automatic updates from GitHub to Microsoft Store
+
+**After the first Chomp release has passed certification and is publicly live**,
+the normal versioned release pipeline can submit each new MSIX directly to
+Microsoft Store using Microsoft's [Store Developer CLI](https://learn.microsoft.com/windows/apps/publish/msstore-dev-cli/github-actions).
+
+The initial submission must be completed in Partner Center. Microsoft currently
+supports CLI/GitHub Action submissions for **free Store products**; confirm that
+the Store listing is free before enabling unattended publishing.
+
+### 1. Enable Microsoft Store API access
+
+1. In [Microsoft Entra](https://entra.microsoft.com), register an application
+   (or use an appropriate existing registration) in the tenant linked to your
+   Partner Center account.
+2. In Partner Center **Account settings → User management → Microsoft Entra
+   applications**, add the registered application and give it the **Manager**
+   role, as Microsoft requires for submission automation.
+3. Generate a **client secret** under the Entra app's
+   **Certificates & secrets** page. Never commit or paste the secret in an issue
+   or chat.
+
+### 2. Configure GitHub Actions
+
+At **GitHub → Chomp repository → Settings → Secrets and variables → Actions**,
+create these four **repository secrets**:
+
+| Secret | Source |
+|---|---|
+| `AZURE_AD_TENANT_ID` | Microsoft Entra tenant ID |
+| `AZURE_AD_APPLICATION_CLIENT_ID` | Entra application (client) ID |
+| `AZURE_AD_APPLICATION_SECRET` | Entra app's client secret **value** |
+| `SELLER_ID` | Partner Center seller/publisher ID |
+
+Create these two **repository variables** (not secrets):
+
+| Variable | Value |
+|---|---|
+| `CHOMP_STORE_PRODUCT_ID` | The Store **Product ID** shown in Partner Center's Product identity area (often begins with `9N`). This is NOT `CranjisMcBasketball.ChompImageConverter`. |
+| `CHOMP_STORE_AUTO_PUBLISH` | Set to `true` **only once the first Chomp version is published live**. Leave absent or set `false` until then. |
+
+The public MSIX package identity remains in `store/identity.json`.
+No Partner Center credentials belong in that file.
+
+### 3. Release a new Chomp version
+
+After the above configuration:
+
+1. Update `package.json` to a **higher** version such as `2.1.5` and update
+   `RELEASE_NOTES.md`. MSIX uses numeric package version `2.1.5.0`.
+2. Merge the changes into `main`.
+3. The existing `Build, test, and release` workflow tests the app, builds the
+   Mac, Windows EXE, and **Store MSIX** packages, and publishes the GitHub
+   release after verifying its artifacts.
+4. Its gated `store-submit` job downloads the new Store MSIX directly from
+   that release, verifies the GitHub SHA-256 checksum, authenticates to Partner
+   Center via the GitHub secrets, and submits it for certification using
+   `msstore publish` and the Store Product ID.
+5. **After Microsoft approves the updated submission**, Windows Store installs
+   the update automatically for users who installed the MSIX through the
+   Microsoft Store, subject to device and Store update policies.
+
+This workflow **does not** send every commit to Microsoft. It runs only
+after a successful *new* GitHub release, and only while the explicit
+`CHOMP_STORE_AUTO_PUBLISH` flag is enabled. If there is a certification or API
+problem, the GitHub job fails visibly; the existing published Store version is
+left in place.
+
+GitHub's separate NSIS installers continue using Chomp's GitHub updater and
+are not updated by the Microsoft Store.
+
+Microsoft reference:
+[Publishing app updates with GitHub Actions](https://learn.microsoft.com/en-us/windows/apps/publish/msstore-dev-cli/github-actions).
 
 ## Build locally on Windows
 
@@ -68,8 +144,9 @@ app executable, Store-specific update marker, icons and manifest identity.
 
 ## Testing limitations
 
-The pull request CI builds a **CI identity fixture** MSIX and tests manifest,
-package structure, and SDK packing/unpacking. It is not Store-uploadable.
+Pull request CI packages an MSIX with Chomp's reserved Store identity and
+tests its manifest, package structure, and SDK packing/unpacking. It does not
+authenticate to Partner Center or publish a submission.
 Final Partner Center certification and first-run behavior under Store
 distribution must be tested with a real, reserved app identity.
 

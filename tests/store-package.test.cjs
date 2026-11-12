@@ -26,3 +26,16 @@ test('reserved Microsoft Store identity is complete and unchanged', () => {
     displayName: 'Chomp Image Converter'
   });
 });
+
+test('Store submission automation is gated on a new GitHub release and explicit opt-in', () => {
+  const workflow = fs.readFileSync(path.join(__dirname, '../.github/workflows/build.yml'), 'utf8');
+  const submit = workflow.split('  store-submit:')[1]?.split('  update-smoke:')[0];
+  assert.ok(submit, 'Store submission job must exist in the release pipeline');
+  assert.match(submit, /needs: \[prepare-release, release\]/);
+  assert.match(submit, /needs\.release\.result == 'success' && vars\.CHOMP_STORE_AUTO_PUBLISH == 'true'/);
+  assert.match(submit, /msstore publish \$env:CHOMP_STORE_MSIX --appId \$env:CHOMP_STORE_PRODUCT_ID/);
+  assert.match(submit, /Get-FileHash -LiteralPath \$file -Algorithm SHA256/);
+  for (const secret of ['AZURE_AD_TENANT_ID', 'AZURE_AD_APPLICATION_CLIENT_ID', 'AZURE_AD_APPLICATION_SECRET', 'SELLER_ID']) {
+    assert.ok(submit.includes('secrets.' + secret), secret + ' must be a secret, not a committed credential');
+  }
+});

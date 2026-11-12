@@ -209,6 +209,70 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
 
+  store-submit:
+    name: Submit new MSIX release to Microsoft Store
+    # Opt-in only after the first Store version is certified and published.
+    needs: [prepare-release, release]
+    if: needs.release.result == 'success' && vars.CHOMP_STORE_AUTO_PUBLISH == 'true'
+    runs-on: windows-2022
+    timeout-minutes: 50
+    permissions:
+      contents: read
+    concurrency:
+      group: chomp-microsoft-store-submission
+      cancel-in-progress: false
+    env:
+      RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
+      CHOMP_STORE_PRODUCT_ID: ${{ vars.CHOMP_STORE_PRODUCT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and verify the release MSIX
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not $env:CHOMP_STORE_PRODUCT_ID) { throw 'Missing CHOMP_STORE_PRODUCT_ID variable; use the Store Product ID, not the Package Identity Name.' }
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($env:RELEASE_TAG -ne "v$version") { throw "Unexpected release tag $env:RELEASE_TAG" }
+          $filename = "Chomp-$version-win-x64-Store-unsigned.msix"
+          New-Item -ItemType Directory -Force -Path store-upload | Out-Null
+          gh release download $env:RELEASE_TAG --pattern $filename --dir store-upload
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to download Store MSIX' }
+          $file = (Resolve-Path (Join-Path 'store-upload' $filename)).Path
+          $release = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$env:RELEASE_TAG" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect release metadata' }
+          $asset = @($release.assets | Where-Object { $_.name -eq $filename })
+          if ($asset.Count -ne 1 -or $asset[0].state -ne 'uploaded') { throw 'Incomplete Store MSIX release asset' }
+          if ($asset[0].digest -notmatch '^sha256:([0-9a-fA-F]{64})$') { throw 'Missing MSIX SHA-256 release digest' }
+          $expectedHash = $Matches[1]
+          $actualHash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash
+          if ($actualHash -ine $expectedHash) { throw 'Store MSIX checksum mismatch' }
+          "CHOMP_STORE_MSIX=$file" >> $env:GITHUB_ENV
+      - name: Install Microsoft Store Developer CLI
+        uses: microsoft/microsoft-store-apppublisher@v1.1
+      - name: Authenticate to Partner Center
+        shell: pwsh
+        env:
+          AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+          AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
+          AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+          SELLER_ID: ${{ secrets.SELLER_ID }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($key in @('AZURE_AD_TENANT_ID', 'AZURE_AD_APPLICATION_CLIENT_ID', 'AZURE_AD_APPLICATION_SECRET', 'SELLER_ID')) {
+            if (-not [Environment]::GetEnvironmentVariable($key)) { throw "Missing GitHub Actions secret $key" }
+          }
+          msstore reconfigure --tenantId $env:AZURE_AD_TENANT_ID --sellerId $env:SELLER_ID --clientId $env:AZURE_AD_APPLICATION_CLIENT_ID --clientSecret $env:AZURE_AD_APPLICATION_SECRET
+          if ($LASTEXITCODE -ne 0) { throw 'Partner Center authentication failed' }
+      - name: Submit MSIX update for Microsoft certification
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          msstore publish $env:CHOMP_STORE_MSIX --appId $env:CHOMP_STORE_PRODUCT_ID
+          if ($LASTEXITCODE -ne 0) { throw 'Microsoft Store update submission failed' }
+          Write-Host "Submitted $env:RELEASE_TAG for Microsoft Store certification."
+
   update-smoke:
     # Only after 2.1.1 is published: verify the ACTUAL 2.1.0 Windows
     # installer detects and downloads 2.1.1 from GitHub Releases.
