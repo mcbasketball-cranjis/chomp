@@ -337,6 +337,55 @@ const root = path.resolve(__dirname, '..');
     assert.ok(Buffer.byteLength(transparentWordmark) < 95000);
     assert.ok(!/fill="#ffffff"/i.test(transparentWordmark), 'removed background must stay transparent');
 
+
+    // Local shape cleanup: two completely fictional regions are edited without
+    // turning them into one color-layer path or embedding source raster bytes.
+    const editableBase64 = await page.evaluate(() => {
+      const canvas=document.createElement('canvas');
+      canvas.width=120;canvas.height=70;
+      const ctx=canvas.getContext('2d');
+      ctx.fillStyle='#eb4237';
+      ctx.fillRect(9,12,33,43);
+      ctx.fillRect(75,12,34,43);
+      return canvas.toDataURL('image/png').split(',')[1];
+    });
+    const editableFile=path.join(work,'generated-editable-shapes.png');
+    await fs.writeFile(editableFile,Buffer.from(editableBase64,'base64'));
+    await page.click('#clear');
+    await choose([editableFile]);await page.click('#add');
+    await selectFormat('svg');
+    await page.click('#vector-edit-open');
+    await expect(page.locator('#vector-edit-toolbar')).toBeVisible({timeout:45000});
+    await expect(page.locator('.vector-edit-svg path')).toHaveCount(2);
+    await page.locator('.vector-edit-svg path').first().click();
+    await expect(page.locator('#vector-shape-color')).toBeEnabled();
+    await page.locator('#vector-shape-color').evaluate(input=>{
+      input.value='#12ab34';
+      input.dispatchEvent(new Event('change',{bubbles:true}));
+    });
+    await expect(page.locator('#vector-shape-color')).toHaveValue('#12ab34');
+    await page.click('#vector-undo');
+    await expect(page.locator('#vector-shape-color')).toHaveValue('#eb4237');
+    await page.click('#vector-redo');
+    await expect(page.locator('#vector-shape-color')).toHaveValue('#12ab34');
+    await page.locator('.vector-edit-svg path').nth(1).click();
+    await page.click('#vector-delete-shape');
+    await expect(page.locator('.vector-edit-svg path')).toHaveCount(1);
+    await page.click('#vector-undo');
+    await expect(page.locator('.vector-edit-svg path')).toHaveCount(2);
+    await page.click('#vector-redo');
+    await expect(page.locator('.vector-edit-svg path')).toHaveCount(1);
+    await page.click('#vector-done');
+    await expect(page.locator('#vector-edit-toolbar')).toBeHidden();
+    await page.click('#compress');
+    const cleaned=await fs.readFile(await saved(),'utf8');
+    assert.ok(cleaned.includes('fill="#12ab34"'),
+      'recolored shape must be written to the actual exported SVG');
+    assert.ok(!cleaned.includes('data-chomp-shape="s1"'),
+      'deleted shape must not reappear in exported SVG');
+    assert.equal((cleaned.match(/<path /g)||[]).length,1);
+    assert.ok(!cleaned.includes('<image'));
+
     assert.deepEqual(await fs.readFile(transparent), before);
     assert.deepEqual(await fs.readFile(whiteJpeg), Buffer.from(jpegSamples[0], 'base64'));
     assert.deepEqual(await fs.readFile(blackJpeg), Buffer.from(jpegSamples[1], 'base64'));
