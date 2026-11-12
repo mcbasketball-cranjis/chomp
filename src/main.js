@@ -60,6 +60,7 @@ document.querySelector('#app').innerHTML = `
             <span id="vector-edit-label" class="vector-edit-label">Select a shape</span>
             <label for="vector-shape-color">Fill</label>
             <input type="color" id="vector-shape-color" aria-label="Selected shape color" value="#000000" disabled>
+            <input type="text" id="vector-shape-hex" class="vector-shape-hex" aria-label="Exact fill hex color" maxlength="7" autocomplete="off" spellcheck="false" value="#000000" disabled>
             <button type="button" id="vector-delete-shape" disabled>Remove</button>
             <label class="vector-match-option" for="vector-match-colors"><input id="vector-match-colors" type="checkbox"> All matching colors</label>
             <div class="vector-edit-spacer"></div>
@@ -300,7 +301,11 @@ function editorToolbar(){
   $('vector-edit-label').textContent=shape ? 'Shape '+position+' of '+visible.length
     : visible.length ? 'Select a shape · '+visible.length+' available' : 'No visible shapes';
   $('vector-shape-color').disabled=!shape;
-  if(shape)$('vector-shape-color').value=shape.fill;
+  $('vector-shape-hex').disabled=!shape;
+  if(shape){
+    $('vector-shape-color').value=shape.fill;
+    $('vector-shape-hex').value=shape.fill;
+  }
   $('vector-delete-shape').disabled=!shape;
   $('vector-undo').disabled=!doc?.undoStack.length;
   $('vector-redo').disabled=!doc?.redoStack.length;
@@ -629,13 +634,21 @@ $('vector-edit-open').onclick=openShapeEditor;
 $('vector-done').onclick=()=>{
   closeVectorEditor();buttonState();
 };
-$('vector-shape-color').onchange=()=>{
+function applySelectedFill(hex){
   const doc=currentVectorEditor();
   if(!doc || !editorSelection)return;
+  if(!/^#[0-9a-fA-F]{6}$/.test(hex)){
+    notice('Enter a six-digit hex color, such as #123456.');
+    editorToolbar();
+    return;
+  }
   const ids=$('vector-match-colors').checked
     ? matchingShapeIds(doc,editorSelection) : [editorSelection];
-  if(modifyVectorShapes(doc,ids,{fill:$('vector-shape-color').value}))afterShapeEdit();
-};
+  if(modifyVectorShapes(doc,ids,{fill:hex}))afterShapeEdit();
+  else editorToolbar();
+}
+$('vector-shape-color').onchange=()=>applySelectedFill($('vector-shape-color').value);
+$('vector-shape-hex').onchange=()=>applySelectedFill($('vector-shape-hex').value.trim());
 $('vector-delete-shape').onclick=()=>{
   const doc=currentVectorEditor();
   if(!doc || !editorSelection)return;
