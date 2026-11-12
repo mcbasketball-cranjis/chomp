@@ -145,6 +145,10 @@ export function flatLogoLayers(image, detail='balanced', matteHint=null) {
   if(!clustered)return null;
   const {seeds,maximumAlpha}=clustered;
   const indices=new Int16Array(width*height).fill(-1);
+  // Keep the actual antialias coverage for each ink. Binary segmentation alone
+  // destroys narrow glyph curves, joins adjacent letters and shifts strokes.
+  // Use Uint8 arrays to bound memory even for six detailed ink layers.
+  const coverage=matteAware?seeds.map(()=>new Uint8Array(width*height)):null;
   const support=new Uint32Array(seeds.length);
   let retainedMattePixels=0;
   for(let i=0;i<indices.length;i++){
@@ -158,16 +162,24 @@ export function flatLogoLayers(image, detail='balanced', matteHint=null) {
       if(recoveredMatte) { indices[i]=seeds.length; retainedMattePixels++; }
       continue;
     }
-    let best=-1,bestError=Infinity;
+    let best=-1,bestError=Infinity,bestCoverage=0;
     for(let c=0;c<seeds.length;c++){
       const match=matteAware?lineMatch(rgb,seeds[c],matte):{error:Math.sqrt(colorDistance2(rgb,seeds[c])),coverage:1};
-      if(match.coverage<.42)continue;
-      if(match.error<bestError){bestError=match.error;best=c;}
+      // Weak but real edge coverage is useful to interpolate the 50% boundary.
+      // Do not throw away everything below the hard binary 42% cutoff.
+      if(match.coverage<.06)continue;
+      if(match.error<bestError){bestError=match.error;best=c;bestCoverage=match.coverage;}
     }
-    if(best>=0 && bestError < (matteAware?45:34)){indices[i]=best;support[best]++;}
+    if(best>=0 && bestError < (matteAware?45:34)){
+      if(coverage){
+        const visibleCoverage=clamp(bestCoverage,0,1)*(alpha/255);
+        coverage[best][i]=Math.round(visibleCoverage*255);
+      }
+      if(bestCoverage>=.42){indices[i]=best;support[best]++;}
+    }
   }
   removeSpeckles(indices,width,height,Math.max(2,Math.min(7,Math.round(width*height*.000012))));
   const colors=seeds.map(seed=>[...seed,maximumAlpha]);
   if(retainedMattePixels)colors.push([...matte,255]);
-  return {colors,indices,background:opaqueBackground?matte:null};
+  return {colors,indices,coverage,background:opaqueBackground?matte:null};
 }

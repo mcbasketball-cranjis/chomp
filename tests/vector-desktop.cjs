@@ -242,6 +242,9 @@ const root = path.resolve(__dirname, '..');
     await fs.writeFile(wordmark, Buffer.from(wordmarkBase64, 'base64'));
     await page.click('#clear'); await choose([wordmark]); await page.click('#add');
     await selectFormat('svg');
+    // The reported distorted lettering occurs on the highest detail setting.
+    await page.click('[data-trace="detailed"]');
+    assert.equal(await page.locator('#trace-detail').inputValue(), 'detailed');
     await page.uncheck('#remove-bg');
     await page.click('#compress');
     const wordmarkSvg = await fs.readFile(await saved(), 'utf8');
@@ -276,15 +279,28 @@ const root = path.resolve(__dirname, '..');
       const original = getPixels(await decode(jpeg, 'image/jpeg'));
       const vector = getPixels(await decode(svg, 'image/svg+xml'));
       let intersection = 0, union = 0;
+      let letteringIntersection = 0, letteringUnion = 0;
       for (let i = 0; i < original.length; i += 4) {
         const foreground = data => Math.hypot(255-data[i], 255-data[i+1], 255-data[i+2]) > 65;
         const a = foreground(original), b = foreground(vector);
         if (a && b) intersection++;
         if (a || b) union++;
+        // A large, easy-to-trace symbol must not hide badly traced thin text.
+        const x = (i / 4) % 1320;
+        if (x >= 235 && x < 1260) {
+          if (a && b) letteringIntersection++;
+          if (a || b) letteringUnion++;
+        }
       }
-      return union ? intersection / union : 0;
+      return {
+        overall: union ? intersection / union : 0,
+        lettering: letteringUnion ? letteringIntersection / letteringUnion : 0
+      };
     }, { jpeg: [...await fs.readFile(wordmark)], svg: [...Buffer.from(wordmarkSvg)] });
-    assert.ok(overlap > .68, 'vector should retain the original lettering and symbol (IoU ' + overlap.toFixed(3) + ')');
+    assert.ok(overlap.overall > .68,
+      'vector should retain the original artwork (IoU ' + overlap.overall.toFixed(3) + ')');
+    assert.ok(overlap.lettering > .68,
+      'thin lettering must match the original independently of the bold symbol (IoU ' + overlap.lettering.toFixed(3) + ')');
 
     // Removing an opaque matte must not turn antialias fringe pixels into
     // separate gray shapes or put the white backdrop back.

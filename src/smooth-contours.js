@@ -49,7 +49,7 @@ function areaOf(points) {
   return Math.abs(area / 2);
 }
 function format(n) { return String(Math.round(n * 100) / 100); }
-function curvePath(points) {
+function curvePath(points, minCornerLength = 1.65) {
   const n = points.length;
   if (n < 3) return '';
   const tangent = [], corner = [];
@@ -60,7 +60,7 @@ function curvePath(points) {
     const dot = d1 && d2 ? (dx1 * dx2 + dy1 * dy2) / (d1 * d2) : 1;
     // A long and abrupt turn is intentional (e.g. a square logo corner).
     // Short alternating turns along a diagonal raster edge are not.
-    corner[i] = dot < 0.48 && Math.min(d1, d2) >= 1.65;
+    corner[i] = dot < 0.48 && Math.min(d1, d2) >= minCornerLength;
     const tx = dx1 / (d1 || 1) + dx2 / (d2 || 1);
     const ty = dy1 / (d1 || 1) + dy2 / (d2 || 1);
     const norm = Math.hypot(tx, ty);
@@ -158,6 +158,118 @@ export function smoothColorContours(indices, width, height, color, tolerance, mi
     if (!closed || ring.length < 3 || areaOf(ring) < minArea) continue;
     const simplified = simplifyRing(ring, tolerance);
     if (simplified.length >= 3) paths.push(curvePath(simplified));
+  }
+  return paths.join('');
+}
+
+
+/**
+ * Subpixel contours for antialiased flat-color artwork, especially typography.
+ *
+ * A binary mask loses the coverage value of gray, antialiased edge pixels and
+ * tends to shrink or disconnect thin glyph strokes. Here each pixel is a
+ * continuous value in [0,1]; an isocontour is interpolated between adjacent
+ * pixel centers where coverage crosses 50%. The result is actual editable SVG
+ * geometry, not a raster image, filter, or embedded font.
+ *
+ * Only use this for the confidently detected flat-logo color layers. Photos,
+ * already-transparent art and unrelated color regions keep the binary tracer.
+ */
+export function smoothCoverageContours(coverage, width, height, tolerance = .35, minArea = .5) {
+  if (!coverage || coverage.length !== width * height) throw new Error('Invalid coverage raster.');
+  const stride = width + 2, field = new Float32Array((width + 2) * (height + 2));
+  for (let y = 0; y < height; y++) {
+    const row = y * width, dst = (y + 1) * stride + 1;
+    for (let x = 0; x < width; x++) field[dst + x] = coverage[row + x] / 255;
+  }
+
+  // Both sides of a shared cell edge get the same identifier. This avoids
+  // comparing floating point coordinates, which can leave contours unclosed.
+  const segments = [], adjacency = new Map(), threshold = .5;
+  function add(a, b) {
+    const id = segments.length;
+    segments.push({ a, b, used: false });
+    for (const v of [a, b]) {
+      let edges = adjacency.get(v.key);
+      if (!edges) adjacency.set(v.key, edges = []);
+      edges.push(id);
+    }
+  }
+  const lerp = (a, b) => {
+    const diff = b - a;
+    return Math.max(0, Math.min(1, diff ? (threshold - a) / diff : .5));
+  };
+  for (let y = 0; y <= height; y++) {
+    for (let x = 0; x <= width; x++) {
+      const i = y * stride + x;
+      const tl = field[i], tr = field[i + 1];
+      const bl = field[i + stride], br = field[i + stride + 1];
+      const a = tl >= threshold, b = tr >= threshold, c = br >= threshold, d = bl >= threshold;
+      if (a === b && a === c && a === d) continue;
+      const crossings = [];
+      if (a !== b) crossings.push({
+        edge: 0, key: 'h:' + x + ',' + y,
+        point: [x - 1 + lerp(tl, tr), y - 1]
+      });
+      if (b !== c) crossings.push({
+        edge: 1, key: 'v:' + (x + 1) + ',' + y,
+        point: [x, y - 1 + lerp(tr, br)]
+      });
+      if (d !== c) crossings.push({
+        edge: 2, key: 'h:' + x + ',' + (y + 1),
+        point: [x - 1 + lerp(bl, br), y]
+      });
+      if (a !== d) crossings.push({
+        edge: 3, key: 'v:' + x + ',' + y,
+        point: [x - 1, y - 1 + lerp(tl, bl)]
+      });
+      if (crossings.length === 2) {
+        add(crossings[0], crossings[1]);
+      } else if (crossings.length === 4) {
+        // Keep diagonally touching glyph parts separate, preventing adjacent
+        // characters and letter counters from being joined by a single pixel.
+        const at = edge => crossings.find(v => v.edge === edge);
+        if (a) {
+          add(at(0), at(3));
+          add(at(1), at(2));
+        } else {
+          add(at(0), at(1));
+          add(at(2), at(3));
+        }
+      }
+    }
+  }
+  const paths = [];
+  for (const initial of segments) {
+    if (initial.used) continue;
+    let edge = initial, end = initial.b;
+    const start = initial.a.key, ring = [initial.a.point];
+    let closed = false;
+    while (edge && !edge.used) {
+      edge.used = true;
+      if (end.key === start) { closed = true; break; }
+      ring.push(end.point);
+      const attached = adjacency.get(end.key) || [];
+      const next = attached.find(id => !segments[id].used);
+      if (next === undefined) break;
+      edge = segments[next];
+      end = edge.a.key === end.key ? edge.b : edge.a;
+    }
+    if (!closed || ring.length < 3 || areaOf(ring) < minArea) continue;
+    // High-detail text needs the fractional outlines, but clean box-shaped
+    // symbols should not become rounded rectangles. Strongly axis-aligned
+    // large contours can be simplified more aggressively at their corners.
+    let axisAligned = 0, perimeter = 0;
+    for (let k = 0; k < ring.length; k++) {
+      const p = ring[k], q = ring[(k + 1) % ring.length];
+      const dx = Math.abs(q[0] - p[0]), dy = Math.abs(q[1] - p[1]);
+      const distance = Math.hypot(dx, dy);
+      perimeter += distance;
+      if (Math.min(dx, dy) < 0.08 * Math.max(dx, dy)) axisAligned += distance;
+    }
+    const rectilinear = areaOf(ring) >= 400 && perimeter && axisAligned / perimeter > .88;
+    const simplified = simplifyRing(ring, rectilinear ? Math.max(.9, tolerance) : tolerance);
+    if (simplified.length >= 3) paths.push(curvePath(simplified, 1.05));
   }
   return paths.join('');
 }
