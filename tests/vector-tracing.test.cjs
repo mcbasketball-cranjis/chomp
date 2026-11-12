@@ -252,3 +252,15 @@ test('flat JPEG-logo detection keeps measured coverage for lighter thin strokes'
   assert.ok(weak>0&&weak<core,
     'a partly covered hairline pixel must be retained rather than discarded');
 });
+
+
+test('opaque-background high-detail tracing keeps the solid logo rectangle sharp', async () => {
+  const { traceImageData } = await vector;
+  const logo=image(96,76,[255,255,255,255]);
+  for(let y=15;y<59;y++) for(let x=12;x<74;x++) pixel(logo,x,y,[205,142,20,255]);
+  const svg=traceImageData(logo,{detail:'detailed'});
+  const gold=svg.match(/<path fill="#cd8e14"[^>]* d="([^"]+)"/);
+  assert.ok(gold,'solid rectangular artwork must be identified as its own ink');
+  assert.ok(!gold[1].includes('C'), 'sharp rectangular corners must not be rounded by the text tracer');
+  assert.ok(gold[1].length < 450,'solid rectangle should remain a compact editable path');
+});
