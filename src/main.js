@@ -90,7 +90,7 @@ document.querySelector('#app').innerHTML = `
               <div class="mini-divider"></div><label class="toggle-row"><span><strong>Resize large images</strong></span><input id="resize" type="checkbox" role="switch"><span class="switch"></span></label>
               <div id="resize-options" hidden><label class="field-label" for="max-size">Maximum long edge</label><div class="number-wrap"><input id="max-size" type="number" min="64" max="32768" value="2400" step="1"><span>px</span></div></div>
             </section>
-            <section id="quick-panel" class="settings-section quick-panel" hidden><div class="quick-heading"><h3>Folder processing</h3><span id="folder-count"></span></div><p id="source-folders"></p><fieldset id="folder-modes"><label class="mode-option"><input type="radio" name="folder-mode" value="copy" checked><span><strong>Duplicate folder</strong><small>Keep non-image files</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="images"><span><strong>Images only</strong><small>Keep subfolders</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="replace"><span><strong>Replace originals</strong><small>Overwrites source images</small></span></label></fieldset><p id="mode-note" class="mode-note"></p></section>
+            <section id="quick-panel" class="settings-section quick-panel" hidden><div class="quick-heading"><h3>Folder processing</h3><span id="folder-count"></span></div><p id="source-folders"></p><fieldset id="folder-modes"><label class="mode-option"><input type="radio" name="folder-mode" value="copy" checked><span><strong>Duplicate folder</strong><small>Keep non-image files</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="images"><span><strong>Images only</strong><small>Keep subfolders</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="replace"><span><strong>Replace originals</strong><small>Overwrites source images</small></span></label></fieldset></section>
           </fieldset>
         </div>
         <div class="settings-footer">
@@ -230,7 +230,6 @@ function notice(message) { $('notice').textContent = message; }
 function buttonState() {
   const replacing = mode() === 'replace';
   $('compress').disabled = running || scanning || (!replacing && !output) || !items.length;
-  const converting = $('format').value === 'svg' || items.some(item => item.format === 'svg');
   const amount=items.length+' image'+(items.length===1?'':'s');
   const label=replacing?'Replace original images':items.length&&items.every(i=>i.status==='done')?'Export again':workspaceMode==='vectorize'&&$('format').value==='svg'?'Export '+items.length+' SVG'+(items.length===1?'':'s'):workspaceMode==='convert'?'Convert '+amount:'Compress '+amount;
   $('compress').innerHTML=icon('upload')+' '+label;
@@ -253,9 +252,8 @@ function buttonState() {
   $('output-controls').hidden = replacing;
   $('replace-warning').hidden = !replacing;
   $('format').disabled = replacing;
-  $('mode-note').textContent = replacing ? 'Keeps formats, filenames, and subfolders. This cannot be undone by the app.' : mode() === 'copy' ? 'Creates a new folder. Source files stay unchanged. Failed images keep their original copies.' : 'Creates a new folder containing only successful image exports.';
-  $('mode-note').classList.toggle('warning', replacing);
-  $('action-note').textContent = scanning ? 'Scanning subfolders…' : running ? 'Compressing locally. You can stop after the current image.' : !items.length ? 'Add images or a folder to begin.' : replacing ? 'Only successfully encoded images will be replaced.' : !output ? 'Choose where to save your compressed images.' : 'Ready to compress.';
+  $('action-note').textContent = scanning ? 'Scanning…' : (!replacing && items.length && !output) ? 'Choose an output folder.' : '';
+  $('action-note').hidden = !$('action-note').textContent;
 }
 function row(item) {
   const el=document.createElement('div');el.className='image-row';el.dataset.id=item.id;
@@ -446,7 +444,7 @@ function renderUpdateState(state) {
   $('updates-action').disabled = state.status === 'downloading' || running;
   $('updates-action').textContent = state.status === 'ready' ? 'Restart & install' :
     state.mode === 'automatic' ? 'Download update' : 'Get update';
-  $('updates-warning').hidden = state.mode !== 'manual';
+  $('updates-warning').hidden = state.mode !== 'manual' || state.status !== 'available';
   $('updates-warning').textContent = state.mode === 'manual'
     ? 'Manual installation is required on macOS and portable builds.'
     : '';
