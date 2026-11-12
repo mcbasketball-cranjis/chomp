@@ -1,5 +1,6 @@
 import { decodeSvgBitmap } from './svg-input.js';
 import { normalizeTraceOptions } from './trace-options.js';
+import { vectorPathBounds, vectorPathPoints, moveVectorPathPoint } from './vector-path.js';
 import { openVectorDocument, modifyVectorShape, modifyVectorShapes,
   matchingShapeIds, vectorPalette, undoVectorEdit, redoVectorEdit,
   resetVectorEdits, hasVectorEdits, serializeVectorDocument } from './vector-editor.js';
@@ -62,6 +63,7 @@ document.querySelector('#app').innerHTML = `
             <input type="color" id="vector-shape-color" aria-label="Selected shape color" value="#000000" disabled>
             <input type="text" id="vector-shape-hex" class="vector-shape-hex" aria-label="Exact fill hex color" maxlength="7" autocomplete="off" spellcheck="false" value="#000000" disabled>
             <button type="button" id="vector-delete-shape" disabled>Remove</button>
+            <button type="button" id="vector-point-mode" aria-pressed="false" disabled>Points</button>
             <label class="vector-match-option" for="vector-match-colors"><input id="vector-match-colors" type="checkbox"> All matching colors</label>
             <div class="vector-edit-spacer"></div>
             <button type="button" id="vector-undo" disabled>Undo</button>
@@ -72,6 +74,23 @@ document.querySelector('#app').innerHTML = `
           <div id="vector-palette" class="vector-palette" hidden>
             <span class="vector-palette-title">Colors</span>
             <div id="vector-palette-swatches" class="vector-palette-swatches" aria-label="Vector artwork colors"></div>
+          </div>
+          <div id="vector-inspector" class="vector-inspector" hidden>
+            <div class="vector-inspector-header">
+              <strong>Shapes</strong>
+              <label><input type="checkbox" id="vector-only-small"> Small only</label>
+              <span id="vector-inspector-count">0</span>
+              <button type="button" id="vector-shape-prev" title="Previous shape" aria-label="Previous shape">‹</button>
+              <button type="button" id="vector-shape-next" title="Next shape" aria-label="Next shape">›</button>
+              <button type="button" id="vector-shape-focus" disabled>Zoom to</button>
+            </div>
+            <div id="vector-inspector-list" class="vector-inspector-list" role="listbox" aria-label="Editable vector shapes"></div>
+            <div class="vector-inspector-footer">
+              <span id="vector-inspector-page">1 / 1</span>
+              <button type="button" id="vector-inspector-back" aria-label="Previous page">Previous</button>
+              <button type="button" id="vector-inspector-forward" aria-label="Next page">Next</button>
+              <span id="vector-point-help" hidden>Drag points or curve handles to refine the selected path.</span>
+            </div>
           </div>
         </section>
         <div class="metrics"><div class="metric"><span>Original</span><strong id="metric-original">—</strong>${icon('image')}</div><div class="metric"><span>Output</span><strong id="metric-output">—</strong>${icon('folder')}</div><div class="metric"><span>Difference</span><strong id="metric-savings">—</strong>${icon('layers')}</div></div>
@@ -182,6 +201,9 @@ const urls = new Set();
 let workspaceMode='compress',selectedId=null,previewTimer=null,previewVersion=0,previewWorker=null,previewOriginalUrl=null,previewResultUrl=null;
 let previewZoom=1,previewX=0,previewY=0,previewPanMode=false,previewPointer=null;
 let editorActive=false,editorPending=false,editorSelection=null,editorSvg=null;
+let editorPointMode=false,editorPointSelection=null,editorPointDrag=null,inspectorPage=0;
+const inspectorBoundsCache=new Map();
+const INSPECTOR_PAGE_SIZE=48;
 const SVG_NS='http://www.w3.org/2000/svg';
 const traceControls = () => normalizeTraceOptions({
   mode:$('trace-mode').value, colors:$('trace-colors').value,
@@ -261,11 +283,16 @@ function currentVectorEditor(item=selectedItem()){
 }
 function closeVectorEditor(){
   editorActive=false;editorPending=false;editorSelection=null;
+  editorPointMode=false;editorPointSelection=null;editorPointDrag=null;inspectorPage=0;
+  inspectorBoundsCache.clear();
   // Bulk actions are opt-in per editing session; never carry them to a new file.
   $('vector-match-colors').checked=false;
   if(editorSvg){editorSvg.remove();editorSvg=null;}
   $('vector-edit-toolbar').hidden=true;
   $('vector-palette').hidden=true;
+  $('vector-inspector').hidden=true;
+  $('vector-point-help').hidden=true;
+  $('vector-point-mode').setAttribute('aria-pressed','false');
   $('preview-stage').classList.remove('editing-vector');
   $('preview-stage').classList.toggle('result-only', $('result-view').classList.contains('selected'));
   $('result-img').hidden=!previewResultUrl;
@@ -313,6 +340,10 @@ function editorToolbar(){
   $('vector-redo').disabled=!doc?.redoStack.length;
   $('vector-reset').disabled=!doc || !hasVectorEdits(doc);
   $('vector-match-colors').disabled=!shape;
+  $('vector-point-mode').disabled=!shape;
+  $('vector-point-mode').classList.toggle('selected',editorPointMode);
+  $('vector-point-mode').setAttribute('aria-pressed',String(editorPointMode));
+  $('vector-point-help').hidden=!editorPointMode;
 }
 function renderShapeOverlay(){
   if(editorSvg){editorSvg.remove();editorSvg=null;}
@@ -377,12 +408,16 @@ function openShapeEditor(){
   $('preview-stage').classList.add('result-only');
   $('vector-edit-toolbar').hidden=false;
   $('vector-palette').hidden=false;
+  $('vector-inspector').hidden=false;
   refreshEditedPreview();
   buttonState();
 }
 function afterShapeEdit(){
   const doc=currentVectorEditor();
-  if(editorSelection && doc?.shapes.find(s=>s.id===editorSelection)?.hidden)editorSelection=null;
+  if(editorSelection && doc?.shapes.find(s=>s.id===editorSelection)?.hidden){
+    editorSelection=null;editorPointMode=false;editorPointSelection=null;
+  }
+  inspectorBoundsCache.clear();
   refreshEditedPreview();
 }
 
