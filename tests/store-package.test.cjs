@@ -22,6 +22,7 @@ test('reserved Microsoft Store identity is complete and unchanged', () => {
   assert.deepEqual(identity, {
     name: 'CranjisMcBasketball.ChompImageConverter',
     publisher: 'CN=5CADBE67-B82C-4702-A7DC-41355D6CC8AF',
-    publisherDisplayName: 'Cranjis McBasketball'
+    publisherDisplayName: 'Cranjis McBasketball',
+    displayName: 'Chomp Image Converter'
   });
 });
