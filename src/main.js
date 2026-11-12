@@ -97,6 +97,14 @@ document.querySelector('#app').innerHTML = `
                   <label class="bg-mode-option"><input type="radio" name="bg-mode" value="all"><span>Everywhere</span></label>
                 </fieldset>
                 <p id="bg-mode-hint" class="hint">Outside edges only</p>
+                <div class="background-picker">
+                  <label class="field-label" for="bg-color-source">Background color</label>
+                  <select id="bg-color-source"><option value="auto">Auto detect</option><option value="manual">Choose color</option></select>
+                  <div id="bg-manual-controls" hidden>
+                    <input type="color" id="bg-color" value="#ffffff" aria-label="Background color to remove">
+                    <span>Selected color</span>
+                  </div>
+                </div>
                 <div class="label-row"><label for="bg-tolerance" class="field-label">Color tolerance</label><output id="bg-value">28</output></div>
                 <input id="bg-tolerance" type="range" min="0" max="100" value="28"><div class="range-labels"><span>Precise</span><span>More aggressive</span></div>
               </div>
@@ -272,7 +280,8 @@ async function renderPreview(){
       quality:Number($('quality').value),maxSize:$('resize').checked?Number($('max-size').value):null,
       maxBytes:$('limit-size').checked?Math.floor(Number($('max-bytes').value)*Number($('size-unit').value)):null,
       traceDetail:$('trace-detail').value,traceOptions:traceControls(),removeBackground:$('remove-bg').checked,
-      bgTolerance:Number($('bg-tolerance').value),bgMode:document.querySelector('[name="bg-mode"]:checked').value
+      bgTolerance:Number($('bg-tolerance').value),bgMode:document.querySelector('[name="bg-mode"]:checked').value,
+      bgColor:$('bg-color-source').value==='manual'?$('bg-color').value:null
     };
     local.postMessage(payload,bitmap?[data.buffer,bitmap]:[data.buffer]);
   }catch(error){if(token===previewVersion)$('preview-status').textContent='Preview unavailable';}
@@ -456,6 +465,11 @@ document.querySelectorAll('[name="bg-mode"]').forEach(el => el.onchange = () => 
   queuePreview();
 });
 $('bg-tolerance').oninput=()=>{$('bg-value').textContent=$('bg-tolerance').value;queuePreview();};
+$('bg-color-source').onchange=()=>{
+  $('bg-manual-controls').hidden=$('bg-color-source').value!=='manual';
+  queuePreview();
+};
+$('bg-color').oninput=queuePreview;
 ['max-size','max-bytes','size-unit'].forEach(id=>{$(id).onchange=queuePreview;});
 $('trace-detail').onchange=queuePreview;
 for(const id of ['trace-mode','trace-colors','trace-resolution']){
@@ -518,7 +532,7 @@ $('compress').onclick = async () => {
   if ($('resize').checked && (!Number.isInteger(maxSize) || maxSize < 64 || maxSize > 32768)) { notice('Enter a maximum edge between 64 and 32,768 pixels.'); $('max-size').focus(); return; }
   const maxBytes = $('format').value !== 'svg' && $('limit-size').checked ? Math.floor(Number($('max-bytes').value) * Number($('size-unit').value)) : null;
   if (maxBytes !== null && (!Number.isInteger(maxBytes) || maxBytes < 1024 || maxBytes > 512 * 1024 * 1024)) { notice('Set a file size between 1 KB and 512 MB.'); $('max-bytes').focus(); return; }
-  const settings = { format: $('format').value, quality: Number($('quality').value), maxSize: $('resize').checked ? maxSize : null, maxBytes, traceDetail: $('trace-detail').value, traceOptions:traceControls(), removeBackground: $('remove-bg').checked, bgTolerance: Number($('bg-tolerance').value), bgMode: document.querySelector('[name="bg-mode"]:checked').value };
+  const settings = { format: $('format').value, quality: Number($('quality').value), maxSize: $('resize').checked ? maxSize : null, maxBytes, traceDetail: $('trace-detail').value, traceOptions:traceControls(), removeBackground: $('remove-bg').checked, bgTolerance: Number($('bg-tolerance').value), bgMode: document.querySelector('[name="bg-mode"]:checked').value, bgColor:$('bg-color-source').value==='manual'?$('bg-color').value:null };
   if (settings.removeBackground && settings.format === 'original' && items.some(item => item.format === 'jpg')) { notice('JPEG cannot save transparency. Choose PNG, WebP, AVIF or SVG to remove the background.'); return; }
   const outputMode = mode();
   if (outputMode === 'replace' && items.some(item => !item.rootId)) { notice('Clear individual image files from the queue before replacing a folder in place.'); return; }
