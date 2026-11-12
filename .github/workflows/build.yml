@@ -111,6 +111,9 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       - run: pnpm test:package
+      - name: Verify Mac in-place update, rollback and tamper rejection
+        if: matrix.platform == 'mac'
+        run: node scripts/test-mac-updater.mjs
       - name: Cross-package Apple Silicon (arm64) on Intel macOS
         if: matrix.platform == 'mac'
         run: pnpm exec electron-builder --mac dmg zip --arm64 --publish never
