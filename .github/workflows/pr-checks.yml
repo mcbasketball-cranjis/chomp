@@ -88,3 +88,5 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       - name: Verify packaged desktop, update feed and checksum metadata
         run: pnpm test:package
+      - name: Build and validate native MSIX with disposable CI identity
+        run: node scripts/build-store-msix.mjs --ci-fixture
