@@ -308,3 +308,21 @@ progress{width:100%;height:6px;margin-bottom:10px;accent-color:var(--accent)}
 .preview-stage.editing-vector.pan-mode .vector-edit-svg path{cursor:grab}
 .preview-stage.editing-vector.dragging-pan .vector-edit-svg path{cursor:grabbing}
 @media(max-width:720px){.vector-edit-label{flex-basis:100%}.vector-edit-spacer{display:none}}
+
+/* Color palette and grouped cleanup keep the editor useful without a new pane. */
+.vector-palette[hidden]{display:none!important}
+.vector-palette{display:flex;align-items:flex-start;gap:10px;padding:9px 14px;
+  border-top:1px solid var(--line);background:var(--surface)}
+.vector-palette-title{font-size:10px;font-weight:760;color:var(--faint);padding-top:9px}
+.vector-palette-swatches{display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0}
+.vector-palette-swatch{display:flex;gap:5px;align-items:center;min-height:29px;border-radius:7px;
+  border:1px solid var(--line);background:var(--raised);padding:4px 7px;color:var(--muted);
+  font-size:10px;font-weight:700;cursor:pointer}
+.vector-palette-swatch:hover,.vector-palette-swatch.active{border-color:var(--accent);background:var(--soft);color:var(--accent-ink)}
+.vector-palette-swatch:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.vector-palette-swatch small{font-size:9px;color:var(--faint)}
+.vector-swatch-dot{display:block;width:14px;height:14px;flex:none;border-radius:4px;border:1px solid #0002}
+.vector-match-option{display:flex!important;gap:5px;align-items:center;cursor:pointer;
+  font-size:10px;font-weight:700;color:var(--muted)!important}
+.vector-match-option input{width:14px;height:14px;margin:0;accent-color:var(--accent);cursor:pointer}
+.vector-match-option:has(input:disabled){opacity:.45;cursor:default}
