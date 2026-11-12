@@ -201,3 +201,45 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+
+  update-smoke:
+    # Only after 2.1.1 is published: verify the ACTUAL 2.1.0 Windows
+    # installer detects and downloads 2.1.1 from GitHub Releases.
+    needs: release
+    runs-on: windows-2022
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node node_modules/electron/install.js
+      - name: Download the real published 2.1.0 NSIS installer
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          New-Item -ItemType Directory -Force -Path previous-release | Out-Null
+          gh release download v2.1.0 --pattern 'Chomp-2.1.0-win-x64-Setup.exe' --dir previous-release
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download Chomp 2.1.0' }
+      - name: Install 2.1.0 into runner temp
+        shell: pwsh
+        run: |
+          $installer = (Resolve-Path 'previous-release/Chomp-2.1.0-win-x64-Setup.exe').Path
+          $destination = Join-Path $env:RUNNER_TEMP 'Chomp-update-from-2.1.0'
+          $process = Start-Process -FilePath $installer -ArgumentList @('/S', "/D=$destination") -Wait -PassThru -WindowStyle Hidden
+          if ($process.ExitCode -ne 0) { throw "2.1.0 install failed: $($process.ExitCode)" }
+          $executable = Join-Path $destination 'Chomp.exe'
+          if (-not (Test-Path -LiteralPath $executable)) { throw 'Installed 2.1.0 executable not found' }
+          if (-not (Test-Path -LiteralPath (Join-Path $destination 'Uninstall Chomp.exe'))) { throw 'Not an NSIS installation' }
+          "CHOMP_PREVIOUS_EXE=$executable" >> $env:GITHUB_ENV
+      - name: Run real published update check and SHA-512 verified download
+        run: node tests/release-update-smoke.cjs
