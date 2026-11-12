@@ -454,14 +454,15 @@ function renderUpdateState(state) {
     downloading: 'Downloading…',
     ready: 'Update downloaded.',
     error: state.error || 'Update check failed.',
-    unavailable: 'Update checks are available in the installed app.'
+    unavailable: 'Update checks are available in the installed app.',
+    'move-required': 'Move Chomp to Applications to enable in-app updates.'
   };
   $('updates-message').textContent = messages[state.status] || 'Check for updates.';
   $('updates-progress-wrap').hidden = state.status !== 'downloading';
   $('updates-progress').value = state.progress || 0;
   $('updates-percent').textContent = (state.progress || 0) + '%';
   $('updates-check').disabled = ['checking', 'downloading', 'ready'].includes(state.status) || state.mode === 'unavailable';
-  $('updates-action').hidden = state.status !== 'available' && state.status !== 'ready';
+  $('updates-action').hidden = !['available', 'ready', 'move-required'].includes(state.status);
   $('updates-action').disabled = state.status === 'downloading' || running;
   $('updates-action').textContent = state.status === 'ready' ? 'Restart & install' :
     state.mode === 'mac-move' ? 'Move to Applications' :
@@ -474,6 +475,11 @@ function renderUpdateState(state) {
       !updateDialogOpen && state.availableVersion && lastUpdateNotice !== state.availableVersion + ':' + state.status) {
     lastUpdateNotice = state.availableVersion + ':' + state.status;
     $('updates-toast-message').textContent = state.status === 'ready' ? 'Update ready to install' : 'Chomp ' + state.availableVersion + ' available';
+    $('updates-toast').hidden = false;
+  }
+  if (state.status === 'move-required' && lastUpdateNotice !== 'move-required') {
+    lastUpdateNotice = 'move-required';
+    $('updates-toast-message').textContent = 'Move Chomp to Applications';
     $('updates-toast').hidden = false;
   }
   if (state.status === 'current') $('updates-toast').hidden = true;
@@ -508,7 +514,7 @@ $('updates-action').onclick = async () => {
   if (!api) return;
   try {
     if (updateState.status === 'ready') await api.installUpdate();
-    else if (updateState.status === 'available') renderUpdateState(await api.downloadUpdate());
+    else if (updateState.status === 'available' || updateState.status === 'move-required') renderUpdateState(await api.downloadUpdate());
   } catch (error) { $('updates-message').textContent = error.message; }
 };
 if (api?.getUpdateState && api?.onUpdateStatus) {
