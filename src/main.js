@@ -415,4 +415,89 @@ $('compress').onclick = async () => {
     if(selectedItem())queuePreview();
   }
 };
+let updateState = { version: '2.1.0', mode: 'unavailable', status: 'idle', availableVersion: null, progress: 0 };
+let lastUpdateNotice = '';
+let updateDialogOpen = false;
+let updateReturnFocus = null;
+
+function renderUpdateState(state) {
+  if (!state || typeof state !== 'object') return;
+  updateState = state;
+  $('app-version').textContent = 'v' + state.version;
+  $('updates-version').textContent = 'Chomp ' + state.version;
+  const available = ['available', 'downloading', 'ready'].includes(state.status);
+  $('update-indicator').hidden = !available;
+  const messages = {
+    idle: 'Check for updates.',
+    checking: 'Checking…',
+    current: 'Up to date.',
+    available: 'Version ' + state.availableVersion + ' is available.',
+    downloading: 'Downloading…',
+    ready: 'Update downloaded.',
+    error: state.error || 'Update check failed.',
+    unavailable: 'Update checks are available in the installed app.'
+  };
+  $('updates-message').textContent = messages[state.status] || 'Check for updates.';
+  $('updates-progress-wrap').hidden = state.status !== 'downloading';
+  $('updates-progress').value = state.progress || 0;
+  $('updates-percent').textContent = (state.progress || 0) + '%';
+  $('updates-check').disabled = ['checking', 'downloading', 'ready'].includes(state.status) || state.mode === 'unavailable';
+  $('updates-action').hidden = state.status !== 'available' && state.status !== 'ready';
+  $('updates-action').disabled = state.status === 'downloading' || running;
+  $('updates-action').textContent = state.status === 'ready' ? 'Restart & install' :
+    state.mode === 'automatic' ? 'Download update' : 'Get update';
+  $('updates-warning').hidden = state.mode !== 'manual';
+  $('updates-warning').textContent = state.mode === 'manual'
+    ? 'Manual installation is required on macOS and portable builds.'
+    : '';
+  if ((state.status === 'available' || state.status === 'ready') &&
+      !updateDialogOpen && state.availableVersion && lastUpdateNotice !== state.availableVersion + ':' + state.status) {
+    lastUpdateNotice = state.availableVersion + ':' + state.status;
+    $('updates-toast-message').textContent = state.status === 'ready' ? 'Update ready to install' : 'Chomp ' + state.availableVersion + ' available';
+    $('updates-toast').hidden = false;
+  }
+  if (state.status === 'current') $('updates-toast').hidden = true;
+}
+
+function openUpdateDialog() {
+  updateReturnFocus = document.activeElement;
+  updateDialogOpen = true;
+  $('updates-toast').hidden = true;
+  $('updates-modal').hidden = false;
+  $('updates-close').focus();
+}
+function closeUpdateDialog() {
+  updateDialogOpen = false;
+  $('updates-modal').hidden = true;
+  if (updateReturnFocus && updateReturnFocus.isConnected) updateReturnFocus.focus();
+}
+$('updates-open').onclick = openUpdateDialog;
+$('updates-toast-open').onclick = openUpdateDialog;
+$('updates-toast-dismiss').onclick = () => { $('updates-toast').hidden = true; };
+$('updates-close').onclick = closeUpdateDialog;
+$('updates-modal').onclick = e => { if (e.target === $('updates-modal')) closeUpdateDialog(); };
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && updateDialogOpen) closeUpdateDialog();
+});
+$('updates-check').onclick = async () => {
+  if (!api?.checkForUpdates) return;
+  try { renderUpdateState(await api.checkForUpdates()); }
+  catch (error) { $('updates-message').textContent = error.message; }
+};
+$('updates-action').onclick = async () => {
+  if (!api) return;
+  try {
+    if (updateState.status === 'ready') await api.installUpdate();
+    else if (updateState.status === 'available') renderUpdateState(await api.downloadUpdate());
+  } catch (error) { $('updates-message').textContent = error.message; }
+};
+if (api?.getUpdateState && api?.onUpdateStatus) {
+  api.onUpdateStatus(renderUpdateState);
+  api.getUpdateState().then(renderUpdateState).catch(error => {
+    $('updates-message').textContent = error.message;
+  });
+} else {
+  renderUpdateState(updateState);
+}
+
 setWorkspace('compress');updatePreviewSplit();buttonState();
