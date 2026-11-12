@@ -4,6 +4,18 @@ import { spawnSync } from 'node:child_process';
 const release = path.resolve('release');
 const executable = process.env.CHOMP_TEST_EXECUTABLE || (process.platform === 'win32' ? path.join(release, 'win-unpacked', 'Chomp.exe') : path.join(release, process.arch === 'arm64' ? 'mac-arm64' : 'mac', 'Chomp.app', 'Contents', 'MacOS', 'Chomp'));
 await fs.access(executable);
+if (process.platform === 'win32') {
+  const resources = path.join(path.dirname(executable), 'resources');
+  const config = await fs.readFile(path.join(resources, 'app-update.yml'), 'utf8');
+  if (!/provider:\s*github/.test(config) || !/owner:\s*mcbasketball-cranjis/.test(config) || !/repo:\s*chomp/.test(config)) {
+    throw new Error('Windows package is missing its GitHub auto-update feed');
+  }
+  const latest = JSON.parse(await fs.readFile(path.join(release, 'latest.yml'), 'utf8'));
+  const current = JSON.parse(await fs.readFile('package.json', 'utf8')).version;
+  if (latest.version !== current || !latest.files?.[0]?.sha512 || !latest.files?.[0]?.url?.endsWith('-Setup.exe')) {
+    throw new Error('Windows release auto-update metadata is invalid');
+  }
+}
 if (process.platform === 'darwin') {
   const resources = path.join(path.dirname(path.dirname(executable)), 'Resources');
   const names = await fs.readdir(resources);
