@@ -76,17 +76,32 @@ const root = path.resolve(__dirname, '..');
       const filename = (await page.locator('.image-row').first().getAttribute('title')).replace('Saved as ', '');
       return path.join(work, filename);
     }
+    await expect(page.locator('#new-batch')).toBeHidden();
     await choose([transparent]); await page.click('#add'); await page.click('#folder');
+    await expect(page.locator('#quick-panel')).toBeHidden();
+    await expect(page.locator('#new-batch')).toBeVisible();
+    await expect(page.locator('#new-batch')).toContainText('Clear all');
     await selectFormat('svg'); await expect(page.locator('#trace-controls')).toBeVisible();
+    await expect(page.locator('#limit-section')).toBeHidden();
+    await expect(page.locator('#compression-controls')).toBeHidden();
     await page.click('#compress');
     const svgFile = await saved(), xml = await fs.readFile(svgFile, 'utf8');
     assert.match(xml, /<svg\b/); assert.match(xml, /<path\b/);
     assert.ok(!xml.includes('<image'), 'vector output must not embed a bitmap');
     assert.ok(!xml.includes('fill="#ffffff"'), 'transparent PNG must not gain a white background');
 
+    // Completion must provide an obvious fresh-batch action (not only sidebar text).
+    await expect(page.locator('#new-batch')).toContainText('New batch');
+    await page.locator('#summary button').filter({ hasText: 'New batch' }).click();
+    await expect(page.locator('.image-row')).toHaveCount(0);
+    await expect(page.locator('#new-batch')).toBeHidden();
+    await expect(page.locator('#summary')).toBeHidden();
+
     // SVG -> PNG round trip: both a transparent corner and an opaque subject survive.
-    await page.click('#clear'); await choose([svgFile]); await page.click('#add');
-    await selectFormat('png'); await page.click('#compress');
+    await choose([svgFile]); await page.click('#add');
+    await selectFormat('png');
+    await expect(page.locator('#background-section')).toBeVisible();
+    await page.click('#compress');
     const pngFile = await saved();
     const rgba = await page.evaluate(async numbers => {
       const bitmap = await createImageBitmap(new Blob([new Uint8Array(numbers)], { type: 'image/png' }));
