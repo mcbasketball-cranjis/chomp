@@ -242,6 +242,9 @@ const root = path.resolve(__dirname, '..');
     await fs.writeFile(wordmark, Buffer.from(wordmarkBase64, 'base64'));
     await page.click('#clear'); await choose([wordmark]); await page.click('#add');
     await selectFormat('svg');
+    // The reported distorted lettering occurs on the highest detail setting.
+    await page.click('[data-trace="detailed"]');
+    assert.equal(await page.locator('#trace-detail').inputValue(), 'detailed');
     await page.uncheck('#remove-bg');
     await page.click('#compress');
     const wordmarkSvg = await fs.readFile(await saved(), 'utf8');
