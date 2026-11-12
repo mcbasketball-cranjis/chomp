@@ -24,6 +24,10 @@ Microsoft Store listing is still under certification.**
 - **Tracing resolution:** Standard retains the existing 1.1 MP pixel budget.
   High fidelity allows up to 2.4 MP for better small lettering at higher CPU
   and memory cost. Images are never upsampled.
+- **Manual background selection:** For a known solid backdrop, choose a color
+  with the local native color picker instead of using corner detection. Edge-only
+  mode still protects enclosed same-color areas; Everywhere removes all matching
+  pixels. A selected color never authorizes removal of unrelated colors.
 - **Preview:** Zoom between 100% and 800%. The Pan button enables dragging
   both synchronized preview layers. Fit resets zoom and pan. When panning, the
   compare slider temporarily stops intercepting pointer events.
