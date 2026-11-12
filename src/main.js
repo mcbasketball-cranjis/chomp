@@ -296,7 +296,8 @@ function row(item) {
     if(item.url){URL.revokeObjectURL(item.url);urls.delete(item.url);}
     el.remove();
     folderRoots = folderRoots.filter(root => items.some(entry => entry.rootId === root.id));
-    if (!isFolderBatch()) document.querySelector('[name="folder-mode"][value="images"]').checked = true;
+    if (!isFolderBatch() && document.querySelector('[name="folder-mode"][value="replace"]').checked)
+      document.querySelector('[name="folder-mode"][value="images"]').checked = true;
     syncOutputFormats();
     if(selectedId===item.id)selectItem(items[0]||null);else buttonState();
   };
@@ -316,11 +317,13 @@ async function add(result) {
     const item = { ...file, status: 'ready' }; items.push(item); $('queue').append(row(item));
   }
   if (firstFolder && isFolderBatch()) {
+    document.querySelector('[name="folder-mode"][value="copy"]').checked = true;
     setWorkspace('compress');
     $('format').value = 'original';
     $('format').onchange();
   } else {
-    if (!isFolderBatch()) document.querySelector('[name="folder-mode"][value="images"]').checked = true;
+    if (!isFolderBatch() && document.querySelector('[name="folder-mode"][value="replace"]').checked)
+      document.querySelector('[name="folder-mode"][value="images"]').checked = true;
     syncOutputFormats();
   }
   $('summary').hidden=true;buttonState();
