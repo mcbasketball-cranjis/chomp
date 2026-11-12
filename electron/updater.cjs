@@ -179,8 +179,12 @@ function createUpdateService({ send, canRestart }) {
     if (mode === 'mac') {
       if (!stagedMac) throw new Error('No verified Mac update has been staged.');
       await installMacUpdate(stagedMac);
-      // The helper has copied and verified the app, and will wait until this
-      // process has quit before swapping it and relaunching the new version.
+      // The helper has already copied and verified the replacement before it
+      // signals ready. Discard the large ZIP/extraction before we quit so Mac
+      // updates do not accumulate hundreds of MB in the temporary directory.
+      await fs.promises.rm(stagedMac.root, { recursive: true, force: true })
+        .catch(error => console.warn('Mac update staging cleanup:', error));
+      // The helper now waits for Chomp to exit before swapping and relaunching.
       app.quit();
       return { started: true };
     }
