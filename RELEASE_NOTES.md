@@ -1,28 +1,20 @@
-# Chomp 2.1.3
+# Chomp 2.1.4
 
-## Smoother SVG vector tracing
+## Clean logo vector tracing
 
-- Generate smoother, editable SVG contours with subpixel edge tracing and cubic Bézier curves instead of visible pixel-grid stair steps.
-- Keep intentional sharp corners on logos and artwork; simplify unnecessary edge nodes.
-- Better handle antialiased colors and semi-transparent edges while preserving transparent backgrounds and letterform counters.
-- Keep SVG-to-raster conversion and direct SVG passthrough intact.
-
-## Context-aware editing
-
-- Show folder-processing choices only when a genuine folder-only batch is selected, instead of showing them while editing individual images.
-- Hide irrelevant tracing, compression quality, and size-cap controls based on the operation and output format.
-- Add obvious **Clear all** and **New batch** controls, including directly on the finished-batch summary.
-- Reset folder import handling to preserve non-image files when duplicating a folder, and release stale folder roots when their final image is removed.
-
-## Compatibility and updates
-
-- No new dependencies. Existing Windows and macOS installers and in-app updater remain unchanged.
-- macOS builds remain ad-hoc signed until Developer ID signing and notarization are configured.
+- Detect flat-color JPG and PNG logos automatically. Keep a small number of real artwork colors instead of tracing JPEG noise and antialias fringes as separate SVG fills.
+- Improve thin wordmarks and lettering with higher-resolution outlines, gentler path simplification, and cleaner background boundaries.
+- Keep opaque solid-color backgrounds when requested and preserve transparency when removing them.
+- Retain letter counters and enclosed background regions in **Edges only** mode; **Everywhere** mode can clear those matching background regions.
+- Continue to export editable SVG paths, not embedded bitmaps. Complex photographs and illustrations keep their detailed tracing fallback.
+- Add automated noisy JPEG, wordmark geometry, file-size, and transparent-export regression tests.
 
 ## Downloads
 
-[Chomp 2.1.3 on GitHub Releases](https://github.com/mcbasketball-cranjis/chomp/releases/tag/v2.1.3)
+[Chomp 2.1.4 on GitHub Releases](https://github.com/mcbasketball-cranjis/chomp/releases/tag/v2.1.4)
 
-- Apple Silicon: `Chomp-2.1.3-mac-arm64.dmg` or ZIP
-- Intel Mac: `Chomp-2.1.3-mac-x64.dmg` or ZIP
-- Windows: `Chomp-2.1.3-win-x64-Setup.exe` or portable build
+- Apple Silicon: `Chomp-2.1.4-mac-arm64.dmg` or ZIP
+- Intel Mac: `Chomp-2.1.4-mac-x64.dmg` or ZIP
+- Windows: `Chomp-2.1.4-win-x64-Setup.exe` or portable build
+
+Mac releases remain ad-hoc signed pending Developer ID signing and notarization.

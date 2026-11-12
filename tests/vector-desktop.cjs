@@ -221,6 +221,83 @@ const root = path.resolve(__dirname, '..');
       }
     }
 
+    // Real browser-encoded JPEG wordmark: gray lettering, gold glyph, and
+    // antialiased edges on a plain background. This reproduces the class of
+    // logos whose 2.1.3 vector previews turned into hundreds of edge shades.
+    const wordmarkBase64 = await page.evaluate(() => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1320; canvas.height = 260;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#c48a1c';
+      ctx.fillRect(75, 66, 32, 124);
+      ctx.fillRect(75, 66, 135, 27);
+      ctx.fillRect(119, 103, 91, 87);
+      ctx.fillStyle = '#68758a';
+      ctx.font = '49px Arial, sans-serif';
+      ctx.fillText('schnetzler liegenschaften', 242, 156);
+      return canvas.toDataURL('image/jpeg', .76).split(',')[1];
+    });
+    const wordmark = path.join(work, 'thin-lettering-wordmark.jpg');
+    await fs.writeFile(wordmark, Buffer.from(wordmarkBase64, 'base64'));
+    await page.click('#clear'); await choose([wordmark]); await page.click('#add');
+    await selectFormat('svg');
+    await page.uncheck('#remove-bg');
+    await page.click('#compress');
+    const wordmarkSvg = await fs.readFile(await saved(), 'utf8');
+    assert.ok(Buffer.byteLength(wordmarkSvg) < 95000, 'a JPG wordmark must not explode into pixel layers');
+    assert.ok(Buffer.byteLength(wordmarkSvg) < (await fs.stat(wordmark)).size * 5,
+      'vector output must not be many times larger than the simple source wordmark');
+    assert.ok((wordmarkSvg.match(/<path\b/g) || []).length <= 5,
+      'the white matte and two logo inks should not produce dozens of distinct fills');
+    assert.ok(!wordmarkSvg.includes('<image'), 'the JPG export must still contain editable vector paths');
+
+    // Compare actual rendered foreground coverage rather than accepting any
+    // SVG solely because it has valid XML and a handful of path elements.
+    const overlap = await page.evaluate(async ({ jpeg, svg }) => {
+      const decode = async (content, type) => {
+        const blob = new Blob([new Uint8Array(content)], { type });
+        if (type !== 'image/svg+xml') return createImageBitmap(blob);
+        const url = URL.createObjectURL(blob);
+        try {
+          const image = new Image();
+          image.src = url; await image.decode();
+          return createImageBitmap(image);
+        } finally { URL.revokeObjectURL(url); }
+      };
+      const getPixels = bitmap => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1320; canvas.height = 260;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 1320, 260);
+        ctx.drawImage(bitmap, 0, 0, 1320, 260); bitmap.close();
+        return ctx.getImageData(0, 0, 1320, 260).data;
+      };
+      const original = getPixels(await decode(jpeg, 'image/jpeg'));
+      const vector = getPixels(await decode(svg, 'image/svg+xml'));
+      let intersection = 0, union = 0;
+      for (let i = 0; i < original.length; i += 4) {
+        const foreground = data => Math.hypot(255-data[i], 255-data[i+1], 255-data[i+2]) > 65;
+        const a = foreground(original), b = foreground(vector);
+        if (a && b) intersection++;
+        if (a || b) union++;
+      }
+      return union ? intersection / union : 0;
+    }, { jpeg: [...await fs.readFile(wordmark)], svg: [...Buffer.from(wordmarkSvg)] });
+    assert.ok(overlap > .68, 'vector should retain the original lettering and symbol (IoU ' + overlap.toFixed(3) + ')');
+
+    // Removing an opaque matte must not turn antialias fringe pixels into
+    // separate gray shapes or put the white backdrop back.
+    await page.click('#clear'); await choose([wordmark]); await page.click('#add');
+    await selectFormat('svg'); await page.check('#remove-bg');
+    await page.check('[name="bg-mode"][value="all"]');
+    await page.click('#compress');
+    const transparentWordmark = await fs.readFile(await saved(), 'utf8');
+    assert.ok((transparentWordmark.match(/<path\b/g) || []).length <= 4,
+      'transparent wordmark should still be limited to its true ink colors');
+    assert.ok(Buffer.byteLength(transparentWordmark) < 95000);
+    assert.ok(!/fill="#ffffff"/i.test(transparentWordmark), 'removed background must stay transparent');
+
     assert.deepEqual(await fs.readFile(transparent), before);
     assert.deepEqual(await fs.readFile(whiteJpeg), Buffer.from(jpegSamples[0], 'base64'));
     assert.deepEqual(await fs.readFile(blackJpeg), Buffer.from(jpegSamples[1], 'base64'));

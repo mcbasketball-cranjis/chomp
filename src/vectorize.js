@@ -1,4 +1,5 @@
 import { smoothColorContours } from './smooth-contours.js';
+import { flatLogoLayers } from './logo-trace.js';
 
 /**
  * Dependency-free, local raster tracing for logos and illustrations.
@@ -7,9 +8,9 @@ import { smoothColorContours } from './smooth-contours.js';
  */
 
 const TRACE_PRESETS = {
-  simple: { colors: 8, edge: 384, tolerance: 1.8, minArea: 2 },
-  balanced: { colors: 16, edge: 768, tolerance: 1.15, minArea: 1 },
-  detailed: { colors: 32, edge: 1024, tolerance: 0.72, minArea: 0.5 }
+  simple: { colors: 8, edge: 640, tolerance: 1.8, minArea: 2 },
+  balanced: { colors: 16, edge: 1200, tolerance: 1.15, minArea: 1 },
+  detailed: { colors: 32, edge: 1420, tolerance: 0.72, minArea: 0.5 }
 };
 
 export function tracePreset(name = 'balanced') {
@@ -131,12 +132,13 @@ export function traceImageData(image, options = {}) {
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1 || data.length !== width * height * 4) throw new Error('Invalid RGBA image for tracing.');
   if (width * height > 1_200_000) throw new Error('Image is too large to trace. Reduce the trace resolution.');
   const preset = tracePreset(options.detail);
-  const palette = medianCutPalette(data, preset.colors);
-  const indices = new Int16Array(width * height).fill(-1);
+  const logo = flatLogoLayers(image, options.detail, options.matteColor);
+  const palette = logo ? logo.colors : medianCutPalette(data, preset.colors);
+  const indices = logo ? logo.indices : new Int16Array(width * height).fill(-1);
   let maxAlpha = 0;
   for (let p = 3; p < data.length; p += 4) maxAlpha = Math.max(maxAlpha, data[p]);
   const alphaThreshold = Math.max(8, Math.round(maxAlpha * 0.22));
-  for (let i = 0; i < indices.length; i++) {
+  if (!logo) for (let i = 0; i < indices.length; i++) {
     const p = i * 4, alpha = data[p + 3];
     if (alpha < alphaThreshold) continue;
     let closest = 0, best = Infinity;
@@ -152,8 +154,12 @@ export function traceImageData(image, options = {}) {
   const docHeight = Math.max(1, Math.round(options.outputHeight || height));
   let svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + docWidth + '" height="' + docHeight +
     '" viewBox="0 0 ' + width + ' ' + height + '">';
+  if (logo?.background) {
+    const hex = '#' + logo.background.map(n => n.toString(16).padStart(2, '0')).join('');
+    svg += '<path fill="' + hex + '" d="M0 0H' + width + 'V' + height + 'H0Z"/>';
+  }
   for (let c = 0; c < palette.length; c++) {
-    const path = smoothColorContours(indices, width, height, c, preset.tolerance, preset.minArea);
+    const path = smoothColorContours(indices, width, height, c, logo ? Math.min(.65, preset.tolerance) : preset.tolerance, preset.minArea);
     if (!path) continue;
     const color = palette[c];
     const hex = '#' + color.slice(0, 3).map(n => n.toString(16).padStart(2, '0')).join('');

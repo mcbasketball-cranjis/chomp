@@ -11,6 +11,7 @@ import { defaultOptions as avifOptions } from '@jsquash/avif/meta.js';
 import avifWasm from '@jsquash/avif/codec/enc/avif_enc.wasm?url';
 import { fitImage } from './fit-size.js';
 import { removeBackgroundColor, traceImageData, tracePreset } from './vectorize.js';
+import { sampleSolidMatte } from './logo-trace.js';
 const initialized = {};
 async function init(format) {
   if (initialized[format]) return initialized[format];
@@ -51,8 +52,13 @@ self.onmessage = async ({ data: { bytes, format, sourceFormat, quality, maxSize,
     const canvas = new OffscreenCanvas(width, height);
     const ctx = canvas.getContext('2d', { willReadFrequently: true, alpha: true });
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(bitmap, 0, 0, width, height); bitmap.close(); bitmap = null;
+    let removedMatte = null;
     if (removeBackground && (!svgSource || format !== 'svg')) {
       const pixels = ctx.getImageData(0, 0, width, height);
+      // Capture the original matte BEFORE clearing alpha. Canvas redrawing
+      // premultiplies fully transparent pixels, which otherwise destroys their
+      // RGB and causes JPEG antialias fringes to become vector color layers.
+      removedMatte = sampleSolidMatte(pixels);
       removeBackgroundColor(pixels, bgTolerance, bgMode || 'edges');
       ctx.putImageData(pixels, 0, 0);
     }
@@ -64,14 +70,16 @@ self.onmessage = async ({ data: { bytes, format, sourceFormat, quality, maxSize,
         result = bytes;
       } else {
         const edge = tracePreset(traceDetail).edge;
-        const factor = Math.min(1, edge / Math.max(width, height));
+        const factor = Math.min(1, edge / Math.max(width, height), Math.sqrt(1_100_000 / (width * height)));
         const tw = Math.max(1, Math.round(width * factor)), th = Math.max(1, Math.round(height * factor));
         const traceCanvas = new OffscreenCanvas(tw, th);
         const traceContext = traceCanvas.getContext('2d', { willReadFrequently: true, alpha: true });
         traceContext.imageSmoothingEnabled = true;
         traceContext.imageSmoothingQuality = 'high';
         traceContext.drawImage(canvas, 0, 0, tw, th);
-        const text = traceImageData(traceContext.getImageData(0, 0, tw, th), { detail: traceDetail, outputWidth: width, outputHeight: height });
+        const text = traceImageData(traceContext.getImageData(0, 0, tw, th), {
+          detail: traceDetail, outputWidth: width, outputHeight: height, matteColor: removedMatte
+        });
         result = new TextEncoder().encode(text);
       }
     } else {
