@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 
 if (process.platform !== 'darwin') throw new Error('Mac replacement test must run on macOS.');
 const version = JSON.parse(await fs.readFile('package.json','utf8')).version;
@@ -24,11 +25,13 @@ try {
   const candidate = path.join(staged, 'Chomp.app');
   run('/usr/bin/ditto', [builtApp, target]);
   run('/usr/bin/ditto', [builtApp, candidate]);
+  const archive = path.join(root, 'verified.zip');
+  run('/usr/bin/ditto', ['-c','-k','--sequesterRsrc','--keepParent', candidate, archive]);
+  const digest = crypto.createHash('sha256').update(await fs.readFile(archive)).digest('hex');
   const ready = path.join(root,'ready');
-  // The disposable test verifies the signed bundle, copies it to the final
-  // directory, renames the current app to a recoverable backup, and swaps.
-  // It deliberately skips relaunching a GUI app in CI.
-  run('/bin/sh', [helper, target, candidate, '99999999', ready, version, 'x64', String(process.getuid())], {
+  // The disposable test verifies the pinned ZIP again in a protected
+  // directory, then swaps the app and leaves a signed rollback backup.
+  run('/bin/sh', [helper, target, archive, digest, '99999999', ready, version, 'x64', String(process.getuid())], {
     env: { ...process.env, CHOMP_UPDATE_SKIP_RELAUNCH: '1' }
   });
   await fs.access(ready);
@@ -39,13 +42,13 @@ try {
   run('/usr/bin/codesign', ['--verify','--deep','--strict',backup]);
 
   // An invalid signed app must fail BEFORE any replacement.
-  const invalid = path.join(staged, 'Chomp.app');
-  run('/usr/bin/ditto', [builtApp, invalid]);
-  await fs.writeFile(path.join(invalid,'Contents','Info.plist'), 'invalid plist');
+  const altered = path.join(root, 'altered.zip');
+  await fs.copyFile(archive, altered);
+  await fs.appendFile(altered, 'tampered ZIP bytes');
   const rejected = spawnSync('/bin/sh', [
-    helper, target, invalid, '99999999', path.join(root,'invalid-ready'),
+    helper, target, altered, digest, '99999999', path.join(root,'invalid-ready'),
     version, 'x64', String(process.getuid())
-  ], { encoding:'utf8', timeout:30000, env:{...process.env,CHOMP_UPDATE_SKIP_RELAUNCH:'1'} });
+  ], { encoding:'utf8', timeout:60000, env:{...process.env,CHOMP_UPDATE_SKIP_RELAUNCH:'1'} });
   assert.notEqual(rejected.status, 0, 'Invalid app should not replace Chomp');
   await assert.rejects(fs.access(path.join(root,'invalid-ready')), { code:'ENOENT' });
   run('/usr/bin/codesign', ['--verify','--deep','--strict',target]);
