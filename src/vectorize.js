@@ -1,5 +1,6 @@
 import { smoothColorContours, smoothCoverageContours } from './smooth-contours.js';
 import { flatLogoLayers } from './logo-trace.js';
+import { normalizeTraceOptions, contourSettings } from './trace-options.js';
 
 /**
  * Dependency-free, local raster tracing for logos and illustrations.
@@ -130,10 +131,14 @@ function medianCutPalette(data, colorCount) {
 export function traceImageData(image, options = {}) {
   const { width, height, data } = image;
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1 || data.length !== width * height * 4) throw new Error('Invalid RGBA image for tracing.');
-  if (width * height > 1_200_000) throw new Error('Image is too large to trace. Reduce the trace resolution.');
+  if (width * height > 2_400_000) throw new Error('Image is too large to trace. Reduce the trace resolution.');
   const preset = tracePreset(options.detail);
-  const logo = flatLogoLayers(image, options.detail, options.matteColor);
-  const palette = logo ? logo.colors : medianCutPalette(data, preset.colors);
+  const advanced = normalizeTraceOptions(options.traceOptions);
+  const geometry = contourSettings(options.detail, advanced);
+  const logo = advanced.mode === 'artwork' ? null : flatLogoLayers(image, options.detail, options.matteColor, {
+    force: advanced.mode === 'logo', colors: advanced.colors
+  });
+  const palette = logo ? logo.colors : medianCutPalette(data, advanced.colors || preset.colors);
   const indices = logo ? logo.indices : new Int16Array(width * height).fill(-1);
   let maxAlpha = 0;
   for (let p = 3; p < data.length; p += 4) maxAlpha = Math.max(maxAlpha, data[p]);
@@ -164,10 +169,11 @@ export function traceImageData(image, options = {}) {
     // Geometric, transparent and photographic artwork keep the existing tracer.
     const path = logo?.coverage?.[c]
       ? smoothCoverageContours(logo.coverage[c], width, height,
-          options.detail === 'detailed' ? .45 : options.detail === 'simple' ? 1.1 : .8,
-          options.detail === 'detailed' ? .35 : preset.minArea,
-          options.detail === 'detailed' ? .24 : Infinity)
-      : smoothColorContours(indices, width, height, c, logo ? Math.min(.65, preset.tolerance) : preset.tolerance, preset.minArea);
+          geometry.coverageTolerance, geometry.coverageMinArea,
+          options.detail === 'detailed' ? .24 : Infinity, geometry.corners)
+      : smoothColorContours(indices, width, height, c,
+          (logo ? Math.min(.65, preset.tolerance) : preset.tolerance) * geometry.toleranceFactor,
+          preset.minArea * geometry.areaFactor, geometry.corners);
     if (!path) continue;
     const color = palette[c];
     const hex = '#' + color.slice(0, 3).map(n => n.toString(16).padStart(2, '0')).join('');
