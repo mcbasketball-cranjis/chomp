@@ -17,6 +17,20 @@ const root = path.resolve(__dirname, '..');
   try {
     const page = await app.firstWindow(); await page.waitForSelector('#compress');
     const errors = []; page.on('pageerror', error => errors.push(error.message));
+    const values = () => page.locator('#format option').evaluateAll(options => options.map(option => option.value));
+    assert.deepEqual(await values(), ['original','webp','jpg','png','avif'], 'Compress must not expose vectorization');
+    await page.selectOption('#format', 'avif');
+    await page.click('[data-workspace="convert"]');
+    assert.deepEqual(await values(), ['webp','jpg','png','avif'], 'Convert must export raster images only');
+    await page.selectOption('#format', 'jpg');
+    await page.click('[data-workspace="vectorize"]');
+    assert.deepEqual(await values(), ['svg'], 'Vectorize must only export editable SVG');
+    await expect(page.locator('#trace-controls')).toBeVisible();
+    await page.click('[data-workspace="compress"]');
+    await expect(page.locator('#format')).toHaveValue('avif');
+    await page.click('[data-workspace="convert"]');
+    await expect(page.locator('#format')).toHaveValue('jpg');
+
     const samples = await page.evaluate(() => {
       function make(background) {
         const canvas = document.createElement('canvas'); canvas.width = 96; canvas.height = 96;
@@ -50,6 +64,12 @@ const root = path.resolve(__dirname, '..');
         });
       }, { output: work, files });
     }
+    // SVG output belongs to Vectorize; raster outputs (including SVG inputs)
+    // belong to Convert. Verify both real conversion paths.
+    async function selectFormat(format) {
+      await page.click(`[data-workspace="${format === 'svg' ? 'vectorize' : 'convert'}"]`);
+      await page.selectOption('#format', format);
+    }
     async function saved() {
       await expect(page.locator('#summary')).toBeVisible({ timeout: 60000 });
       await expect(page.locator('#summary')).toContainText('1 saved');
@@ -57,7 +77,7 @@ const root = path.resolve(__dirname, '..');
       return path.join(work, filename);
     }
     await choose([transparent]); await page.click('#add'); await page.click('#folder');
-    await page.selectOption('#format', 'svg'); await expect(page.locator('#trace-controls')).toBeVisible();
+    await selectFormat('svg'); await expect(page.locator('#trace-controls')).toBeVisible();
     await page.click('#compress');
     const svgFile = await saved(), xml = await fs.readFile(svgFile, 'utf8');
     assert.match(xml, /<svg\b/); assert.match(xml, /<path\b/);
@@ -66,7 +86,7 @@ const root = path.resolve(__dirname, '..');
 
     // SVG -> PNG round trip: both a transparent corner and an opaque subject survive.
     await page.click('#clear'); await choose([svgFile]); await page.click('#add');
-    await page.selectOption('#format', 'png'); await page.click('#compress');
+    await selectFormat('png'); await page.click('#compress');
     const pngFile = await saved();
     const rgba = await page.evaluate(async numbers => {
       const bitmap = await createImageBitmap(new Blob([new Uint8Array(numbers)], { type: 'image/png' }));
@@ -77,9 +97,27 @@ const root = path.resolve(__dirname, '..');
     assert.equal(rgba[0], 0, 'SVG export must keep transparent corners');
     assert.equal(rgba[1], 255, 'SVG export must keep solid artwork');
 
+    // Rasterizing a real SVG input is still supported by Convert for every format.
+    for (const [format, mime] of [['jpg','image/jpeg'], ['webp','image/webp'], ['avif','image/avif']]) {
+      await page.click('#clear'); await choose([svgFile]); await page.click('#add');
+      await selectFormat(format);
+      assert.equal(await page.locator('#format option[value="svg"]').count(), 0);
+      await page.click('#compress');
+      const convertedFile = await saved();
+      const convertedBytes = await fs.readFile(convertedFile);
+      const alpha = await page.evaluate(async ({bytes,type}) => {
+        const bmp=await createImageBitmap(new Blob([new Uint8Array(bytes)], {type}));
+        const c=document.createElement('canvas');c.width=bmp.width;c.height=bmp.height;
+        const ctx=c.getContext('2d',{willReadFrequently:true});ctx.drawImage(bmp,0,0);bmp.close();
+        return [ctx.getImageData(0,0,1,1).data[3], ctx.getImageData(48,48,1,1).data[3]];
+      }, {bytes:[...convertedBytes],type:mime});
+      assert.equal(alpha[0],format==='jpg'?255:0, `SVG -> ${format}: background alpha`);
+      assert.equal(alpha[1],255, `SVG -> ${format}: artwork must remain opaque`);
+    }
+
     // Background removal only when explicitly enabled.
     await page.click('#clear'); await choose([white]); await page.click('#add');
-    await page.selectOption('#format', 'svg'); await page.check('#remove-bg');
+    await selectFormat('svg'); await page.check('#remove-bg');
     await page.click('#compress'); const removedXml = await fs.readFile(await saved(), 'utf8');
     assert.ok(!removedXml.includes('fill="#ffffff"'), 'background removal must not trace the white exterior');
     assert.match(removedXml, /<path\b/);
@@ -88,7 +126,7 @@ const root = path.resolve(__dirname, '..');
     // Test both true vector output and an ordinary transparent PNG output.
     for (const [input, outputFormat] of [[whiteJpeg, 'svg'], [blackJpeg, 'png']]) {
       await page.click('#clear'); await choose([input]); await page.click('#add');
-      await page.selectOption('#format', outputFormat);
+      await selectFormat(outputFormat);
       await page.check('#remove-bg'); await page.click('#compress');
       const destination = await saved();
       const rgba = await page.evaluate(async ({ bytes, type }) => {
@@ -141,7 +179,7 @@ const root = path.resolve(__dirname, '..');
     for (const [input, outputFormat] of [[counterWhite, 'svg'], [counterBlack, 'png']]) {
       for (const [bgMode, expectedCounterAlpha] of [['edges', 255], ['all', 0]]) {
         await page.click('#clear'); await choose([input]); await page.click('#add');
-        await page.selectOption('#format', outputFormat);
+        await selectFormat(outputFormat);
         await page.check('#remove-bg');
         await expect(page.locator('#background-controls')).toBeVisible();
         await page.check(`[name="bg-mode"][value="${bgMode}"]`);

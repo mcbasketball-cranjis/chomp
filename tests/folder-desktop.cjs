@@ -56,6 +56,14 @@ const root = path.resolve(__dirname, '..');
     assert.equal(exported.filter(entry => entry.isFile()).length, 4); assert.ok(exported.filter(entry => entry.isFile()).every(entry => entry.name.endsWith('.webp')));
     await assert.rejects(fs.stat(path.join(imagesOnly, 'index.html')), { code: 'ENOENT' }); await assert.rejects(fs.stat(path.join(imagesOnly, 'empty')), { code: 'ENOENT' });
     await dropFolder(); await page.check('[name="folder-mode"][value="replace"]');
+    // Switching away from Compress must never leave in-place replacement active.
+    await page.click('[data-workspace="vectorize"]');
+    await expect(page.locator('[name="folder-mode"][value="images"]')).toBeChecked();
+    await expect(page.locator('#format')).toHaveValue('svg');
+    await expect(page.locator('#output-controls')).toBeVisible();
+    await page.check('[name="folder-mode"][value="replace"]');
+    await expect(page.locator('[data-workspace="compress"]')).toHaveAttribute('aria-current', 'page');
+    await expect(page.locator('#format')).toHaveValue('original');
     await expect(page.locator('#format')).toBeDisabled(); await expect(page.locator('#output-controls')).toBeHidden();
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({ path: path.join(root, 'test-results', 'Chomp-folders-preview.png'), fullPage: true });

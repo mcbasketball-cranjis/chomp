@@ -142,7 +142,9 @@ function createUpdateService({ send, canRestart }) {
     if (mode !== 'automatic' || state.status !== 'ready' || !updater) throw new Error('No update is ready to install.');
     if (!canRestart()) throw new Error('Finish the current batch before restarting.');
     // Never replace the app while image writes or batch preparations are active.
-    updater.quitAndInstall(false, true);
+    // The user explicitly approved "Restart & install"; apply the per-user
+    // NSIS upgrade quietly instead of opening another installer wizard.
+    updater.quitAndInstall(true, true);
     return { started: true };
   }
 
