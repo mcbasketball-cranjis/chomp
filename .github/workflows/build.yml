@@ -111,6 +111,14 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       - run: pnpm test:package
+      - name: Build Microsoft Store MSIX when Partner Center identity is configured
+        if: matrix.platform == 'win' && vars.CHOMP_STORE_PACKAGE_NAME != ''
+        env:
+          CHOMP_STORE_PACKAGE_NAME: ${{ vars.CHOMP_STORE_PACKAGE_NAME }}
+          CHOMP_STORE_PUBLISHER: ${{ vars.CHOMP_STORE_PUBLISHER }}
+          CHOMP_STORE_PUBLISHER_DISPLAY_NAME: ${{ vars.CHOMP_STORE_PUBLISHER_DISPLAY_NAME }}
+        run: pnpm store:msix
+
       - name: Verify Mac in-place update, rollback and tamper rejection
         if: matrix.platform == 'mac'
         run: node scripts/test-mac-updater.mjs
@@ -160,7 +168,7 @@ jobs:
           if [[ "$RUNNER_OS" == "macOS" ]]; then
             files=(release/*.dmg release/*.zip)
           else
-            files=(release/*-Setup.exe release/*-Portable.exe release/*.zip release/latest.yml release/Defender-*.json release/Defender-*.txt)
+            files=(release/*-Setup.exe release/*-Portable.exe release/*-Store-unsigned.msix release/*.zip release/latest.yml release/Defender-*.json release/Defender-*.txt)
           fi
           if (( ${#files[@]} == 0 )); then
             echo "No distributable packages found" >&2
@@ -204,6 +212,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          CHOMP_STORE_PACKAGE_NAME: ${{ vars.CHOMP_STORE_PACKAGE_NAME }}
 
   update-smoke:
     # Only after 2.1.1 is published: verify the ACTUAL 2.1.0 Windows

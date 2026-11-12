@@ -31,6 +31,12 @@ const required = [
   'Chomp-Windows-Signing-Kit.zip',
   'latest.yml',
 ];
+// A configured Partner Center identity makes the MSIX an expected asset on
+// every future release. Without that identity, omit it rather than upload an
+// unusable package with a fabricated publisher.
+if (process.env.CHOMP_STORE_PACKAGE_NAME) {
+  required.push('Chomp-' + version + '-win-x64-Store-unsigned.msix');
+}
 const assets = new Map((state.assets || []).map(asset => [asset.name, asset]));
 const missing = required.filter(name => !assets.has(name) || (typeof assets.get(name).size === 'number' && assets.get(name).size < 1));
 if (missing.length) throw new Error('Refusing to publish incomplete release. Missing or empty assets: ' + missing.join(', '));
