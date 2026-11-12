@@ -112,11 +112,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       - run: pnpm test:package
       - name: Build Microsoft Store MSIX when Partner Center identity is configured
-        if: matrix.platform == 'win' && vars.CHOMP_STORE_PACKAGE_NAME != ''
-        env:
-          CHOMP_STORE_PACKAGE_NAME: ${{ vars.CHOMP_STORE_PACKAGE_NAME }}
-          CHOMP_STORE_PUBLISHER: ${{ vars.CHOMP_STORE_PUBLISHER }}
-          CHOMP_STORE_PUBLISHER_DISPLAY_NAME: ${{ vars.CHOMP_STORE_PUBLISHER_DISPLAY_NAME }}
+        if: matrix.platform == 'win' && hashFiles('store/identity.json') != ''
         run: pnpm store:msix
 
       - name: Verify Mac in-place update, rollback and tamper rejection
@@ -212,7 +208,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          CHOMP_STORE_PACKAGE_NAME: ${{ vars.CHOMP_STORE_PACKAGE_NAME }}
 
   update-smoke:
     # Only after 2.1.1 is published: verify the ACTUAL 2.1.0 Windows
