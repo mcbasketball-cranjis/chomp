@@ -17,8 +17,9 @@ for its reserved Microsoft Store product:
 - Package/Identity/Name: `CranjisMcBasketball.ChompImageConverter`
 - Package/Identity/Publisher: `CN=5CADBE67-B82C-4702-A7DC-41355D6CC8AF`
 - Package/Properties/PublisherDisplayName: `Cranjis McBasketball`
+- Package/Properties/DisplayName: `Chomp Image Converter` (the reserved Store app name)
 
-These are public package identifiers, not passwords or signing credentials.
+These are public package identifiers, not passwords or signing credentials. **Both** `Package/Properties/DisplayName` and `uap:VisualElements/@DisplayName` must use the reserved app name, not the short internal brand `Chomp`, or Partner Center will reject the upload.
 
 ## Build the Store package on GitHub
 
