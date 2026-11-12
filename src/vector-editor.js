@@ -19,16 +19,21 @@ export function openVectorDocument(svgText) {
   if (![width, height, boxWidth, boxHeight].every(n => Number.isSafeInteger(n) && n > 0 && n <= 32768))
     throw new Error('Invalid SVG dimensions.');
   const shapes = [];
+  let previousNumber = -1;
   for (const match of contents.matchAll(SVG_PATH)) {
-    const [raw, id, fill, opacity, d] = match;
-    if (id !== 's' + shapes.length || !VALID_PATH.test(d))
+    const [, id, fill, opacity, d] = match;
+    const number = Number(id.slice(1));
+    // Deleted paths leave intentional ID gaps. Reject duplicates, reordering
+    // and unreasonable indices, but allow a cleaned exported SVG to reopen.
+    if (!Number.isSafeInteger(number) || number <= previousNumber || number > 4095 ||
+        id !== 's' + number || !VALID_PATH.test(d))
       throw new Error('Invalid editable SVG path.');
+    previousNumber = number;
     const alpha = opacity === undefined ? null : Number(opacity);
     if (alpha !== null && (!Number.isFinite(alpha) || alpha < 0 || alpha > 1))
       throw new Error('Invalid shape opacity.');
     shapes.push({ id, fill: fill.toLowerCase(), opacity: alpha, d, hidden: false });
     if (shapes.length > 4096) throw new Error('Too many shapes to edit.');
-    if (!raw.length) throw new Error('Invalid SVG path.');
   }
   if (contents.replace(SVG_PATH, '') !== '') throw new Error('Unexpected SVG content.');
   return {
@@ -44,35 +49,69 @@ function findShape(doc, id) {
   return shape;
 }
 
-export function modifyVectorShape(doc, id, changes) {
-  const shape = findShape(doc, id);
+function nextShapeState(shape, changes) {
   const fill = changes && changes.fill !== undefined ? changes.fill : shape.fill;
   const hidden = changes && changes.hidden !== undefined ? changes.hidden : shape.hidden;
   if (typeof fill !== 'string' || !VALID_COLOR.test(fill) || typeof hidden !== 'boolean')
     throw new Error('Invalid shape edit.');
-  const next = { fill: fill.toLowerCase(), hidden };
-  const previous = { fill: shape.fill, hidden: shape.hidden };
-  if (next.fill === previous.fill && next.hidden === previous.hidden) return false;
-  Object.assign(shape, next);
-  doc.undoStack.push({ id, previous, next });
+  return { fill: fill.toLowerCase(), hidden };
+}
+
+/** Apply one atomic edit to multiple shapes with a single undo/redo action. */
+export function modifyVectorShapes(doc, ids, changes) {
+  if (!Array.isArray(ids) || !ids.length || ids.length > 4096 ||
+      ids.some(id => typeof id !== 'string') || new Set(ids).size !== ids.length)
+    throw new Error('Invalid shape selection.');
+  // Validate the entire transaction before changing any state.
+  const actions = ids.map(id => {
+    const shape = findShape(doc, id);
+    const previous = { fill: shape.fill, hidden: shape.hidden };
+    const next = nextShapeState(shape, changes);
+    return { id, previous, next };
+  }).filter(a => a.previous.fill !== a.next.fill || a.previous.hidden !== a.next.hidden);
+  if (!actions.length) return false;
+  for (const action of actions) Object.assign(findShape(doc, action.id), action.next);
+  doc.undoStack.push(actions);
   if (doc.undoStack.length > 100) doc.undoStack.shift();
   doc.redoStack = [];
   return true;
 }
 
+export function modifyVectorShape(doc, id, changes) {
+  return modifyVectorShapes(doc, [id], changes);
+}
+
+export function matchingShapeIds(doc, id) {
+  const chosen = findShape(doc, id);
+  return doc.shapes.filter(shape => !shape.hidden && shape.fill === chosen.fill)
+    .map(shape => shape.id);
+}
+
+export function vectorPalette(doc) {
+  if (!doc || !Array.isArray(doc.shapes)) throw new Error('Invalid vector document.');
+  const colors = new Map();
+  for (const shape of doc.shapes) {
+    if (shape.hidden) continue;
+    const entry = colors.get(shape.fill) || { fill: shape.fill, count: 0, shapeId: shape.id };
+    entry.count++;
+    colors.set(shape.fill, entry);
+  }
+  return [...colors.values()];
+}
+
 export function undoVectorEdit(doc) {
-  const action = doc.undoStack.pop();
-  if (!action) return false;
-  Object.assign(findShape(doc, action.id), action.previous);
-  doc.redoStack.push(action);
+  const actions = doc.undoStack.pop();
+  if (!actions) return false;
+  for (const action of actions) Object.assign(findShape(doc, action.id), action.previous);
+  doc.redoStack.push(actions);
   return true;
 }
 
 export function redoVectorEdit(doc) {
-  const action = doc.redoStack.pop();
-  if (!action) return false;
-  Object.assign(findShape(doc, action.id), action.next);
-  doc.undoStack.push(action);
+  const actions = doc.redoStack.pop();
+  if (!actions) return false;
+  for (const action of actions) Object.assign(findShape(doc, action.id), action.next);
+  doc.undoStack.push(actions);
   return true;
 }
 
