@@ -417,14 +417,14 @@ async function renderPreview(){
     $('original-img').src=previewOriginalUrl;$('original-img').hidden=false;
     const target=$('format').value==='original'?item.format:$('format').value;
     const signature=vectorSignature();
-    let tracingForEditor=target==='svg' && item.format!=='svg' &&
+    let tracingForEditor=target==='svg' &&
       (editorPending || !!currentVectorEditor(item));
     let imageHash=null;
-    if(tracingForEditor){
+    if(tracingForEditor || (target==='svg' && item.format==='svg')){
       imageHash=await sourceSha256(data);
       if(token!==previewVersion)return;
       if(item.vectorEditor && item.vectorEditor.sourceHash!==imageHash){
-        delete item.vectorEditor;closeVectorEditor();
+        delete item.vectorEditor;item.canEditSvg=false;closeVectorEditor();
         tracingForEditor=false;
         notice('Source image changed. Shape edits were cleared.');
       }
@@ -441,7 +441,19 @@ async function renderPreview(){
         editorPending=false;
         $('preview-status').textContent=result.error;buttonState();return;
       }
-      if(editorPending && tracingForEditor){
+      // Chomp-generated SVGs can be opened again for shape editing. Other SVGs
+      // remain valid passthrough inputs, without exposing unsupported tools.
+      if(item.format==='svg' && target==='svg' && !currentVectorEditor(item)){
+        try{
+          item.vectorEditor={
+            signature, sourceHash:imageHash,
+            doc:openVectorDocument(new TextDecoder().decode(result.bytes))
+          };
+          item.canEditSvg=true;
+        }catch{
+          item.canEditSvg=false;
+        }
+      }else if(editorPending && tracingForEditor){
         try {
           item.vectorEditor={
             signature, sourceHash:imageHash,
@@ -815,7 +827,7 @@ $('compress').onclick = async () => {
         const format = settings.format === 'original' ? item.format : settings.format;
         const cache=item.vectorEditor;
         let result;
-        if(cache && cache.signature===vectorSignature() && format==='svg' && item.format!=='svg'){
+        if(cache && cache.signature===vectorSignature() && format==='svg'){
           const hash=await sourceSha256(data);
           if(hash!==cache.sourceHash)
             throw new Error('Source image changed since editing. Remove and add the image again.');
