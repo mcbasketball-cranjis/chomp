@@ -31,7 +31,7 @@ function validateSvg(bytes) {
   return source;
 }
 
-self.onmessage = async ({ data: { bytes, format, sourceFormat, quality, maxSize, maxBytes, traceDetail, traceOptions, removeBackground, bgTolerance, bgMode, bgColor, bitmap: decodedBitmap } }) => {
+self.onmessage = async ({ data: { bytes, format, sourceFormat, quality, maxSize, maxBytes, traceDetail, traceOptions, traceEditable, removeBackground, bgTolerance, bgMode, bgColor, bitmap: decodedBitmap } }) => {
   let bitmap;
   try {
     if (!['jpg', 'png', 'webp', 'avif', 'svg'].includes(format)) throw new Error('Unsupported output format.');
@@ -82,7 +82,7 @@ self.onmessage = async ({ data: { bytes, format, sourceFormat, quality, maxSize,
         traceContext.drawImage(canvas, 0, 0, tw, th);
         const text = traceImageData(traceContext.getImageData(0, 0, tw, th), {
           detail: traceDetail, outputWidth: width, outputHeight: height, matteColor: removedMatte,
-          traceOptions: advanced
+          traceOptions: advanced, editable: traceEditable === true
         });
         result = new TextEncoder().encode(text);
       }
