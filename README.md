@@ -51,6 +51,16 @@ Failed files can be retried. **Stop after this image** saves the current file an
 
 For photographs, detailed gradients, and complex textures, automatic vector tracing is an approximation and may produce large files. It is intended primarily for logos, icons, illustrations, and flatter artwork. The optional file-size limit is enforced on exported SVG files, but SVG path data cannot be quality-compressed like JPEG/WebP.
 
+## Microsoft Store (MSIX)
+
+Windows Store submissions use a separate **unsigned** `.msix` package that Microsoft
+code-signs after certification. The normal GitHub EXE installers and updater
+stay independent. To produce a submission-ready MSIX, reserve Chomp in Partner
+Center, then run the dedicated **Build Microsoft Store MSIX** GitHub Actions
+workflow with the exact package identity and publisher details.
+
+See [Microsoft Store packaging and submission](docs/MICROSOFT_STORE.md).
+
 ## Development
 
 Requires Node.js 24 and pnpm 11.
