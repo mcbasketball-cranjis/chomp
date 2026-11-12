@@ -193,3 +193,62 @@ test('photo-like gradient content is not flattened into an arbitrary logo palett
   }
   assert.equal(flatLogoLayers(img), null);
 });
+
+
+test('antialiased lettering retains fractional stroke contours instead of pixel-center steps', async () => {
+  const { smoothCoverageContours } = await import('../src/smooth-contours.js');
+  const width=32, height=24, alpha = new Uint8Array(width*height);
+  // A narrow glyph stem with uneven antialiased edge coverage; many source
+  // pixels are only partly covered (typical screenshot/JPEG typography).
+  for(let y=4;y<20;y++) for(let x=0;x<width;x++){
+    const horizontal = Math.max(0, Math.min(1, x-8.15, 12.72-x));
+    const vertical = Math.max(0, Math.min(1, y-3.8, 19.25-y));
+    alpha[y*width+x]=Math.round(255*Math.min(horizontal,vertical));
+  }
+  const path = smoothCoverageContours(alpha,width,height,.25,.5);
+  assert.ok(path.startsWith('M') && path.endsWith('Z'));
+  assert.match(path, /\d+\.\d+/, 'outline should contain interpolated fractional coordinates');
+  assert.ok(path.length < 1400, 'a thin glyph must not become hundreds of stair-step nodes');
+});
+
+test('subpixel glyph tracing preserves O counters and separates adjacent letters', async () => {
+  const { smoothCoverageContours } = await import('../src/smooth-contours.js');
+  const width=90, height=48, field = new Uint8Array(width*height);
+  for(let y=0;y<height;y++) for(let x=0;x<width;x++){
+    let coverage=0;
+    for(const centerX of [23,66]){
+      const radius = Math.hypot(x-centerX,y-24);
+      const outside = Math.max(0,Math.min(1,15.45-radius));
+      const inside = Math.max(0,Math.min(1,radius-7.65));
+      coverage=Math.max(coverage,Math.min(outside,inside));
+    }
+    field[y*width+x]=Math.round(255*coverage);
+  }
+  const path=smoothCoverageContours(field,width,height,.28,.5);
+  assert.equal((path.match(/M/g)||[]).length,4,
+    'two distinct letter outlines and two transparent counters must survive');
+  assert.ok(path.length<7000);
+});
+
+test('flat JPEG-logo detection keeps measured coverage for lighter thin strokes', async () => {
+  const { flatLogoLayers } = await import('../src/logo-trace.js');
+  const img=image(180,70,[250,250,249,255]);
+  for(let y=10;y<60;y++) for(let x=17;x<42;x++) pixel(img,x,y,[204,143,15,255]);
+  for(let y=20;y<51;y++) for(let x=60;x<158;x++){
+    const edge = x===60||x===157 ? 0.63 : 1;
+    const hairline = y===32 ? .48 : (y===33||y===34 ? 1 : y===35 ? .35 : 0);
+    if(!hairline)continue;
+    const coverage=edge*hairline;
+    const ink=[108,119,142];
+    pixel(img,x,y,[...ink.map(c=>Math.round(250*(1-coverage)+c*coverage)),255]);
+  }
+  const logo=flatLogoLayers(img,'detailed');
+  assert.ok(logo,'flat, two-ink wordmark should use the logo tracer');
+  assert.ok(Array.isArray(logo.coverage) && logo.coverage.length>=2);
+  const grayIndex=logo.colors.findIndex(color=>color[2]>color[0]);
+  assert.ok(grayIndex>=0, 'gray lettering must retain its own color');
+  const weak=logo.coverage[grayIndex][32*180+100];
+  const core=logo.coverage[grayIndex][33*180+100];
+  assert.ok(weak>0&&weak<core,
+    'a partly covered hairline pixel must be retained rather than discarded');
+});
