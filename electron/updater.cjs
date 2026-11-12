@@ -4,7 +4,8 @@ const { app, shell } = require('electron');
 const fs = require('node:fs');
 const https = require('node:https');
 const path = require('node:path');
-const { API_URL, verifiedRelease } = require('./update-utils.cjs');
+const { API_URL, verifiedRelease, verifiedMacRelease } = require('./update-utils.cjs');
+const { macInstallMode, stageMacUpdate, installMacUpdate } = require('./mac-update.cjs');
 
 const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
 const START_DELAY_MS = 15 * 1000;
@@ -48,7 +49,9 @@ function latestRelease() {
 }
 
 function createUpdateService({ send, canRestart }) {
-  const mode = !app.isPackaged ? 'unavailable' : installedWindowsBuild() ? 'automatic' : 'manual';
+  const mode = !app.isPackaged ? 'unavailable' :
+    process.platform === 'darwin' ? macInstallMode() :
+    installedWindowsBuild() ? 'automatic' : 'manual';
   let state = {
     version: app.getVersion(),
     mode,
@@ -60,6 +63,8 @@ function createUpdateService({ send, canRestart }) {
   };
   let checking = null;
   let updater = null;
+  let macInfo = null;
+  let stagedMac = null;
   let interval = null;
   let startup = null;
 
@@ -71,8 +76,8 @@ function createUpdateService({ send, canRestart }) {
   }
 
   if (mode === 'automatic') {
-    // Only installed NSIS builds can install in-place. Portable apps and Macs
-    // are deliberately restricted to notification / manual download.
+    // Installed Windows NSIS builds use electron-updater. macOS uses its own
+    // verified ZIP replacement until Developer ID signing becomes available.
     try {
       updater = require('electron-updater').autoUpdater;
       updater.autoDownload = false;
@@ -105,10 +110,18 @@ function createUpdateService({ send, canRestart }) {
           await updater.checkForUpdates();
         } else {
           const release = await latestRelease();
-          const available = verifiedRelease(release, process.platform, process.arch, app.getVersion());
+          const available = process.platform === 'darwin'
+            ? verifiedMacRelease(release, process.arch, app.getVersion())
+            : verifiedRelease(release, process.platform, process.arch, app.getVersion());
+          macInfo = process.platform === 'darwin' ? available : null;
           change(available
             ? { status: 'available', availableVersion: available.version, downloadUrl: available.url, error: null }
             : { status: 'current', availableVersion: null, downloadUrl: null, error: null });
+          // Download Mac updates in the background; don't open a browser.
+          if (available && mode === 'mac') download().catch(error => {
+            console.error('Chomp Mac automatic download:', error);
+            change({ status: 'error', error: 'Update download failed. Check for updates to retry.' });
+          });
         }
       } catch (error) {
         console.error('Chomp update check:', error);
@@ -131,6 +144,28 @@ function createUpdateService({ send, canRestart }) {
         console.error('Chomp update download:', error);
         change({ status: 'error', error: 'Download failed. Try again.' });
       }
+    } else if (mode === 'mac-move') {
+      // Electron performs the one-time move from a mounted DMG and relaunches.
+      // Thereafter Chomp can update its installed bundle in-place.
+      try {
+        const success = app.moveToApplicationsFolder();
+        if (!success) change({ status: 'error', error: 'Move to Applications was cancelled.' });
+      } catch (error) {
+        console.error('Chomp move to Applications:', error);
+        change({ status: 'error', error: 'Could not move Chomp to Applications.' });
+      }
+    } else if (mode === 'mac') {
+      if (!macInfo) throw new Error('No verified Mac release information.');
+      change({ status: 'downloading', progress: 0, error: null });
+      try {
+        stagedMac = await stageMacUpdate(macInfo, percent => {
+          change({ status: 'downloading', progress: percent });
+        });
+        change({ status: 'ready', progress: 100, availableVersion: macInfo.version });
+      } catch (error) {
+        console.error('Chomp Mac update download:', error);
+        change({ status: 'error', error: error.message || 'Unable to verify the Mac update.' });
+      }
     } else if (mode === 'manual') {
       if (!state.downloadUrl) throw new Error('No verified update download');
       await shell.openExternal(state.downloadUrl);
@@ -138,12 +173,18 @@ function createUpdateService({ send, canRestart }) {
     return snapshot();
   }
 
-  function install() {
-    if (mode !== 'automatic' || state.status !== 'ready' || !updater) throw new Error('No update is ready to install.');
+  async function install() {
+    if (state.status !== 'ready') throw new Error('No update is ready to install.');
     if (!canRestart()) throw new Error('Finish the current batch before restarting.');
-    // Never replace the app while image writes or batch preparations are active.
-    // The user explicitly approved "Restart & install"; apply the per-user
-    // NSIS upgrade quietly instead of opening another installer wizard.
+    if (mode === 'mac') {
+      if (!stagedMac) throw new Error('No verified Mac update has been staged.');
+      await installMacUpdate(stagedMac);
+      // The helper has copied and verified the app, and will wait until this
+      // process has quit before swapping it and relaunching the new version.
+      app.quit();
+      return { started: true };
+    }
+    if (mode !== 'automatic' || !updater) throw new Error('Unsupported update installation.');
     updater.quitAndInstall(true, true);
     return { started: true };
   }
