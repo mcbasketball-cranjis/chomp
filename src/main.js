@@ -345,6 +345,106 @@ function editorToolbar(){
   $('vector-point-mode').setAttribute('aria-pressed',String(editorPointMode));
   $('vector-point-help').hidden=!editorPointMode;
 }
+
+function shapeInspectorBounds(shape) {
+  const cached=inspectorBoundsCache.get(shape.id);
+  if(cached?.d===shape.d)return cached.bounds;
+  const bounds=vectorPathBounds(shape.d);
+  inspectorBoundsCache.set(shape.id,{d:shape.d,bounds});
+  return bounds;
+}
+function inspectorShapes(){
+  const doc=currentVectorEditor();
+  if(!doc)return [];
+  const small=$('vector-only-small').checked;
+  // Relative thresholds keep tiny glyphs discoverable even in large wordmarks.
+  const threshold=Math.max(4,Math.max(doc.boxWidth,doc.boxHeight)*.075);
+  return doc.shapes.filter(shape=>{
+    if(shape.hidden)return false;
+    if(!small)return true;
+    const b=shapeInspectorBounds(shape);
+    return Math.max(b.width,b.height)<=threshold;
+  });
+}
+function selectEditorShape(id,focus=false){
+  const doc=currentVectorEditor();
+  if(!doc || (id && !doc.shapes.some(s=>s.id===id&&!s.hidden)))return;
+  if(editorSelection!==id)editorPointSelection=null;
+  editorSelection=id;
+  renderShapeOverlay();
+  if(focus)focusEditorShape();
+}
+function nextEditorShape(direction){
+  const entries=inspectorShapes();
+  if(!entries.length)return;
+  const i=entries.findIndex(shape=>shape.id===editorSelection);
+  const next=i<0?(direction>0?0:entries.length-1):(i+direction+entries.length)%entries.length;
+  selectEditorShape(entries[next].id,true);
+}
+function focusEditorShape(){
+  if(!editorSvg || !editorSelection)return;
+  const path=editorSvg.querySelector('path[data-chomp-shape="'+editorSelection+'"]');
+  if(!path)return;
+  setZoom(1);
+  const bounds=path.getBBox();
+  const matrix=editorSvg.getScreenCTM();
+  const stage=$('preview-stage').getBoundingClientRect();
+  if(!matrix || !stage.width || !stage.height)return;
+  const pixelScale=Math.hypot(matrix.a,matrix.b);
+  if(!pixelScale)return;
+  const zoom=Math.max(1.5,Math.min(8,.65*Math.min(
+    stage.width/(Math.max(1,bounds.width)*pixelScale),
+    stage.height/(Math.max(1,bounds.height)*pixelScale)
+  )));
+  const midpoint=editorSvg.createSVGPoint();
+  midpoint.x=bounds.x+bounds.width/2;
+  midpoint.y=bounds.y+bounds.height/2;
+  const center=midpoint.matrixTransform(matrix);
+  setZoom(zoom);
+  previewX=(stage.left+stage.width/2-center.x)*previewZoom;
+  previewY=(stage.top+stage.height/2-center.y)*previewZoom;
+  limitPan();renderZoom();
+}
+function renderShapeInspector(){
+  const target=$('vector-inspector-list');
+  target.replaceChildren();
+  if(!editorActive)return;
+  const entries=inspectorShapes();
+  const pageCount=Math.max(1,Math.ceil(entries.length/INSPECTOR_PAGE_SIZE));
+  const selectedIndex=entries.findIndex(s=>s.id===editorSelection);
+  if(selectedIndex>=0)inspectorPage=Math.floor(selectedIndex/INSPECTOR_PAGE_SIZE);
+  inspectorPage=Math.max(0,Math.min(inspectorPage,pageCount-1));
+  $('vector-inspector-count').textContent=entries.length+' shapes';
+  $('vector-inspector-page').textContent=(inspectorPage+1)+' / '+pageCount;
+  $('vector-inspector-back').disabled=inspectorPage===0;
+  $('vector-inspector-forward').disabled=inspectorPage===pageCount-1;
+  $('vector-shape-prev').disabled=!entries.length;
+  $('vector-shape-next').disabled=!entries.length;
+  $('vector-shape-focus').disabled=!editorSelection;
+  const from=inspectorPage*INSPECTOR_PAGE_SIZE;
+  for(let i=from;i<Math.min(entries.length,from+INSPECTOR_PAGE_SIZE);i++){
+    const shape=entries[i];
+    const bounds=shapeInspectorBounds(shape);
+    const item=document.createElement('button');
+    item.type='button';
+    item.className='vector-inspector-item';
+    item.setAttribute('role','option');
+    item.setAttribute('aria-selected',String(shape.id===editorSelection));
+    item.classList.toggle('selected',shape.id===editorSelection);
+    const swatch=document.createElement('span');
+    swatch.className='vector-swatch-dot';
+    swatch.style.backgroundColor=shape.fill;
+    const name=document.createElement('strong');
+    name.textContent='Shape '+(Number(shape.id.slice(1))+1);
+    const dimensions=document.createElement('small');
+    dimensions.textContent=Math.round(bounds.width)+' × '+Math.round(bounds.height);
+    item.append(swatch,name,dimensions);
+    item.title='Select and zoom to shape '+(Number(shape.id.slice(1))+1);
+    item.onclick=()=>selectEditorShape(shape.id,true);
+    target.append(item);
+  }
+}
+
 function renderShapeOverlay(){
   if(editorSvg){editorSvg.remove();editorSvg=null;}
   if(!editorActive)return;
