@@ -1,3 +1,5 @@
+import { smoothColorContours } from './smooth-contours.js';
+
 /**
  * Dependency-free, local raster tracing for logos and illustrations.
  * Transparent pixels are never assigned a fill; the generated SVG has no backdrop.
@@ -5,9 +7,9 @@
  */
 
 const TRACE_PRESETS = {
-  simple: { colors: 8, edge: 384, tolerance: 1.7, minArea: 2 },
-  balanced: { colors: 20, edge: 640, tolerance: 0.85, minArea: 1 },
-  detailed: { colors: 36, edge: 896, tolerance: 0.35, minArea: 0.5 }
+  simple: { colors: 8, edge: 384, tolerance: 1.8, minArea: 2 },
+  balanced: { colors: 16, edge: 768, tolerance: 1.15, minArea: 1 },
+  detailed: { colors: 32, edge: 1024, tolerance: 0.72, minArea: 0.5 }
 };
 
 export function tracePreset(name = 'balanced') {
@@ -82,10 +84,15 @@ export function removeConnectedBackground(image, tolerance = 28) {
 
 function medianCutPalette(data, colorCount) {
   const count = data.length / 4, stride = Math.max(1, Math.ceil(count / 16000));
+  let maxAlpha = 0;
+  for (let i = 3; i < data.length; i += 4) maxAlpha = Math.max(maxAlpha, data[i]);
+  // Antialiased fringe pixels must not create a separate palette for every
+  // alpha level. Sample the interiors, then use alpha as contour coverage.
+  const sampleThreshold = Math.max(8, Math.round(maxAlpha * .7));
   const samples = [];
   for (let i = 0; i < count; i += stride) {
     const p = i * 4;
-    if (data[p + 3] >= 8) samples.push([data[p], data[p + 1], data[p + 2], data[p + 3]]);
+    if (data[p + 3] >= sampleThreshold) samples.push([data[p], data[p + 1], data[p + 2], data[p + 3]]);
   }
   if (!samples.length) return [];
   const boxes = [samples];
@@ -94,11 +101,11 @@ function medianCutPalette(data, colorCount) {
     for (let b = 0; b < boxes.length; b++) {
       const box = boxes[b];
       if (box.length < 2) continue;
-      for (let channel = 0; channel < 4; channel++) {
+      for (let channel = 0; channel < 3; channel++) {
         let low = 255, high = 0;
         for (const pixel of box) { low = Math.min(low, pixel[channel]); high = Math.max(high, pixel[channel]); }
         const range = high - low;
-        const priority = range * Math.sqrt(box.length) * (channel === 3 ? 1.2 : 1);
+        const priority = range * Math.sqrt(box.length);
         if (range && priority > score) { score = priority; selected = b; axis = channel; }
       }
     }
@@ -114,92 +121,6 @@ function medianCutPalette(data, colorCount) {
   });
 }
 
-function perpendicularDistance(point, a, b) {
-  const dx = b[0] - a[0], dy = b[1] - a[1];
-  if (!dx && !dy) return Math.hypot(point[0] - a[0], point[1] - a[1]);
-  return Math.abs(dx * (a[1] - point[1]) - (a[0] - point[0]) * dy) / Math.hypot(dx, dy);
-}
-
-function simplifyOpen(points, tolerance) {
-  if (points.length <= 2) return points;
-  const keep = new Uint8Array(points.length);
-  keep[0] = keep[points.length - 1] = 1;
-  const stack = [[0, points.length - 1]];
-  while (stack.length) {
-    const [start, end] = stack.pop();
-    let farthest = 0, index = -1;
-    for (let i = start + 1; i < end; i++) {
-      const distance = perpendicularDistance(points[i], points[start], points[end]);
-      if (distance > farthest) { farthest = distance; index = i; }
-    }
-    if (farthest > tolerance && index > start) { keep[index] = 1; stack.push([start, index], [index, end]); }
-  }
-  return points.filter((_, i) => keep[i]);
-}
-
-function simplifyRing(points, tolerance) {
-  if (points.length <= 4) return points;
-  const a = points[0];
-  let farthest = 1, farDistance = 0;
-  for (let i = 1; i < points.length; i++) {
-    const d = (points[i][0] - a[0]) ** 2 + (points[i][1] - a[1]) ** 2;
-    if (d > farDistance) { farDistance = d; farthest = i; }
-  }
-  const first = simplifyOpen(points.slice(0, farthest + 1), tolerance);
-  const second = simplifyOpen([...points.slice(farthest), points[0]], tolerance);
-  const ring = [...first.slice(0, -1), ...second.slice(0, -1)];
-  return ring.length >= 3 ? ring : points;
-}
-
-function areaOf(points) {
-  let area = 0;
-  for (let i = 0; i < points.length; i++) {
-    const a = points[i], b = points[(i + 1) % points.length];
-    area += a[0] * b[1] - b[0] * a[1];
-  }
-  return Math.abs(area / 2);
-}
-
-function colorContours(indices, width, height, color, tolerance, minArea) {
-  const outgoing = new Map(), edges = [];
-  const stride = width + 1;
-  function add(x, y, tx, ty, direction) {
-    const from = y * stride + x, to = ty * stride + tx;
-    const edge = { from, to, direction, used: false, x, y };
-    const index = edges.push(edge) - 1;
-    if (!outgoing.has(from)) outgoing.set(from, []);
-    outgoing.get(from).push(index);
-  }
-  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-    const p = y * width + x;
-    if (indices[p] !== color) continue;
-    if (!y || indices[p - width] !== color) add(x, y, x + 1, y, 0);
-    if (x === width - 1 || indices[p + 1] !== color) add(x + 1, y, x + 1, y + 1, 1);
-    if (y === height - 1 || indices[p + width] !== color) add(x + 1, y + 1, x, y + 1, 2);
-    if (!x || indices[p - 1] !== color) add(x, y + 1, x, y, 3);
-  }
-  const paths = [];
-  for (const first of edges) {
-    if (first.used) continue;
-    const loop = [];
-    let current = first, closed = false;
-    while (current && !current.used) {
-      current.used = true;
-      loop.push([current.x, current.y]);
-      if (current.to === first.from) { closed = true; break; }
-      const choices = (outgoing.get(current.to) || []).filter(i => !edges[i].used);
-      if (!choices.length) break;
-      // Prefer a right turn at corner-touching regions to keep diagonal islands distinct.
-      choices.sort((a, b) => ((edges[a].direction - current.direction + 4) % 4 || 4) - ((edges[b].direction - current.direction + 4) % 4 || 4));
-      current = edges[choices[0]];
-    }
-    if (!closed || loop.length < 4 || areaOf(loop) < minArea) continue;
-    const simplified = simplifyRing(loop, tolerance);
-    paths.push('M' + simplified.map(p => p[0] + ' ' + p[1]).join('L') + 'Z');
-  }
-  return paths.join('');
-}
-
 /**
  * Generate genuine SVG paths from an RGBA ImageData-like object.
  * Call on a downsampled canvas for predictable performance; preserve the desired
@@ -212,14 +133,17 @@ export function traceImageData(image, options = {}) {
   const preset = tracePreset(options.detail);
   const palette = medianCutPalette(data, preset.colors);
   const indices = new Int16Array(width * height).fill(-1);
+  let maxAlpha = 0;
+  for (let p = 3; p < data.length; p += 4) maxAlpha = Math.max(maxAlpha, data[p]);
+  const alphaThreshold = Math.max(8, Math.round(maxAlpha * 0.22));
   for (let i = 0; i < indices.length; i++) {
     const p = i * 4, alpha = data[p + 3];
-    if (alpha < 8) continue;
+    if (alpha < alphaThreshold) continue;
     let closest = 0, best = Infinity;
     for (let c = 0; c < palette.length; c++) {
       const color = palette[c];
-      const dr = data[p] - color[0], dg = data[p + 1] - color[1], db = data[p + 2] - color[2], da = alpha - color[3];
-      const error = dr * dr + dg * dg + db * db + 2 * da * da;
+      const dr = data[p] - color[0], dg = data[p + 1] - color[1], db = data[p + 2] - color[2];
+      const error = dr * dr + dg * dg + db * db;
       if (error < best) { best = error; closest = c; }
     }
     indices[i] = closest;
@@ -229,7 +153,7 @@ export function traceImageData(image, options = {}) {
   let svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + docWidth + '" height="' + docHeight +
     '" viewBox="0 0 ' + width + ' ' + height + '">';
   for (let c = 0; c < palette.length; c++) {
-    const path = colorContours(indices, width, height, c, preset.tolerance, preset.minArea);
+    const path = smoothColorContours(indices, width, height, c, preset.tolerance, preset.minArea);
     if (!path) continue;
     const color = palette[c];
     const hex = '#' + color.slice(0, 3).map(n => n.toString(16).padStart(2, '0')).join('');
