@@ -54,7 +54,7 @@ function backgroundStats(image, matte) {
   }
   return {nearFraction:near/sampled,opaqueFraction:opaque/sampled,transparentFraction:transparent/sampled};
 }
-function binColors(image, matte, opaqueBackground, detail) {
+function binColors(image, matte, matteAware, detail) {
   const {data}=image,n=data.length/4,stride=Math.max(1,Math.ceil(n/40000));
   let maximumAlpha=0;
   for(let p=3;p<data.length;p+=4)maximumAlpha=Math.max(maximumAlpha,data[p]);
@@ -64,7 +64,7 @@ function binColors(image, matte, opaqueBackground, detail) {
     const p=i*4,alpha=data[p+3];
     if(alpha<Math.max(8,maximumAlpha*.65))continue;
     const rgb=colorAt(data,i);
-    if(opaqueBackground && colorDistance2(rgb,matte)<53*53)continue;
+    if(matteAware && colorDistance2(rgb,matte)<53*53)continue;
     const key=(rgb[0]>>4)*256+(rgb[1]>>4)*16+(rgb[2]>>4);
     let bin=bins.get(key);
     if(!bin){bin={n:0,r:0,g:0,b:0};bins.set(key,bin);}
@@ -73,14 +73,14 @@ function binColors(image, matte, opaqueBackground, detail) {
   if(count<3)return null;
   const candidates=[...bins.values()].map(bin=>({
     n:bin.n,rgb:[Math.round(bin.r/bin.n),Math.round(bin.g/bin.n),Math.round(bin.b/bin.n)]
-  })).sort((a,b)=>b.n*(opaqueBackground?colorDistance2(b.rgb,matte):65536)-a.n*(opaqueBackground?colorDistance2(a.rgb,matte):65536));
+  })).sort((a,b)=>b.n*(matteAware?colorDistance2(b.rgb,matte):65536)-a.n*(matteAware?colorDistance2(a.rgb,matte):65536));
   const maxColors=detail==='simple'?3:detail==='detailed'?6:5;
   const seeds=[];
   for(const candidate of candidates){
     if(candidate.n<Math.max(2,Math.ceil(count*.002)))continue;
     const rgb=candidate.rgb;
-    if(opaqueBackground && colorDistance2(rgb,matte)<65*65)continue;
-    const error=seeds.length?Math.min(...seeds.map(seed=>opaqueBackground?lineMatch(rgb,seed,matte).error:Math.sqrt(colorDistance2(rgb,seed)))):Infinity;
+    if(matteAware && colorDistance2(rgb,matte)<65*65)continue;
+    const error=seeds.length?Math.min(...seeds.map(seed=>matteAware?lineMatch(rgb,seed,matte).error:Math.sqrt(colorDistance2(rgb,seed)))):Infinity;
     if(error>37)seeds.push(rgb);
     if(seeds.length>=maxColors)break;
   }
@@ -92,9 +92,9 @@ function binColors(image, matte, opaqueBackground, detail) {
     const p=i*4;
     if(data[p+3]<Math.max(8,maximumAlpha*.65))continue;
     const rgb=colorAt(data,i);
-    if(opaqueBackground && colorDistance2(rgb,matte)<60*60)continue;
+    if(matteAware && colorDistance2(rgb,matte)<60*60)continue;
     seen++;
-    const minError=Math.min(...seeds.map(seed=>opaqueBackground?lineMatch(rgb,seed,matte).error:Math.sqrt(colorDistance2(rgb,seed))));
+    const minError=Math.min(...seeds.map(seed=>matteAware?lineMatch(rgb,seed,matte).error:Math.sqrt(colorDistance2(rgb,seed))));
     if(minError<36)supported++;
   }
   if(!seen||supported/seen<.92)return null;
@@ -127,8 +127,14 @@ export function flatLogoLayers(image, detail='balanced') {
   // A transparent canvas should only qualify if most surviving ink is solid.
   const transparentLogo=stats.transparentFraction>.12&&stats.opaqueFraction>.015;
   if(!opaqueBackground&&!transparentLogo)return null;
-  const matte=opaqueBackground?corners.rgb:[0,0,0];
-  const clustered=binColors(image,matte,opaqueBackground,detail);
+  // The background remover keeps RGB while clearing alpha. On a JPEG the
+  // resulting transparent corner may still be white: reuse that matte so
+  // pale, antialiased letter edges are not mistaken for additional inks.
+  const recoveredMatte = transparentLogo && corners.consistent &&
+    corners.rgb.some(value => value > 30);
+  const matteAware = opaqueBackground || recoveredMatte;
+  const matte = matteAware ? corners.rgb : [0,0,0];
+  const clustered=binColors(image,matte,matteAware,detail);
   if(!clustered)return null;
   const {seeds,maximumAlpha}=clustered;
   const indices=new Int16Array(width*height).fill(-1);
@@ -137,14 +143,14 @@ export function flatLogoLayers(image, detail='balanced') {
     const p=i*4,alpha=data[p+3];
     if(alpha<Math.max(8,maximumAlpha*.34))continue;
     const rgb=colorAt(data,i);
-    if(opaqueBackground&&colorDistance2(rgb,matte)<32*32)continue;
+    if(matteAware&&colorDistance2(rgb,matte)<32*32)continue;
     let best=-1,bestError=Infinity;
     for(let c=0;c<seeds.length;c++){
-      const match=opaqueBackground?lineMatch(rgb,seeds[c],matte):{error:Math.sqrt(colorDistance2(rgb,seeds[c])),coverage:1};
+      const match=matteAware?lineMatch(rgb,seeds[c],matte):{error:Math.sqrt(colorDistance2(rgb,seeds[c])),coverage:1};
       if(match.coverage<.42)continue;
       if(match.error<bestError){bestError=match.error;best=c;}
     }
-    if(best>=0 && bestError < (opaqueBackground?45:34)){indices[i]=best;support[best]++;}
+    if(best>=0 && bestError < (matteAware?45:34)){indices[i]=best;support[best]++;}
   }
   removeSpeckles(indices,width,height,Math.max(2,Math.min(7,Math.round(width*height*.000012))));
   const colors=seeds.map(seed=>[...seed,maximumAlpha]);
