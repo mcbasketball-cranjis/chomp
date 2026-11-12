@@ -49,7 +49,7 @@ function areaOf(points) {
   return Math.abs(area / 2);
 }
 function format(n) { return String(Math.round(n * 100) / 100); }
-function curvePath(points, minCornerLength = 1.65) {
+function curvePath(points, minCornerLength = 1.65, maxBend = Infinity) {
   const n = points.length;
   if (n < 3) return '';
   const tangent = [], corner = [];
@@ -90,16 +90,25 @@ function curvePath(points, minCornerLength = 1.65) {
     const incoming = corner[j] ? [dx / length, dy / length] : tangent[j];
     const isStraight = Math.abs(outgoing[0] * dy - outgoing[1] * dx) < 0.015 * length &&
       Math.abs(incoming[0] * dy - incoming[1] * dx) < 0.015 * length;
-    if (isStraight || length < 0.65) {
-      path += 'L' + format(q[0]) + ' ' + format(q[1]);
-      continue;
-    }
     // Short handles keep curves inside thin strokes and small letter counters.
+    // In precision mode, reject curves that bend too far away from the measured
+    // subpixel outline. This prevents lumpy glyphs and swollen thin strokes.
     const prev = fixed[(i + n - 1) % n], next = fixed[(j + 1) % n];
     const h1 = Math.min(length / 3, Math.hypot(p[0] - prev[0], p[1] - prev[1]) * .42);
     const h2 = Math.min(length / 3, Math.hypot(q[0] - next[0], q[1] - next[1]) * .42);
-    path += 'C' + format(p[0] + outgoing[0] * h1) + ' ' + format(p[1] + outgoing[1] * h1) + ' ' +
-      format(q[0] - incoming[0] * h2) + ' ' + format(q[1] - incoming[1] * h2) + ' ' +
+    const c1 = [p[0] + outgoing[0] * h1, p[1] + outgoing[1] * h1];
+    const c2 = [q[0] - incoming[0] * h2, q[1] - incoming[1] * h2];
+    // For a cubic Bézier, the midpoint is (P + 3*C1 + 3*C2 + Q) / 8.
+    const bulge = Math.hypot(
+      (3 * c1[0] + 3 * c2[0] - 3 * p[0] - 3 * q[0]) / 8,
+      (3 * c1[1] + 3 * c2[1] - 3 * p[1] - 3 * q[1]) / 8
+    );
+    if (isStraight || length < 0.65 || bulge > maxBend) {
+      path += 'L' + format(q[0]) + ' ' + format(q[1]);
+      continue;
+    }
+    path += 'C' + format(c1[0]) + ' ' + format(c1[1]) + ' ' +
+      format(c2[0]) + ' ' + format(c2[1]) + ' ' +
       format(q[0]) + ' ' + format(q[1]);
   }
   return path + 'Z';
@@ -175,7 +184,7 @@ export function smoothColorContours(indices, width, height, color, tolerance, mi
  * Only use this for the confidently detected flat-logo color layers. Photos,
  * already-transparent art and unrelated color regions keep the binary tracer.
  */
-export function smoothCoverageContours(coverage, width, height, tolerance = .35, minArea = .5) {
+export function smoothCoverageContours(coverage, width, height, tolerance = .35, minArea = .5, maxCurveBend = Infinity) {
   if (!coverage || coverage.length !== width * height) throw new Error('Invalid coverage raster.');
   const stride = width + 2, field = new Float32Array((width + 2) * (height + 2));
   for (let y = 0; y < height; y++) {
@@ -269,7 +278,7 @@ export function smoothCoverageContours(coverage, width, height, tolerance = .35,
     }
     const rectilinear = areaOf(ring) >= 400 && perimeter && axisAligned / perimeter > .88;
     const simplified = simplifyRing(ring, rectilinear ? Math.max(.9, tolerance) : tolerance);
-    if (simplified.length >= 3) paths.push(curvePath(simplified, 1.05));
+    if (simplified.length >= 3) paths.push(curvePath(simplified, 1.05, maxCurveBend));
   }
   return paths.join('');
 }
