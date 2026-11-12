@@ -66,9 +66,24 @@ function curvePath(points) {
     const norm = Math.hypot(tx, ty);
     tangent[i] = norm ? [tx / norm, ty / norm] : [dx2 / (d2 || 1), dy2 / (d2 || 1)];
   }
-  let path = 'M' + format(points[0][0]) + ' ' + format(points[0][1]);
+  // The short bevel at a rasterized square corner can make an otherwise
+  // perfectly horizontal/vertical outline lean by half a pixel. Snap only
+  // long, nearly axis-aligned spans between intentional sharp corners.
+  const fixed = points.map(p => [...p]);
   for (let i = 0; i < n; i++) {
-    const j = (i + 1) % n, p = points[i], q = points[j];
+    const j = (i + 1) % n;
+    if (!corner[i] || !corner[j]) continue;
+    const dx = points[j][0] - points[i][0], dy = points[j][1] - points[i][1];
+    if (Math.hypot(dx, dy) < 4) continue;
+    if (Math.abs(dx) < Math.abs(dy) * 0.075) {
+      fixed[i][0] = fixed[j][0] = (points[i][0] + points[j][0]) / 2;
+    } else if (Math.abs(dy) < Math.abs(dx) * 0.075) {
+      fixed[i][1] = fixed[j][1] = (points[i][1] + points[j][1]) / 2;
+    }
+  }
+  let path = 'M' + format(fixed[0][0]) + ' ' + format(fixed[0][1]);
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n, p = fixed[i], q = fixed[j];
     const dx = q[0] - p[0], dy = q[1] - p[1], length = Math.hypot(dx, dy);
     if (!length) continue;
     const outgoing = corner[i] ? [dx / length, dy / length] : tangent[i];
@@ -80,7 +95,7 @@ function curvePath(points) {
       continue;
     }
     // Short handles keep curves inside thin strokes and small letter counters.
-    const prev = points[(i + n - 1) % n], next = points[(j + 1) % n];
+    const prev = fixed[(i + n - 1) % n], next = fixed[(j + 1) % n];
     const h1 = Math.min(length / 3, Math.hypot(p[0] - prev[0], p[1] - prev[1]) * .42);
     const h2 = Math.min(length / 3, Math.hypot(q[0] - next[0], q[1] - next[1]) * .42);
     path += 'C' + format(p[0] + outgoing[0] * h1) + ' ' + format(p[1] + outgoing[1] * h1) + ' ' +
@@ -110,6 +125,8 @@ export function smoothColorContours(indices, width, height, color, tolerance, mi
   for (let y = 0; y <= height; y++) for (let x = 0; x <= width; x++) {
     const p = y * stride + x;
     const tl = mask[p], tr = mask[p + 1], bl = mask[p + stride], br = mask[p + stride + 1];
+    // Almost all cells are uniform; don't allocate points for their interiors.
+    if (tl === tr && tl === bl && tl === br) continue;
     const top = [x, y - .5], right = [x + .5, y], bottom = [x, y + .5], left = [x - .5, y];
     const active = [];
     if (tl !== tr) active.push(['top', top]);
