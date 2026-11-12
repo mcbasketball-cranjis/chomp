@@ -1,5 +1,14 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 contextBridge.exposeInMainWorld('desktop', {
+  getUpdateState: () => ipcRenderer.invoke('get-update-state'),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  onUpdateStatus: callback => {
+    const listener = (_event, state) => callback(state);
+    ipcRenderer.on('update-status', listener);
+    return () => ipcRenderer.removeListener('update-status', listener);
+  },
   getAppearance: () => ipcRenderer.invoke('get-appearance'),
   setAppearance: theme => ipcRenderer.invoke('set-appearance', theme),
   onAppearance: callback => { const listener = (_event, state) => callback(state); ipcRenderer.on('theme-changed', listener); return () => ipcRenderer.removeListener('theme-changed', listener); },

@@ -67,10 +67,7 @@ fieldset{border:0;padding:0;margin:0;min-width:0}h1,h2,h3,p{margin-top:0}
 .add-more svg,.add-folder svg{height:14px;width:14px}
 .queue-footer{display:flex;justify-content:space-between;gap:6px;color:var(--faint);font-size:10px;margin-top:10px;padding:0 5px}
 .text-button{border:0;background:none;padding:0;font-size:10px;color:var(--accent-ink);white-space:nowrap}
-.local-panel{margin-top:auto;border:1px solid var(--line);background:var(--raised);border-radius:11px;padding:14px 12px;display:flex;align-items:flex-start;gap:9px}
-.local-panel>svg{color:var(--accent-ink);height:17px;width:17px;margin-top:1px}
-.local-panel strong{font-size:11.5px;color:var(--ink);font-weight:740}
-.local-panel p{color:var(--faint);line-height:1.55;font-size:10.5px;margin:5px 0 0}
+
 .main-content{width:100%;min-width:0;min-height:0;overflow:auto;display:flex;flex-direction:column;padding:30px 33px 22px;gap:20px}
 .intro{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;flex:none}
 .eyebrow{color:var(--accent-ink);font-size:10px;letter-spacing:1.2px;font-weight:820;display:block;margin-bottom:8px}
@@ -212,7 +209,7 @@ progress{width:100%;height:6px;margin-bottom:10px;accent-color:var(--accent)}
   .settings-scroll{overflow:visible}
   .center-column{min-height:390px}
   .preview-panel{min-height:350px}
-  .local-panel{padding:10px}.local-panel p{font-size:9px}
+  
 }
 @media(max-height:600px) and (min-width:851px){
   .main-content{padding-top:16px;gap:13px}
@@ -220,3 +217,30 @@ progress{width:100%;height:6px;margin-bottom:10px;accent-color:var(--accent)}
   .metrics .metric{min-height:65px}
 }
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{transition:none!important;animation:none!important}}
+
+/* Updates */
+.sidebar-updates{margin-top:auto;display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding:14px 2px 0}
+.sidebar-updates button{border:0;background:transparent;border-radius:8px;color:var(--ink);font-size:12px;font-weight:700;display:flex;align-items:center;gap:10px;width:100%;padding:10px 11px;text-align:left}
+.sidebar-updates button:hover{background:var(--raised)}
+.sidebar-updates button svg{width:17px;height:17px;color:var(--muted)}
+#update-indicator{margin-left:auto;background:var(--accent);width:7px;height:7px;border-radius:50%}
+#app-version{font-size:10px;color:var(--faint);padding-left:11px}
+.updates-backdrop{position:fixed;inset:0;background:#0b1d1ba8;z-index:100;display:grid;place-items:center;padding:24px}
+.updates-dialog{width:min(100%,420px);background:var(--surface);border:1px solid var(--line);border-radius:15px;box-shadow:0 18px 58px #0003;overflow:hidden}
+.updates-dialog-header{padding:17px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+.updates-dialog-header h2{font-size:15px;font-weight:750;margin:0}
+.updates-dialog-header button{border:0;background:transparent;font-size:22px;color:var(--muted);width:28px;height:28px;border-radius:7px}
+.updates-dialog-header button:hover{background:var(--raised)}
+.updates-dialog-body{padding:22px 20px}
+.updates-version{font-weight:770;font-size:20px;letter-spacing:-.6px}
+#updates-message{color:var(--muted);margin:10px 0 0;line-height:1.5;font-size:12px}
+.updates-progress{margin-top:18px;display:flex;align-items:center;gap:10px;font-size:11px;color:var(--muted)}
+.updates-progress progress{flex:1;margin:0}
+.updates-warning{color:var(--faint);font-size:11px;margin:13px 0 0;line-height:1.45}
+.updates-actions{padding:13px 20px;display:flex;align-items:center;justify-content:flex-end;gap:8px;border-top:1px solid var(--line);background:var(--raised)}
+.updates-actions .primary{width:auto;box-shadow:none;min-height:36px}
+.updates-toast{position:fixed;z-index:95;bottom:22px;right:22px;max-width:calc(100% - 44px);display:flex;align-items:center;gap:13px;background:var(--surface);border:1px solid var(--line);border-radius:11px;box-shadow:0 8px 28px #0003;padding:12px 14px;font-size:11.5px;font-weight:660}
+.updates-toast button{background:transparent;border:0;color:var(--accent-ink);font-size:11px;font-weight:750}
+.updates-toast button:last-child{font-size:18px;color:var(--muted);line-height:1}
+.intro{align-items:center}
+.intro h1{font-size:24px}

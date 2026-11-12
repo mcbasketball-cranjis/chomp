@@ -12,6 +12,14 @@ const work = path.join(root, 'test-results');
   try {
     const page = await app.firstWindow(); await page.waitForSelector('#compress');
     const errors = []; page.on('pageerror', e => errors.push(e.message));
+    const updateState = await page.evaluate(() => window.desktop.getUpdateState());
+    assert.equal(updateState.version, '2.1.0');
+    assert.ok(['manual', 'automatic', 'unavailable'].includes(updateState.mode));
+    await page.click('#updates-open');
+    await expect(page.locator('#updates-modal')).toBeVisible();
+    await expect(page.locator('#updates-version')).toContainText('2.1.0');
+    await page.click('#updates-close');
+    await expect(page.locator('#updates-modal')).toBeHidden();
     await page.screenshot({ path: path.join(root, 'test-results', 'Chomp-preview.png') });
     const fixture = await page.evaluate(() => {
       const c = document.createElement('canvas'); c.width = 600; c.height = 400; const ctx = c.getContext('2d');

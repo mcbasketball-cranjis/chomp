@@ -10,15 +10,16 @@ const icons = {
   shield: '<path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z"/><path d="m8 12 3 3 5-6"/>',
   image: '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1"/><path d="m3 16 6-5 4 4 3-3 5 5"/>',
   x: '<path d="m6 6 12 12M6 18 18 6"/>',
-  spark: '<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/>'
+  spark: '<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/>',
+  refresh: '<path d="M20 11a8 8 0 1 0-2.2 5.5M20 4v7h-7"/>'
 };
 const icon = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]}</svg>`;
 
 document.querySelector('#app').innerHTML = `
-<div class="titlebar"><img src="./icon.png" alt=""><span>Chomp — Image workspace</span><span class="titlebar-status">${icon('shield')} Desktop app · private by design</span></div>
+<div class="titlebar"><img src="./icon.png" alt=""><span>Chomp</span></div>
 <div class="app-shell">
   <aside class="sidebar">
-    <div class="sidebar-brand brand"><img src="./icon.png" class="brand-mark" alt=""><strong>Chomp</strong><span class="brand-version">2.0</span></div>
+    <div class="sidebar-brand brand"><img src="./icon.png" class="brand-mark" alt=""><strong>Chomp</strong></div>
     <div class="sidebar-caption">TOOLS</div>
     <nav class="tool-nav" aria-label="Image tools">
       <button type="button" data-workspace="compress">${icon('layers')}<span>Compress</span></button>
@@ -33,47 +34,47 @@ document.querySelector('#app').innerHTML = `
       <button type="button" id="add-folder" class="add-folder">${icon('folder')} Add folder</button>
     </div>
     <div class="queue-footer"><span id="total">No images added yet</span><button id="clear" class="text-button" disabled>Clear all</button></div>
-    <div class="local-panel">${icon('shield')}<div><strong>Made for your device.</strong><p>Private by design. All processing stays on your computer.</p></div></div>
+    <div class="sidebar-updates"><button id="updates-open" type="button" aria-haspopup="dialog">${icon('refresh')}<span>Updates</span><span id="update-indicator" hidden></span></button><span id="app-version">v2.1.0</span></div>
   </aside>
   <main class="main-content">
-    <header class="intro"><div><span class="eyebrow" id="workspace-eyebrow">PIXELS, MEET PATHS</span><h1 id="workspace-title">Vectorize your images.</h1><p id="workspace-description">Turn logos and illustrations into beautiful, editable SVGs.</p></div><div class="header-actions"><button type="button" class="button secondary" id="add">${icon('upload')} Add images</button><button type="button" class="help-button" id="help" aria-label="Help" title="Drop images or folders to begin">?</button></div></header>
+    <header class="intro"><h1 id="workspace-title">Compress</h1><div class="header-actions"><button type="button" class="button secondary" id="add">${icon('upload')} Add images</button></div></header>
     <div class="workspace">
       <div class="center-column">
         <section class="preview-panel" aria-label="Image comparison">
-          <header class="preview-heading"><div><strong>Live preview</strong><span id="selected-name" class="selected-filename">No image selected</span></div><div class="preview-heading-right"><span id="preview-badge" class="format-badge">SVG · transparent</span><span id="preview-status">Ready</span></div></header>
+          <header class="preview-heading"><div><strong>Preview</strong><span id="selected-name" class="selected-filename"></span></div><div class="preview-heading-right"><span id="preview-badge" class="format-badge">SVG · transparent</span><span id="preview-status">Ready</span></div></header>
           <div class="preview-stage" id="preview-stage">
             <div class="preview-image-wrap result-image" id="result-layer"><img id="result-img" alt="Processed image preview" hidden></div>
             <div class="preview-image-wrap original-image" id="original-layer"><img id="original-img" alt="Original image preview" hidden></div>
             <div id="comparison-line" class="comparison-line"></div><div id="comparison-handle" class="comparison-handle" aria-hidden="true">‹ ›</div>
             <span class="preview-chip before-chip">ORIGINAL</span><span class="preview-chip after-chip" id="preview-after-label">VECTOR</span>
             <input type="range" min="0" max="100" value="40" id="compare-slider" class="compare-slider" aria-label="Compare original and processed image">
-            <button id="drop" class="dropzone" type="button"><span class="upload-icon">${icon('upload')}</span><strong>Drop images or folders here</strong><span>or <b>browse files</b> to get started</span><span class="drop-note">JPEG, PNG, WebP, AVIF, SVG · up to 512 MB</span></button>
+            <button id="drop" class="dropzone" type="button"><span class="upload-icon">${icon('upload')}</span><strong>Drop images or folders here</strong><span><b>Browse files</b></span><span class="drop-note">JPEG, PNG, WebP, AVIF, SVG</span></button>
             <div id="empty-note" class="empty-note"><span>Drop an image to get started</span></div>
           </div>
           <footer class="preview-footer"><span class="image-metadata">${icon('image')}<span id="stage-caption">Select an image to see its preview</span></span><div class="preview-switch"><button type="button" id="compare-view" class="selected">Compare</button><button type="button" id="result-view">Result only</button></div></footer>
         </section>
-        <div class="metrics"><div class="metric"><span>Original image</span><strong id="metric-original">—</strong>${icon('image')}</div><div class="metric"><span>Actual preview output</span><strong id="metric-output">—</strong>${icon('folder')}</div><div class="metric"><span>Potential savings</span><strong id="metric-savings">—</strong>${icon('layers')}</div></div>
+        <div class="metrics"><div class="metric"><span>Original</span><strong id="metric-original">—</strong>${icon('image')}</div><div class="metric"><span>Output</span><strong id="metric-output">—</strong>${icon('folder')}</div><div class="metric"><span>Difference</span><strong id="metric-savings">—</strong>${icon('layers')}</div></div>
       </div>
       <aside class="settings-panel">
         <div class="settings-scroll"><h2 id="settings-title">Vector settings</h2>
           <fieldset id="settings">
             <label class="field-label" for="format">Output format</label>
             <div class="format-control"><span class="format-icon">${icon('spark')}</span><select id="format"><option value="original">Keep original format</option><option value="webp">WebP</option><option value="jpg">JPEG</option><option value="png">PNG (lossless)</option><option value="avif">AVIF</option><option value="svg" selected>SVG — editable paths</option></select></div>
-            <p id="format-hint" class="hint">Actual vector paths, not an embedded image.</p>
+            <p id="format-hint" class="hint" hidden></p>
             <section id="trace-controls" class="settings-section">
               <label class="field-label" for="trace-detail">Tracing detail</label>
               <select id="trace-detail" class="visually-hidden"><option value="simple">Simple</option><option value="balanced" selected>Balanced</option><option value="detailed">Detailed</option></select>
               <div class="presets trace-presets" aria-label="Tracing detail"><button type="button" data-trace="simple">Simple</button><button type="button" class="selected" data-trace="balanced">Balanced</button><button type="button" data-trace="detailed">Detailed</button></div>
-              <p id="trace-hint" class="hint">Balanced shapes and colors. Great for logos.</p>
+              
             </section>
             <div class="settings-section">
-              <label class="toggle-row"><span><strong>Remove background</strong><small>Clear solid-color backgrounds automatically.</small></span><input id="remove-bg" type="checkbox" role="switch"><span class="switch"></span></label>
+              <label class="toggle-row"><span><strong>Remove background</strong></span><input id="remove-bg" type="checkbox" role="switch"><span class="switch"></span></label>
               <div id="background-controls" hidden>
                 <fieldset class="bg-scope"><legend class="field-label">Removal area</legend>
                   <label class="bg-mode-option"><input type="radio" name="bg-mode" value="edges" checked><span>Edges only</span></label>
                   <label class="bg-mode-option"><input type="radio" name="bg-mode" value="all"><span>Everywhere</span></label>
                 </fieldset>
-                <p id="bg-mode-hint" class="hint">Keeps enclosed areas intact, like the centers of letters.</p>
+                <p id="bg-mode-hint" class="hint">Outside edges only</p>
                 <div class="label-row"><label for="bg-tolerance" class="field-label">Color tolerance</label><output id="bg-value">28</output></div>
                 <input id="bg-tolerance" type="range" min="0" max="100" value="28"><div class="range-labels"><span>Precise</span><span>More aggressive</span></div>
               </div>
@@ -83,26 +84,39 @@ document.querySelector('#app').innerHTML = `
               <input id="quality" type="range" min="1" max="100" value="80"><div class="range-labels"><span>Smaller file</span><span>More detail</span></div>
               <div class="presets"><button type="button" data-quality="60">Smallest</button><button type="button" class="selected" data-quality="80">Balanced</button><button type="button" data-quality="92">Best quality</button></div>
             </section>
-            <section class="settings-section" id="advanced-settings"><h3>Additional options</h3>
-              <label class="toggle-row"><span><strong>Maximum file size</strong><small>Set a size limit for each image.</small></span><input id="limit-size" type="checkbox" role="switch"><span class="switch"></span></label>
-              <div id="limit-options" hidden><label class="field-label" for="max-bytes">Maximum per image</label><div class="size-input"><input id="max-bytes" type="number" min="0.001" step="any" value="500"><select id="size-unit" aria-label="File size unit"><option value="1024">KB</option><option value="1048576">MB</option></select></div><p class="hint">Adjusts quality and dimensions when possible.</p></div>
-              <div class="mini-divider"></div><label class="toggle-row"><span><strong>Resize large images</strong><small>Keep proportions. Never upscale.</small></span><input id="resize" type="checkbox" role="switch"><span class="switch"></span></label>
+            <section class="settings-section" id="advanced-settings"><h3>Options</h3>
+              <label class="toggle-row"><span><strong>Maximum file size</strong></span><input id="limit-size" type="checkbox" role="switch"><span class="switch"></span></label>
+              <div id="limit-options" hidden><label class="field-label" for="max-bytes">Maximum per image</label><div class="size-input"><input id="max-bytes" type="number" min="0.001" step="any" value="500"><select id="size-unit" aria-label="File size unit"><option value="1024">KB</option><option value="1048576">MB</option></select></div></div>
+              <div class="mini-divider"></div><label class="toggle-row"><span><strong>Resize large images</strong></span><input id="resize" type="checkbox" role="switch"><span class="switch"></span></label>
               <div id="resize-options" hidden><label class="field-label" for="max-size">Maximum long edge</label><div class="number-wrap"><input id="max-size" type="number" min="64" max="32768" value="2400" step="1"><span>px</span></div></div>
             </section>
-            <section id="quick-panel" class="settings-section quick-panel" hidden><div class="quick-heading"><h3>Folder processing</h3><span id="folder-count"></span></div><p id="source-folders"></p><fieldset id="folder-modes"><label class="mode-option"><input type="radio" name="folder-mode" value="copy" checked><span><strong>Duplicate folder</strong><small>Copy the whole folder structure and replace images in the copy.</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="images"><span><strong>Images only</strong><small>Export just the processed images in matching subfolders.</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="replace"><span><strong>Replace originals</strong><small>Overwrite successful images in place; this cannot be undone.</small></span></label></fieldset><p id="mode-note" class="mode-note"></p></section>
+            <section id="quick-panel" class="settings-section quick-panel" hidden><div class="quick-heading"><h3>Folder processing</h3><span id="folder-count"></span></div><p id="source-folders"></p><fieldset id="folder-modes"><label class="mode-option"><input type="radio" name="folder-mode" value="copy" checked><span><strong>Duplicate folder</strong><small>Keep non-image files</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="images"><span><strong>Images only</strong><small>Keep subfolders</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="replace"><span><strong>Replace originals</strong><small>Overwrites source images</small></span></label></fieldset></section>
           </fieldset>
         </div>
         <div class="settings-footer">
-          <div id="output-controls"><span class="destination-label">Save files to</span><button id="folder" class="folder-button">${icon('folder')}<span id="folder-label">Choose output folder</span><span class="folder-arrow">⌄</span></button><p class="hint" id="output-hint">Your original files stay untouched.</p></div>
+          <div id="output-controls"><span class="destination-label">Save files to</span><button id="folder" class="folder-button">${icon('folder')}<span id="folder-label">Choose output folder</span><span class="folder-arrow">⌄</span></button><p class="hint" id="output-hint" hidden></p></div>
           <p id="replace-warning" class="replace-warning" hidden>Original images will be overwritten. Keep a backup if you need the source files.</p>
           <div class="action-area"><div id="progress-wrap" hidden><div class="progress-label"><span id="progress-text">Preparing…</span><span id="progress-count"></span></div><progress id="progress" max="100" value="0"></progress></div>
-            <button id="compress" class="button primary" disabled>Export SVGs ${icon('arrow')}</button><button id="cancel" class="button cancel" hidden>Stop after this image</button><p class="action-note" id="action-note">Add images and choose a folder to begin.</p></div>
+            <button id="compress" class="button primary" disabled>Export SVGs ${icon('arrow')}</button><button id="cancel" class="button cancel" hidden>Stop after this image</button><p class="action-note" id="action-note"></p></div>
         </div>
       </aside>
     </div>
     <section id="summary" class="summary" hidden aria-live="polite"></section>
     <div id="notice" role="status" aria-live="polite"></div>
   </main>
+  <div id="updates-modal" class="updates-backdrop" hidden>
+    <section class="updates-dialog" role="dialog" aria-modal="true" aria-labelledby="updates-heading">
+      <header class="updates-dialog-header"><h2 id="updates-heading">Software Update</h2><button id="updates-close" type="button" aria-label="Close">×</button></header>
+      <div class="updates-dialog-body">
+        <div class="updates-version" id="updates-version">Chomp 2.1.0</div>
+        <p id="updates-message">Check for updates.</p>
+        <div class="updates-progress" id="updates-progress-wrap" hidden><progress max="100" value="0" id="updates-progress"></progress><span id="updates-percent"></span></div>
+        <p id="updates-warning" class="updates-warning" hidden></p>
+      </div>
+      <footer class="updates-actions"><button type="button" id="updates-check" class="button secondary">Check now</button><button type="button" id="updates-action" class="button primary" hidden>Download update</button></footer>
+    </section>
+  </div>
+  <div id="updates-toast" class="updates-toast" role="status" hidden><span id="updates-toast-message">Update available</span><button id="updates-toast-open" type="button">View</button><button id="updates-toast-dismiss" type="button" aria-label="Dismiss update notice">×</button></div>
 </div>`;
 
 const $ = id => document.getElementById(id);
@@ -115,11 +129,7 @@ const mode = () => folderRoots.length ? document.querySelector('[name="folder-mo
 const urls = new Set();
 let workspaceMode='compress',selectedId=null,previewTimer=null,previewVersion=0,previewWorker=null,previewOriginalUrl=null,previewResultUrl=null;
 const MIME={jpg:'image/jpeg',png:'image/png',svg:'image/svg+xml',webp:'image/webp',avif:'image/avif'};
-const workspaceCopy={
-  compress:['LESS WEIGHT, SAME IMPACT','Compress your images.','Smaller files, beautiful results. Control quality and size.','Compression settings'],
-  convert:['EVERY FORMAT, ONE PLACE','Convert your images.','Switch between PNG, JPEG, WebP, AVIF and SVG without uploads.','Conversion settings'],
-  vectorize:['PIXELS, MEET PATHS','Vectorize your images.','Turn logos and illustrations into beautiful, editable SVGs.','Vector settings']
-};
+const workspaceCopy={compress:['Compress','Compression'],convert:['Convert','Conversion'],vectorize:['Vectorize','Vectorization']};
 const preferredFormats={compress:'webp',convert:'png',vectorize:'svg'};
 function selectedItem(){return items.find(item=>item.id===selectedId)||null;}
 function releasePreviewUrls(){
@@ -201,9 +211,8 @@ function setWorkspace(next){
   if(running||!workspaceCopy[next])return;
   if(workspaceMode!==next&&!$('format').disabled)preferredFormats[workspaceMode]=$('format').value;
   workspaceMode=next;
-  const [eyebrow,title,desc,settingsTitle]=workspaceCopy[next];
-  $('workspace-eyebrow').textContent=eyebrow;$('workspace-title').textContent=title;
-  $('workspace-description').textContent=desc;$('settings-title').textContent=settingsTitle;
+  const [title,settingsTitle]=workspaceCopy[next];
+  $('workspace-title').textContent=title;$('settings-title').textContent=settingsTitle;
   document.querySelectorAll('[data-workspace]').forEach(el=>{
     el.classList.toggle('active',el.dataset.workspace===next);
     el.setAttribute('aria-current',el.dataset.workspace===next?'page':'false');
@@ -221,7 +230,6 @@ function notice(message) { $('notice').textContent = message; }
 function buttonState() {
   const replacing = mode() === 'replace';
   $('compress').disabled = running || scanning || (!replacing && !output) || !items.length;
-  const converting = $('format').value === 'svg' || items.some(item => item.format === 'svg');
   const amount=items.length+' image'+(items.length===1?'':'s');
   const label=replacing?'Replace original images':items.length&&items.every(i=>i.status==='done')?'Export again':workspaceMode==='vectorize'&&$('format').value==='svg'?'Export '+items.length+' SVG'+(items.length===1?'':'s'):workspaceMode==='convert'?'Convert '+amount:'Compress '+amount;
   $('compress').innerHTML=icon('upload')+' '+label;
@@ -244,9 +252,8 @@ function buttonState() {
   $('output-controls').hidden = replacing;
   $('replace-warning').hidden = !replacing;
   $('format').disabled = replacing;
-  $('mode-note').textContent = replacing ? 'Keeps formats, filenames, and subfolders. This cannot be undone by the app.' : mode() === 'copy' ? 'Creates a new folder. Source files stay unchanged. Failed images keep their original copies.' : 'Creates a new folder containing only successful image exports.';
-  $('mode-note').classList.toggle('warning', replacing);
-  $('action-note').textContent = scanning ? 'Scanning subfolders…' : running ? 'Compressing locally. You can stop after the current image.' : !items.length ? 'Add images or a folder to begin.' : replacing ? 'Only successfully encoded images will be replaced.' : !output ? 'Choose where to save your compressed images.' : 'Ready to compress.';
+  $('action-note').textContent = scanning ? 'Scanning…' : (!replacing && items.length && !output) ? 'Choose an output folder.' : '';
+  $('action-note').hidden = !$('action-note').textContent;
 }
 function row(item) {
   const el=document.createElement('div');el.className='image-row';el.dataset.id=item.id;
@@ -288,7 +295,6 @@ async function add(result) {
 async function importFiles(load) { if (running || scanning) return; scanning = true; buttonState(); try { await add(await load()); } catch (e) { notice(e.message); } finally { scanning = false; buttonState(); if(selectedItem()) queuePreview(); } }
 async function pick() { if (!api) { notice('Open the desktop app to select images and output folders.'); return; } await importFiles(() => api.pickImages()); }
 $('add').onclick=pick;$('add-sidebar').onclick=pick;$('drop').onclick=pick;
-$('help').onclick=()=>notice('Add images or folders, choose a tool, inspect the result, choose a save destination, and export. Everything is processed locally.');
 document.querySelectorAll('[data-workspace]').forEach(el=>el.onclick=()=>setWorkspace(el.dataset.workspace));
 $('compare-slider').oninput=updatePreviewSplit;
 $('compare-view').onclick=()=>{
@@ -302,7 +308,6 @@ $('result-view').onclick=()=>{
 document.querySelectorAll('[data-trace]').forEach(el=>el.onclick=()=>{
   $('trace-detail').value=el.dataset.trace;
   document.querySelectorAll('[data-trace]').forEach(button=>button.classList.toggle('selected',button===el));
-  $('trace-hint').textContent=el.dataset.trace==='simple'?'Cleaner shapes and fewer colors. Great for simple icons.':el.dataset.trace==='detailed'?'More colors and contours for detailed artwork.':'Balanced shapes and colors. Great for logos.';
   queuePreview();
 });
 $('add-folder').onclick = () => api ? importFiles(() => api.pickFolders()) : notice('Open the desktop app to select folders.');
@@ -321,8 +326,8 @@ $('remove-bg').onchange=()=>{$('background-controls').hidden=!$('remove-bg').che
 document.querySelectorAll('[name="bg-mode"]').forEach(el => el.onchange = () => {
   const all = document.querySelector('[name="bg-mode"]:checked').value === 'all';
   $('bg-mode-hint').textContent = all
-    ? 'Clears matching color anywhere, including inside O, e, and p. Same-colored logo details will also be removed.'
-    : 'Removes background connected to the outside. Enclosed areas stay untouched.';
+    ? 'Includes enclosed areas; may remove matching logo details.'
+    : 'Outside edges only.';
   queuePreview();
 });
 $('bg-tolerance').oninput=()=>{$('bg-value').textContent=$('bg-tolerance').value;queuePreview();};
@@ -339,7 +344,8 @@ $('format').onchange = () => {
   $('preview-badge').textContent=format==='svg'?'SVG · transparent':format==='original'?'Original format':format.toUpperCase()+(format==='jpg'?' · opaque':' · transparency');
   $('remove-bg').disabled = format === 'jpg';
   if (format === 'jpg' && $('remove-bg').checked) { $('remove-bg').checked = false; $('remove-bg').onchange(); }
-  $('format-hint').textContent = format === 'svg' ? 'Editable shapes. Transparent areas remain transparent with no added backdrop.' : format === 'png' ? 'Keeps every pixel. Size savings vary by image.' : format === 'original' ? 'Keeps formats. Existing SVG vectors remain SVG.' : format === 'jpg' ? 'Transparency becomes white. Background removal needs PNG, WebP, AVIF or SVG.' : format === 'avif' ? 'Supports transparency. Slower to encode.' : 'Supports transparency.';
+  $('format-hint').textContent = format === 'jpg' ? 'JPEG does not support transparency.' : '';
+  $('format-hint').hidden = format !== 'jpg';
   queuePreview();buttonState();
 };
 async function encode(data, settings) {
@@ -407,4 +413,89 @@ $('compress').onclick = async () => {
     if(selectedItem())queuePreview();
   }
 };
+let updateState = { version: '2.1.0', mode: 'unavailable', status: 'idle', availableVersion: null, progress: 0 };
+let lastUpdateNotice = '';
+let updateDialogOpen = false;
+let updateReturnFocus = null;
+
+function renderUpdateState(state) {
+  if (!state || typeof state !== 'object') return;
+  updateState = state;
+  $('app-version').textContent = 'v' + state.version;
+  $('updates-version').textContent = 'Chomp ' + state.version;
+  const available = ['available', 'downloading', 'ready'].includes(state.status);
+  $('update-indicator').hidden = !available;
+  const messages = {
+    idle: 'Check for updates.',
+    checking: 'Checking…',
+    current: 'Up to date.',
+    available: 'Version ' + state.availableVersion + ' is available.',
+    downloading: 'Downloading…',
+    ready: 'Update downloaded.',
+    error: state.error || 'Update check failed.',
+    unavailable: 'Update checks are available in the installed app.'
+  };
+  $('updates-message').textContent = messages[state.status] || 'Check for updates.';
+  $('updates-progress-wrap').hidden = state.status !== 'downloading';
+  $('updates-progress').value = state.progress || 0;
+  $('updates-percent').textContent = (state.progress || 0) + '%';
+  $('updates-check').disabled = ['checking', 'downloading', 'ready'].includes(state.status) || state.mode === 'unavailable';
+  $('updates-action').hidden = state.status !== 'available' && state.status !== 'ready';
+  $('updates-action').disabled = state.status === 'downloading' || running;
+  $('updates-action').textContent = state.status === 'ready' ? 'Restart & install' :
+    state.mode === 'automatic' ? 'Download update' : 'Get update';
+  $('updates-warning').hidden = state.mode !== 'manual' || state.status !== 'available';
+  $('updates-warning').textContent = state.mode === 'manual'
+    ? 'Manual installation is required on macOS and portable builds.'
+    : '';
+  if ((state.status === 'available' || state.status === 'ready') &&
+      !updateDialogOpen && state.availableVersion && lastUpdateNotice !== state.availableVersion + ':' + state.status) {
+    lastUpdateNotice = state.availableVersion + ':' + state.status;
+    $('updates-toast-message').textContent = state.status === 'ready' ? 'Update ready to install' : 'Chomp ' + state.availableVersion + ' available';
+    $('updates-toast').hidden = false;
+  }
+  if (state.status === 'current') $('updates-toast').hidden = true;
+}
+
+function openUpdateDialog() {
+  updateReturnFocus = document.activeElement;
+  updateDialogOpen = true;
+  $('updates-toast').hidden = true;
+  $('updates-modal').hidden = false;
+  $('updates-close').focus();
+}
+function closeUpdateDialog() {
+  updateDialogOpen = false;
+  $('updates-modal').hidden = true;
+  if (updateReturnFocus && updateReturnFocus.isConnected) updateReturnFocus.focus();
+}
+$('updates-open').onclick = openUpdateDialog;
+$('updates-toast-open').onclick = openUpdateDialog;
+$('updates-toast-dismiss').onclick = () => { $('updates-toast').hidden = true; };
+$('updates-close').onclick = closeUpdateDialog;
+$('updates-modal').onclick = e => { if (e.target === $('updates-modal')) closeUpdateDialog(); };
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && updateDialogOpen) closeUpdateDialog();
+});
+$('updates-check').onclick = async () => {
+  if (!api?.checkForUpdates) return;
+  try { renderUpdateState(await api.checkForUpdates()); }
+  catch (error) { $('updates-message').textContent = error.message; }
+};
+$('updates-action').onclick = async () => {
+  if (!api) return;
+  try {
+    if (updateState.status === 'ready') await api.installUpdate();
+    else if (updateState.status === 'available') renderUpdateState(await api.downloadUpdate());
+  } catch (error) { $('updates-message').textContent = error.message; }
+};
+if (api?.getUpdateState && api?.onUpdateStatus) {
+  api.onUpdateStatus(renderUpdateState);
+  api.getUpdateState().then(renderUpdateState).catch(error => {
+    $('updates-message').textContent = error.message;
+  });
+} else {
+  renderUpdateState(updateState);
+}
+
 setWorkspace('compress');updatePreviewSplit();buttonState();

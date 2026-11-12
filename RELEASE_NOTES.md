@@ -1,37 +1,29 @@
-# Chomp 2.0.0 — redesigned image workspace
+# Chomp 2.1.0
 
-Chomp 2 brings a fresh, native-feeling desktop interface for compression, format conversion and editable SVG tracing, while keeping everything processed locally.
+## Changes
 
-## What's new
+- **Software Update** in the sidebar. Checks published GitHub Releases on launch and every six hours while Chomp is open.
+- Windows NSIS installs: download an update inside Chomp and apply it when you select **Restart & install**. No restart during image processing.
+- macOS and Windows portable builds: version checks and a direct installer download. In-app replacement on macOS remains disabled until Developer ID signing and notarization are configured.
+- Streamlined interface: shorter labels, no taglines, no redundant helper copy. Destructive operations retain warnings.
+- SHA-512 metadata (`latest.yml`) for the Windows update feed, published alongside the matching NSIS installer.
 
-- Three focused workspaces: **Compress**, **Convert**, and **Vectorize**.
-- Image queue with quick switching, a draggable before/after preview, and actual locally computed output sizes and savings.
-- Contextual settings for quality, tracing detail, resizing, file-size limits, and solid-color background removal.
-- Persistent **Save files to** control, batch export, duplicate-folder, images-only, and replace-originals modes.
-- Preserves transparent PNG/SVG conversion, true editable SVG paths, and edge-only versus everywhere removal (including enclosed letter holes).
-- A new layered **Apple Icon Composer** macOS app icon using the native asset catalog for modern macOS. Windows keeps its existing icon.
-- Light and dark appearance, safe overwrite behavior, and offline processing.
-
-## macOS distribution
-
-The macOS builds use ad-hoc code signatures and pass signature integrity checks, but **they are not Developer ID signed or Apple-notarized**. As before, Gatekeeper may require explicit approval through **System Settings → Privacy & Security → Open Anyway**, and a “damaged” warning may also indicate actual corruption. Only authorize copies from a source you trust and can verify.
-
-For a Chomp copy you built yourself or independently verified from the official GitHub release, you can remove quarantine from that app alone if standard approval still fails:
-
-```sh
-xattr -dr com.apple.quarantine "/Applications/Chomp.app"
-```
-
-This changes macOS security handling; it does not verify software authenticity or repair corrupted binaries. Do not disable Gatekeeper globally.
+**One-time upgrade:** Chomp 2.0.0 does not contain an updater. Install 2.1.0 normally once. Future Windows NSIS releases can update through Chomp.
 
 ## Downloads
 
-See [Chomp 2.0.0 GitHub Releases](https://github.com/mcbasketball-cranjis/chomp/releases/tag/v2.0.0) once published.
+[Chomp 2.1.0 on GitHub Releases](https://github.com/mcbasketball-cranjis/chomp/releases/tag/v2.1.0) after publication.
 
-- Apple Silicon: `Chomp-2.0.0-mac-arm64.dmg` or ZIP
-- Intel Mac: `Chomp-2.0.0-mac-x64.dmg` or ZIP
-- Windows: the x64 Setup and Portable ZIPs, plus standalone EXEs and optional local-signing helpers.
+- Apple Silicon: `Chomp-2.1.0-mac-arm64.dmg` or ZIP
+- Intel Mac: `Chomp-2.1.0-mac-x64.dmg` or ZIP
+- Windows: `Chomp-2.1.0-win-x64-Setup.exe` and portable variants
 
-## Testing
+## macOS signing
 
-Automated tests cover file and folder operations, true SVG tracing, preservation of transparency, output size limits, dark/light themes, and the desktop workflow. Native macOS packaging verifies the compiled Icon Composer `Assets.car`, code signature, and app architecture on both Intel and Apple Silicon artifacts. Apple Silicon is cross-packaged on the Intel runner and statically verified; native Apple Silicon execution still requires testing on ARM hardware.
+Mac packages remain ad-hoc signed and are **not** Apple Developer ID signed or notarized. Gatekeeper may still require approval. The updater only checks and opens the verified published download on macOS; it does not silently replace your app. Signed and notarized automatic Mac updates can be added when developer credentials become available.
+
+## Update security and compatibility
+
+Windows updater metadata includes the installer SHA-512 checksum. Version checks use published GitHub Releases only; draft/prerelease versions are excluded. Windows publisher signature enforcement requires a trusted code-signing certificate, which is not yet configured. Portable Windows builds are excluded from in-place NSIS updates.
+
+All image processing and SVG conversion features are unchanged. Existing data and app preferences remain in place during an installer upgrade.

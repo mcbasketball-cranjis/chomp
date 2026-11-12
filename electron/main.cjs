@@ -3,10 +3,12 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { randomUUID } = require('node:crypto');
+const { createUpdateService } = require('./updater.cjs');
 const { supported, saveUnique } = require('./files.cjs');
 const { scanFolder, prepareBatch, saveFolderImage, verifyFile, fingerprint, formatFor, contained } = require('./folders.cjs');
 protocol.registerSchemesAsPrivileged([{ scheme: 'chomp', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }]);
 let win;
+let updates;
 const inputs = new Map();
 const roots = new Map();
 let outputFolder = null;
@@ -73,6 +75,16 @@ app.whenReady().then(async () => {
     return net.fetch(pathToFileURL(file).toString());
   });
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+  updates = createUpdateService({
+    send: state => {
+      if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send('update-status', state);
+    },
+    canRestart: () => !activeBatch && !preparing && activeWrites === 0
+  });
+  handle('get-update-state', () => updates.getState());
+  handle('check-for-updates', () => updates.check());
+  handle('download-update', () => updates.download());
+  handle('install-update', () => updates.install());
   handle('get-appearance', () => themeState());
   handle('set-appearance', async theme => {
     if (!['system', 'light', 'dark'].includes(theme)) throw new Error('Invalid theme.');
@@ -149,10 +161,13 @@ app.whenReady().then(async () => {
     win.webContents.on('will-navigate', event => event.preventDefault());
     win.on('close', event => { if (activeWrites || preparing || activeBatch) event.preventDefault(); });
     win.loadURL('chomp://app/index.html');
+    win.webContents.once('did-finish-load', () => win.webContents.send('update-status', updates.getState()));
   }
   if (process.platform === 'darwin') Menu.setApplicationMenu(Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { label: 'Appearance', submenu: ['system','light','dark'].map(theme => ({ label: theme[0].toUpperCase()+theme.slice(1), type: 'radio', checked: themePreference === theme, click: async () => { themePreference=theme; nativeTheme.themeSource=theme; await fs.writeFile(path.join(app.getPath('userData'),'preferences.json'),JSON.stringify({theme})); updateTheme(); } })) }, { role: 'windowMenu' }]));
   else Menu.setApplicationMenu(null);
   createWindow();
+  updates.start();
   app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
 });
+app.on('before-quit', () => updates?.dispose());
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

@@ -29,6 +29,7 @@ const required = [
   `Chomp-${version}-win-x64-Portable.zip`,
   `Chomp-${version}-win-x64.zip`,
   'Chomp-Windows-Signing-Kit.zip',
+  'latest.yml',
 ];
 const assets = new Map((state.assets || []).map(asset => [asset.name, asset]));
 const missing = required.filter(name => !assets.has(name) || (typeof assets.get(name).size === 'number' && assets.get(name).size < 1));
