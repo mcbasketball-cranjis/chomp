@@ -1,4 +1,4 @@
-import { smoothColorContours } from './smooth-contours.js';
+import { smoothColorContours, smoothCoverageContours } from './smooth-contours.js';
 import { flatLogoLayers } from './logo-trace.js';
 
 /**
@@ -159,7 +159,14 @@ export function traceImageData(image, options = {}) {
     svg += '<path fill="' + hex + '" d="M0 0H' + width + 'V' + height + 'H0Z"/>';
   }
   for (let c = 0; c < palette.length; c++) {
-    const path = smoothColorContours(indices, width, height, c, logo ? Math.min(.65, preset.tolerance) : preset.tolerance, preset.minArea);
+    // When the flat-artwork detector can recover ink coverage, retain the
+    // half-pixel geometry of small letters instead of tracing a binary mask.
+    // Geometric, transparent and photographic artwork keep the existing tracer.
+    const path = logo?.coverage?.[c]
+      ? smoothCoverageContours(logo.coverage[c], width, height,
+          options.detail === 'detailed' ? .24 : options.detail === 'simple' ? .7 : .42,
+          options.detail === 'detailed' ? .35 : preset.minArea)
+      : smoothColorContours(indices, width, height, c, logo ? Math.min(.65, preset.tolerance) : preset.tolerance, preset.minArea);
     if (!path) continue;
     const color = palette[c];
     const hex = '#' + color.slice(0, 3).map(n => n.toString(16).padStart(2, '0')).join('');
