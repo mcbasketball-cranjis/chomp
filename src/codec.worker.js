@@ -31,7 +31,7 @@ function validateSvg(bytes) {
   return source;
 }
 
-self.onmessage = async ({ data: { bytes, format, sourceFormat, quality, maxSize, maxBytes, traceDetail, traceOptions, removeBackground, bgTolerance, bgMode, bitmap: decodedBitmap } }) => {
+self.onmessage = async ({ data: { bytes, format, sourceFormat, quality, maxSize, maxBytes, traceDetail, traceOptions, removeBackground, bgTolerance, bgMode, bgColor, bitmap: decodedBitmap } }) => {
   let bitmap;
   try {
     if (!['jpg', 'png', 'webp', 'avif', 'svg'].includes(format)) throw new Error('Unsupported output format.');
@@ -59,8 +59,8 @@ self.onmessage = async ({ data: { bytes, format, sourceFormat, quality, maxSize,
       // Capture the original matte BEFORE clearing alpha. Canvas redrawing
       // premultiplies fully transparent pixels, which otherwise destroys their
       // RGB and causes JPEG antialias fringes to become vector color layers.
-      removedMatte = sampleSolidMatte(pixels);
-      removeBackgroundColor(pixels, bgTolerance, bgMode || 'edges');
+      removedMatte = bgColor ? [1, 3, 5].map(index => parseInt(bgColor.slice(index, index + 2), 16)) : sampleSolidMatte(pixels);
+      removeBackgroundColor(pixels, bgTolerance, bgMode || 'edges', bgColor || null);
       ctx.putImageData(pixels, 0, 0);
     }
 
