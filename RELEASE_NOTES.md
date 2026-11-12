@@ -7,6 +7,7 @@
 - **Vectorize:** actual editable SVG path output. Tracing controls appear only here.
 - Each workspace remembers its chosen output format. In-place folder replacement stays in Compress and preserves original formats; switching to Convert or Vectorize switches to images-only export.
 - No changes to existing SVG transparency preservation, encoding, background removal, or macOS Icon Composer artwork.
+- For updates **after 2.1.1**, the Windows Restart & install action applies approved per-user NSIS upgrades silently instead of showing another installer wizard.
 
 ## Update test
 
