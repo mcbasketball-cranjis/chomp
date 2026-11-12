@@ -349,7 +349,12 @@ function editorToolbar(){
 function shapeInspectorBounds(shape) {
   const cached=inspectorBoundsCache.get(shape.id);
   if(cached?.d===shape.d)return cached.bounds;
-  const bounds=vectorPathBounds(shape.d);
+  let bounds;
+  try{bounds=vectorPathBounds(shape.d);}
+  catch{
+    const doc=currentVectorEditor();
+    bounds={x:0,y:0,width:doc?.boxWidth||0,height:doc?.boxHeight||0};
+  }
   inspectorBoundsCache.set(shape.id,{d:shape.d,bounds});
   return bounds;
 }
@@ -448,7 +453,9 @@ function renderShapeInspector(){
 
 function renderSelectedPathPoints(svg,shape){
   if(!editorPointMode || !shape)return;
-  const points=vectorPathPoints(shape.d,480);
+  let points;
+  try{points=vectorPathPoints(shape.d,480);}
+  catch{points={nodes:[],tooMany:true};}
   const group=document.createElementNS(SVG_NS,'g');
   group.classList.add('vector-points');
   if(points.tooMany){
@@ -456,11 +463,31 @@ function renderSelectedPathPoints(svg,shape){
     svg.append(group);return;
   }
   $('vector-point-help').textContent='Drag anchors or Bézier handles to reshape this path. Arrow keys nudge the selected point.';
+  const doc=currentVectorEditor();
+  const stage=$('preview-stage');
+  const scale=Math.min(Math.max(1,stage.clientWidth-84)/Math.max(1,doc.boxWidth),
+    Math.max(1,stage.clientHeight-76)/Math.max(1,doc.boxHeight))*previewZoom;
+  const guides=document.createElementNS(SVG_NS,'g');
+  guides.classList.add('vector-point-guides');
+  const nodes=points.nodes;
+  for(let i=0;i<nodes.length;i++){
+    const node=nodes[i];
+    if(node.role==='anchor')continue;
+    const target=node.role==='control1'
+      ? [...nodes.slice(0,i)].reverse().find(candidate=>candidate.role==='anchor')
+      : nodes.slice(i+1).find(candidate=>candidate.role==='anchor');
+    if(!target)continue;
+    const guide=document.createElementNS(SVG_NS,'line');
+    guide.setAttribute('x1',target.x);guide.setAttribute('y1',target.y);
+    guide.setAttribute('x2',node.x);guide.setAttribute('y2',node.y);
+    guides.append(guide);
+  }
+  group.append(guides);
   for(const node of points.nodes){
     const circle=document.createElementNS(SVG_NS,'circle');
     circle.classList.add('vector-point-handle',node.role==='anchor'?'anchor':'control');
     circle.setAttribute('cx',node.x);circle.setAttribute('cy',node.y);
-    circle.setAttribute('r',node.role==='anchor'?'3.5':'2.8');
+    circle.setAttribute('r',String(Math.min(80,(node.role==='anchor'?4.25:3.1)/Math.max(.0001,scale))));
     circle.setAttribute('data-node-index',String(node.index));
     circle.setAttribute('data-node-role',node.role);
     circle.setAttribute('aria-label',node.role+' '+node.index);
