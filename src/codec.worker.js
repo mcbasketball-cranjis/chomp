@@ -11,6 +11,7 @@ import { defaultOptions as avifOptions } from '@jsquash/avif/meta.js';
 import avifWasm from '@jsquash/avif/codec/enc/avif_enc.wasm?url';
 import { fitImage } from './fit-size.js';
 import { removeBackgroundColor, traceImageData, tracePreset } from './vectorize.js';
+import { normalizeTraceOptions, tracePixelBudget } from './trace-options.js';
 import { sampleSolidMatte } from './logo-trace.js';
 const initialized = {};
 async function init(format) {
@@ -30,7 +31,7 @@ function validateSvg(bytes) {
   return source;
 }
 
-self.onmessage = async ({ data: { bytes, format, sourceFormat, quality, maxSize, maxBytes, traceDetail, removeBackground, bgTolerance, bgMode, bitmap: decodedBitmap } }) => {
+self.onmessage = async ({ data: { bytes, format, sourceFormat, quality, maxSize, maxBytes, traceDetail, traceOptions, removeBackground, bgTolerance, bgMode, bitmap: decodedBitmap } }) => {
   let bitmap;
   try {
     if (!['jpg', 'png', 'webp', 'avif', 'svg'].includes(format)) throw new Error('Unsupported output format.');
@@ -69,8 +70,10 @@ self.onmessage = async ({ data: { bytes, format, sourceFormat, quality, maxSize,
         // Preserve original SVG geometry instead of retracing an already vector image.
         result = bytes;
       } else {
-        const edge = tracePreset(traceDetail).edge;
-        const factor = Math.min(1, edge / Math.max(width, height), Math.sqrt(1_100_000 / (width * height)));
+        const advanced = normalizeTraceOptions(traceOptions);
+        const standardEdge = tracePreset(traceDetail).edge;
+        const edge = advanced.resolution === 'high' ? Math.max(standardEdge, traceDetail === 'simple' ? 1400 : 3000) : standardEdge;
+        const factor = Math.min(1, edge / Math.max(width, height), Math.sqrt(tracePixelBudget(advanced) / (width * height)));
         const tw = Math.max(1, Math.round(width * factor)), th = Math.max(1, Math.round(height * factor));
         const traceCanvas = new OffscreenCanvas(tw, th);
         const traceContext = traceCanvas.getContext('2d', { willReadFrequently: true, alpha: true });
@@ -78,7 +81,8 @@ self.onmessage = async ({ data: { bytes, format, sourceFormat, quality, maxSize,
         traceContext.imageSmoothingQuality = 'high';
         traceContext.drawImage(canvas, 0, 0, tw, th);
         const text = traceImageData(traceContext.getImageData(0, 0, tw, th), {
-          detail: traceDetail, outputWidth: width, outputHeight: height, matteColor: removedMatte
+          detail: traceDetail, outputWidth: width, outputHeight: height, matteColor: removedMatte,
+          traceOptions: advanced
         });
         result = new TextEncoder().encode(text);
       }
