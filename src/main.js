@@ -836,6 +836,25 @@ async function pick() { if (!api) { notice('Open the desktop app to select image
 $('add').onclick=pick;$('add-sidebar').onclick=pick;$('drop').onclick=pick;
 document.querySelectorAll('[data-workspace]').forEach(el=>el.onclick=()=>setWorkspace(el.dataset.workspace));
 $('compare-slider').oninput=updatePreviewSplit;
+$('vector-point-mode').onclick=()=>{
+  if(!editorSelection || !currentVectorEditor())return;
+  editorPointMode=!editorPointMode;
+  editorPointSelection=null;editorPointDrag=null;
+  if(editorPointMode){previewPanMode=false;renderZoom();}
+  renderShapeOverlay();
+};
+$('vector-only-small').onchange=()=>{
+  inspectorPage=0;renderShapeInspector();
+};
+$('vector-shape-prev').onclick=()=>nextEditorShape(-1);
+$('vector-shape-next').onclick=()=>nextEditorShape(1);
+$('vector-shape-focus').onclick=focusEditorShape;
+$('vector-inspector-back').onclick=()=>{
+  inspectorPage=Math.max(0,inspectorPage-1);renderShapeInspector();
+};
+$('vector-inspector-forward').onclick=()=>{
+  inspectorPage++;renderShapeInspector();
+};
 $('vector-edit-open').onclick=openShapeEditor;
 $('vector-done').onclick=()=>{
   closeVectorEditor();buttonState();
@@ -878,7 +897,23 @@ $('vector-reset').onclick=()=>{
 document.addEventListener('keydown',event=>{
   if(!editorActive || event.target.closest('input,select,textarea') || event.altKey)return;
   const key=event.key.toLowerCase();
-  if((event.metaKey||event.ctrlKey)&&key==='z'){
+  if(editorPointMode && editorPointSelection && !event.metaKey && !event.ctrlKey &&
+     ['arrowleft','arrowright','arrowup','arrowdown'].includes(key)){
+    const doc=currentVectorEditor();
+    const shape=doc?.shapes.find(s=>s.id===editorSelection&&!s.hidden);
+    const node=shape && vectorPathPoints(shape.d,480).nodes.find(node=>
+      node.index===editorPointSelection.index && node.role===editorPointSelection.role);
+    if(node){
+      const delta=event.shiftKey ? .25 : 1;
+      const dx=key==='arrowleft'?-delta:key==='arrowright'?delta:0;
+      const dy=key==='arrowup'?-delta:key==='arrowdown'?delta:0;
+      const d=moveVectorPathPoint(shape.d,node.index,node.role,node.x+dx,node.y+dy);
+      if(modifyVectorShape(doc,shape.id,{d}))afterShapeEdit();
+      event.preventDefault();
+    }
+  }else if(!event.metaKey && !event.ctrlKey && ['[',']'].includes(key)){
+    event.preventDefault();nextEditorShape(key===']'?1:-1);
+  }else if((event.metaKey||event.ctrlKey)&&key==='z'){
     event.preventDefault();
     if(event.shiftKey)$('vector-redo').click();
     else $('vector-undo').click();
