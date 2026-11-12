@@ -1,23 +1,41 @@
 import fs from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
+
 const { version } = JSON.parse(await fs.readFile('package.json', 'utf8'));
 if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Invalid release version.');
 const tag = `v${version}`;
-const existing = spawnSync('gh', ['release', 'view', tag], { stdio: 'pipe' });
-if (existing.status === 0) { console.log(`Release ${tag} already exists.`); process.exit(0); }
-const files = (await fs.readdir('release-assets')).filter(file => /\.(zip|dmg|exe|json|txt)$/.test(file));
-if (!files.some(file => file.includes('win-x64')) || !files.some(file => file.includes('mac-x64')) || !files.some(file => file.includes('mac-arm64'))) throw new Error('Windows or macOS packages are missing.');
-if (!files.some(file => file.endsWith('-Setup.exe'))) throw new Error('Windows installer is missing.');
-for (const required of [`Chomp-${version}-win-x64-Setup.zip`, `Chomp-${version}-win-x64-Portable.zip`, `Chomp-${version}-win-x64.zip`, 'Chomp-Windows-Signing-Kit.zip']) {
-  if (!files.includes(required)) throw new Error(`Windows download with signing instructions is missing: ${required}`);
+
+function gh(...args) {
+  const result = spawnSync('gh', args, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
+  if (result.status !== 0) throw new Error(`gh ${args[0]} failed: ${result.stderr || result.stdout || result.error?.message}`);
+  return result.stdout.trim();
 }
-const result = spawnSync('gh', ['release', 'create', tag, ...files.map(file => `release-assets/${file}`), '--target', process.env.GITHUB_SHA, '--title', `Chomp ${version}`, '--notes-file', 'RELEASE_NOTES.md'], { stdio: 'inherit' });
-if (result.status !== 0) process.exit(result.status || 1);
-const list = spawnSync('gh', ['release', 'list', '--limit', '100', '--json', 'name,tagName'], { encoding: 'utf8' });
-if (list.status !== 0) throw new Error('Could not list old releases for cleanup.');
-for (const old of JSON.parse(list.stdout)) {
-  if (old.tagName !== tag && /gatorsqoosh/i.test(old.name)) {
-    const removed = spawnSync('gh', ['release', 'delete', old.tagName, '--yes'], { stdio: 'inherit' });
-    if (removed.status !== 0) throw new Error(`Could not remove old release ${old.tagName}`);
-  }
+
+const state = JSON.parse(gh('release', 'view', tag, '--json', 'assets,isDraft,tagName'));
+if (state.tagName !== tag) throw new Error('Unexpected release tag.');
+if (!state.isDraft) {
+  console.log(`Release ${tag} is already published.`);
+  process.exit(0);
 }
+
+const required = [
+  `Chomp-${version}-mac-x64.dmg`,
+  `Chomp-${version}-mac-x64.zip`,
+  `Chomp-${version}-mac-arm64.dmg`,
+  `Chomp-${version}-mac-arm64.zip`,
+  `Chomp-${version}-win-x64-Setup.exe`,
+  `Chomp-${version}-win-x64-Portable.exe`,
+  `Chomp-${version}-win-x64-Setup.zip`,
+  `Chomp-${version}-win-x64-Portable.zip`,
+  `Chomp-${version}-win-x64.zip`,
+  'Chomp-Windows-Signing-Kit.zip',
+];
+const assets = new Map((state.assets || []).map(asset => [asset.name, asset]));
+const missing = required.filter(name => !assets.has(name) || (typeof assets.get(name).size === 'number' && assets.get(name).size < 1));
+if (missing.length) throw new Error('Refusing to publish incomplete release. Missing or empty assets: ' + missing.join(', '));
+
+console.log(`Validated ${required.length} required Windows/macOS files (${assets.size} uploaded assets total).`);
+gh('release', 'edit', tag, '--draft=false', '--title', `Chomp ${version}`, '--notes-file', 'RELEASE_NOTES.md');
+const confirmed = JSON.parse(gh('release', 'view', tag, '--json', 'isDraft,url'));
+if (confirmed.isDraft) throw new Error('Release remains a draft after publishing request.');
+console.log(`Published Chomp ${version}: ${confirmed.url}`);

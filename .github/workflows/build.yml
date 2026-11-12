@@ -10,8 +10,48 @@ concurrency:
   group: chomp-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  prepare-release:
+    # Run only for trusted main/tag workflows, never for pull requests.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.prepare.outputs.tag }}
+      skip: ${{ steps.prepare.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create or resume an unpublished release
+        id: prepare
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          tag="v${version}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" != "$tag" ]]; then
+            echo "Tag does not match package version: $GITHUB_REF_NAME vs $tag" >&2
+            exit 1
+          fi
+          if gh release view "$tag" --json isDraft >/dev/null 2>&1; then
+            draft="$(gh release view "$tag" --json isDraft --jq '.isDraft')"
+            if [[ "$draft" != "true" ]]; then
+              echo "Release $tag is already published. Skipping duplicate build."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "Resuming draft $tag."
+          else
+            gh release create "$tag" --draft --target "$GITHUB_SHA" --title "Chomp $version" --notes-file RELEASE_NOTES.md
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
   build:
-    timeout-minutes: 30
+    needs: prepare-release
+    if: needs.prepare-release.outputs.skip != 'true'
+    permissions:
+      contents: write
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       matrix:
@@ -98,27 +138,49 @@ jobs:
         if: runner.os == 'Windows'
         shell: powershell
         run: ./scripts/defender-scan.ps1
-      - uses: actions/upload-artifact@v4
-        with:
-          name: packages-${{ matrix.platform }}-${{ matrix.arch }}
-          path: |
-            release/*-Setup.exe
-            release/*-Portable.exe
-            release/Defender-*.json
-            release/Defender-*.txt
-            release/*.zip
-            release/*.dmg
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: verification-${{ matrix.platform }}-${{ matrix.arch }}
-          path: |
-            test-results/*.png
-          if-no-files-found: ignore
+      # Direct GitHub Release uploads bypass actions/upload-artifact's failing artifact API.
+      # Each asset is uploaded only after packaging and signature/runtime checks pass.
+      - name: Upload verified packages to the draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
+        run: |
+          shopt -s nullglob
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            files=(release/*.dmg release/*.zip)
+          else
+            files=(release/*-Setup.exe release/*-Portable.exe release/*.zip release/Defender-*.json release/Defender-*.txt)
+          fi
+          if (( ${#files[@]} == 0 )); then
+            echo "No distributable packages found" >&2
+            exit 1
+          fi
+          for file in "${files[@]}"; do
+            if [[ ! -s "$file" ]]; then
+              echo "Missing or empty package: $file" >&2
+              exit 1
+            fi
+            echo "::group::Upload $(basename "$file")"
+            uploaded=false
+            for attempt in 1 2 3; do
+              if gh release upload "$RELEASE_TAG" "$file" --clobber; then
+                uploaded=true
+                break
+              fi
+              echo "::warning::Upload attempt $attempt failed for $(basename "$file")"
+              sleep $((attempt * 10))
+            done
+            if [[ "$uploaded" != "true" ]]; then
+              echo "Failed to upload package after retries: $file" >&2
+              exit 1
+            fi
+            echo "::endgroup::"
+          done
   release:
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    needs: [prepare-release, build]
+    if: needs.prepare-release.outputs.skip != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -127,13 +189,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: packages-*
-          path: release-assets
-          merge-multiple: true
-      - run: node scripts/release.mjs
+      # The release stays a draft until every expected Mac/Windows asset exists.
+      - name: Verify all package uploads and publish Chomp
+        run: node scripts/release.mjs
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-
