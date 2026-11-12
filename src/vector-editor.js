@@ -3,6 +3,7 @@
  * Accepts only the restricted path-only SVG emitted by Chomp's own editable
  * tracer. It never parses arbitrary uploaded SVGs or inserts SVG markup as HTML.
  */
+import { parseVectorPath } from './vector-path.js';
 const SVG_ROOT = /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="(\d+)" height="(\d+)" viewBox="0 0 (\d+) (\d+)">([\s\S]*)<\/svg>$/;
 const SVG_PATH = /<path data-chomp-shape="(s\d+)" fill="(#[\da-fA-F]{6})"(?: fill-opacity="(0?\.\d+|1(?:\.0+)?)")? fill-rule="evenodd" d="([^"]+)"\/>/g;
 const VALID_PATH = /^[MmLlCcHhVvZz0-9+.,\-\seE]+$/;
@@ -38,7 +39,7 @@ export function openVectorDocument(svgText) {
   if (contents.replace(SVG_PATH, '') !== '') throw new Error('Unexpected SVG content.');
   return {
     width, height, boxWidth, boxHeight, shapes,
-    baseline: shapes.map(s => ({ fill: s.fill, hidden: false })),
+    baseline: shapes.map(s => ({ fill: s.fill, hidden: false, d: s.d })),
     undoStack: [], redoStack: []
   };
 }
@@ -52,9 +53,12 @@ function findShape(doc, id) {
 function nextShapeState(shape, changes) {
   const fill = changes && changes.fill !== undefined ? changes.fill : shape.fill;
   const hidden = changes && changes.hidden !== undefined ? changes.hidden : shape.hidden;
-  if (typeof fill !== 'string' || !VALID_COLOR.test(fill) || typeof hidden !== 'boolean')
+  const d = changes && changes.d !== undefined ? changes.d : shape.d;
+  if (typeof fill !== 'string' || !VALID_COLOR.test(fill) || typeof hidden !== 'boolean' ||
+      typeof d !== 'string' || d.length > 2_000_000 || !VALID_PATH.test(d))
     throw new Error('Invalid shape edit.');
-  return { fill: fill.toLowerCase(), hidden };
+  if(d !== shape.d) parseVectorPath(d);
+  return { fill: fill.toLowerCase(), hidden, d };
 }
 
 /** Apply one atomic edit to multiple shapes with a single undo/redo action. */
@@ -65,10 +69,11 @@ export function modifyVectorShapes(doc, ids, changes) {
   // Validate the entire transaction before changing any state.
   const actions = ids.map(id => {
     const shape = findShape(doc, id);
-    const previous = { fill: shape.fill, hidden: shape.hidden };
+    const previous = { fill: shape.fill, hidden: shape.hidden, d: shape.d };
     const next = nextShapeState(shape, changes);
     return { id, previous, next };
-  }).filter(a => a.previous.fill !== a.next.fill || a.previous.hidden !== a.next.hidden);
+  }).filter(a => a.previous.fill !== a.next.fill ||
+    a.previous.hidden !== a.next.hidden || a.previous.d !== a.next.d);
   if (!actions.length) return false;
   for (const action of actions) Object.assign(findShape(doc, action.id), action.next);
   doc.undoStack.push(actions);
@@ -122,7 +127,8 @@ export function resetVectorEdits(doc) {
 
 export function hasVectorEdits(doc) {
   return doc.shapes.some((shape, i) =>
-    shape.fill !== doc.baseline[i].fill || shape.hidden !== doc.baseline[i].hidden);
+    shape.fill !== doc.baseline[i].fill || shape.hidden !== doc.baseline[i].hidden ||
+    shape.d !== doc.baseline[i].d);
 }
 
 export function serializeVectorDocument(doc) {
