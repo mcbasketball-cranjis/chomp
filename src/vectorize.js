@@ -132,7 +132,7 @@ export function traceImageData(image, options = {}) {
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1 || data.length !== width * height * 4) throw new Error('Invalid RGBA image for tracing.');
   if (width * height > 1_200_000) throw new Error('Image is too large to trace. Reduce the trace resolution.');
   const preset = tracePreset(options.detail);
-  const logo = flatLogoLayers(image, options.detail);
+  const logo = flatLogoLayers(image, options.detail, options.matteColor);
   const palette = logo ? logo.colors : medianCutPalette(data, preset.colors);
   const indices = logo ? logo.indices : new Int16Array(width * height).fill(-1);
   let maxAlpha = 0;
