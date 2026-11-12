@@ -139,11 +139,18 @@ export function flatLogoLayers(image, detail='balanced') {
   const {seeds,maximumAlpha}=clustered;
   const indices=new Int16Array(width*height).fill(-1);
   const support=new Uint32Array(seeds.length);
+  let retainedMattePixels=0;
   for(let i=0;i<indices.length;i++){
     const p=i*4,alpha=data[p+3];
     if(alpha<Math.max(8,maximumAlpha*.34))continue;
     const rgb=colorAt(data,i);
-    if(matteAware&&colorDistance2(rgb,matte)<32*32)continue;
+    if(matteAware&&colorDistance2(rgb,matte)<32*32) {
+      // Edge-only removal intentionally retains enclosed background islands
+      // such as the counters in an O or e. Preserve those as real opaque ink;
+      // "everywhere" mode clears them by removing their alpha beforehand.
+      if(recoveredMatte) { indices[i]=seeds.length; retainedMattePixels++; }
+      continue;
+    }
     let best=-1,bestError=Infinity;
     for(let c=0;c<seeds.length;c++){
       const match=matteAware?lineMatch(rgb,seeds[c],matte):{error:Math.sqrt(colorDistance2(rgb,seeds[c])),coverage:1};
@@ -154,5 +161,6 @@ export function flatLogoLayers(image, detail='balanced') {
   }
   removeSpeckles(indices,width,height,Math.max(2,Math.min(7,Math.round(width*height*.000012))));
   const colors=seeds.map(seed=>[...seed,maximumAlpha]);
+  if(retainedMattePixels)colors.push([...matte,255]);
   return {colors,indices,background:opaqueBackground?matte:null};
 }
