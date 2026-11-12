@@ -164,11 +164,15 @@ export function traceImageData(image, options = {}) {
   }
   const docWidth = Math.max(1, Math.round(options.outputWidth || width));
   const docHeight = Math.max(1, Math.round(options.outputHeight || height));
+  const editable = options.editable === true;
+  let shapeNumber = 0;
   let svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + docWidth + '" height="' + docHeight +
     '" viewBox="0 0 ' + width + ' ' + height + '">';
   if (logo?.background) {
     const hex = '#' + logo.background.map(n => n.toString(16).padStart(2, '0')).join('');
-    svg += '<path fill="' + hex + '" d="M0 0H' + width + 'V' + height + 'H0Z"/>';
+    svg += editable
+      ? '<path data-chomp-shape="s' + shapeNumber++ + '" fill="' + hex + '" fill-rule="evenodd" d="M0 0H' + width + 'V' + height + 'H0Z"/>'
+      : '<path fill="' + hex + '" d="M0 0H' + width + 'V' + height + 'H0Z"/>';
   }
   for (let c = 0; c < palette.length; c++) {
     // When the flat-artwork detector can recover ink coverage, retain the
@@ -177,15 +181,20 @@ export function traceImageData(image, options = {}) {
     const path = logo?.coverage?.[c]
       ? smoothCoverageContours(logo.coverage[c], width, height,
           geometry.coverageTolerance, geometry.coverageMinArea,
-          options.detail === 'detailed' ? .24 : Infinity, geometry.corners)
+          options.detail === 'detailed' ? .24 : Infinity, geometry.corners, editable)
       : smoothColorContours(indices, width, height, c,
           (logo ? Math.min(.65, preset.tolerance) : preset.tolerance) * geometry.toleranceFactor,
-          preset.minArea * geometry.areaFactor, geometry.corners);
-    if (!path) continue;
+          preset.minArea * geometry.areaFactor, geometry.corners, editable);
+    if (!path || (editable && !path.length)) continue;
     const color = palette[c];
     const hex = '#' + color.slice(0, 3).map(n => n.toString(16).padStart(2, '0')).join('');
     const opacity = color[3] < 255 ? ' fill-opacity="' + (color[3] / 255).toFixed(3) + '"' : '';
-    svg += '<path fill="' + hex + '"' + opacity + ' fill-rule="evenodd" d="' + path + '"/>';
+    if (editable) {
+      for (const region of path) {
+        svg += '<path data-chomp-shape="s' + shapeNumber++ + '" fill="' + hex + '"' + opacity + ' fill-rule="evenodd" d="' + region + '"/>';
+        if (svg.length > 12_000_000) throw new Error('Too many vector paths to edit. Reduce tracing detail.');
+      }
+    } else svg += '<path fill="' + hex + '"' + opacity + ' fill-rule="evenodd" d="' + path + '"/>';
     if (svg.length > 12_000_000) throw new Error('Too many vector paths. Try Simple tracing or resize your image.');
   }
   return svg + '</svg>';
