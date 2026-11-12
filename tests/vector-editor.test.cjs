@@ -90,3 +90,68 @@ test('vector cleanup rejects injected markup, invalid colors and missing shapes'
   assert.throws(()=>modifyVectorShape(doc,'s9',{hidden:true}),/Unknown vector shape/);
   assert.equal(doc.shapes[0].fill,'#345678');
 });
+
+test('group recolor and removal remain one undo step and export keeps unaffected fills',async()=>{
+  const {traceImageData}=await tracer;
+  const {openVectorDocument,modifyVectorShapes,matchingShapeIds,vectorPalette,
+    undoVectorEdit,redoVectorEdit,serializeVectorDocument}=await editor;
+  const img=image(110,60);
+  rect(img,5,10,24,28,[210,40,40,255]);
+  rect(img,42,10,24,28,[210,40,40,255]);
+  rect(img,78,10,24,28,[30,70,220,255]);
+  const doc=openVectorDocument(traceImageData(img,{editable:true,detail:'detailed'}));
+  assert.equal(doc.shapes.length,3);
+  const red=doc.shapes.find(x=>x.fill==='#d22828');
+  assert.ok(red);
+  const matching=matchingShapeIds(doc,red.id);
+  assert.equal(matching.length,2);
+  assert.equal(vectorPalette(doc).find(p=>p.fill==='#d22828').count,2);
+  assert.equal(modifyVectorShapes(doc,matching,{fill:'#209d4c'}),true);
+  assert.equal(doc.undoStack.length,1,'one grouped change should have one undo entry');
+  assert.equal(doc.shapes.filter(x=>x.fill==='#209d4c').length,2);
+  assert.equal(undoVectorEdit(doc),true);
+  assert.equal(doc.shapes.filter(x=>x.fill==='#d22828').length,2);
+  assert.equal(redoVectorEdit(doc),true);
+  const green=doc.shapes.find(x=>x.fill==='#209d4c');
+  assert.equal(modifyVectorShapes(doc,matchingShapeIds(doc,green.id),{hidden:true}),true);
+  assert.equal(vectorPalette(doc).length,1);
+  assert.equal(doc.shapes.filter(x=>x.hidden).length,2);
+  assert.equal(undoVectorEdit(doc),true);
+  const output=serializeVectorDocument(doc);
+  assert.equal((output.match(/<path /g)||[]).length,3);
+  assert.match(output,/fill="#1e46dc"/);
+  assert.equal(doc.undoStack.length,1);
+});
+
+test('cleaned SVG with missing shape IDs reopens for further editing',async()=>{
+  const {openVectorDocument,modifyVectorShape,serializeVectorDocument}=await editor;
+  const input='<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">'+
+    '<path data-chomp-shape="s0" fill="#111111" fill-rule="evenodd" d="M1 1L4 1L4 4Z"/>'+
+    '<path data-chomp-shape="s1" fill="#222222" fill-rule="evenodd" d="M5 5L8 5L8 8Z"/>'+
+    '<path data-chomp-shape="s2" fill="#333333" fill-rule="evenodd" d="M9 9L12 9L12 12Z"/></svg>';
+  const doc=openVectorDocument(input);
+  modifyVectorShape(doc,'s1',{hidden:true});
+  const reopened=openVectorDocument(serializeVectorDocument(doc));
+  assert.deepEqual(reopened.shapes.map(x=>x.id),['s0','s2']);
+  modifyVectorShape(reopened,'s2',{fill:'#ffffff'});
+  const reexport=serializeVectorDocument(reopened);
+  assert.match(reexport,/data-chomp-shape="s2" fill="#ffffff"/);
+  assert.ok(!reexport.includes('data-chomp-shape="s1"'));
+  assert.throws(()=>openVectorDocument(input.replace('data-chomp-shape="s1"', 'data-chomp-shape="s0"')),
+    /Invalid editable SVG path/);
+  assert.throws(()=>openVectorDocument(input.replace('data-chomp-shape="s1"', 'data-chomp-shape="s3"')),
+    /Invalid editable SVG path/);
+});
+
+test('group edits validate all shape IDs atomically before any mutation',async()=>{
+  const {openVectorDocument,modifyVectorShapes}=await editor;
+  const doc=openVectorDocument(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12">'+
+    '<path data-chomp-shape="s0" fill="#123456" fill-rule="evenodd" d="M1 1L5 1L5 5Z"/>'+
+    '<path data-chomp-shape="s1" fill="#654321" fill-rule="evenodd" d="M6 6L9 6L9 9Z"/></svg>');
+  assert.throws(()=>modifyVectorShapes(doc,['s0','s999'],{fill:'#ffffff'}),/Unknown vector shape/);
+  assert.equal(doc.shapes[0].fill,'#123456');
+  assert.equal(doc.undoStack.length,0);
+  assert.throws(()=>modifyVectorShapes(doc,['s0','s0'],{hidden:true}),/Invalid shape selection/);
+  assert.equal(doc.shapes[0].hidden,false);
+});
