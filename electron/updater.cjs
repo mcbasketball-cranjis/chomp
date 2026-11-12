@@ -55,7 +55,7 @@ function createUpdateService({ send, canRestart }) {
   let state = {
     version: app.getVersion(),
     mode,
-    status: 'idle',
+    status: mode === 'mac-move' ? 'move-required' : 'idle',
     availableVersion: null,
     progress: 0,
     error: null,
@@ -100,6 +100,7 @@ function createUpdateService({ send, canRestart }) {
 
   async function check() {
     if (mode === 'unavailable') return change({ status: 'unavailable' });
+    if (mode === 'mac-move') return change({ status: 'move-required', error: null });
     if (state.status === 'downloading' || state.status === 'ready') return snapshot();
     if (checking) return checking;
     checking = (async () => {
@@ -135,7 +136,7 @@ function createUpdateService({ send, canRestart }) {
   }
 
   async function download() {
-    if (state.status !== 'available') return snapshot();
+    if (state.status !== 'available' && !(mode === 'mac-move' && state.status === 'move-required')) return snapshot();
     if (mode === 'automatic') {
       if (!updater) throw new Error('Updater unavailable');
       change({ status: 'downloading', progress: 0 });
