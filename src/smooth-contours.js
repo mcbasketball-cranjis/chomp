@@ -49,7 +49,7 @@ function areaOf(points) {
   return Math.abs(area / 2);
 }
 function format(n) { return String(Math.round(n * 100) / 100); }
-function curvePath(points, minCornerLength = 1.65, maxBend = Infinity) {
+function curvePath(points, minCornerLength = 1.65, maxBend = Infinity, cornerSharpness = 50) {
   const n = points.length;
   if (n < 3) return '';
   const tangent = [], corner = [];
@@ -60,7 +60,8 @@ function curvePath(points, minCornerLength = 1.65, maxBend = Infinity) {
     const dot = d1 && d2 ? (dx1 * dx2 + dy1 * dy2) / (d1 * d2) : 1;
     // A long and abrupt turn is intentional (e.g. a square logo corner).
     // Short alternating turns along a diagonal raster edge are not.
-    corner[i] = dot < 0.48 && Math.min(d1, d2) >= minCornerLength;
+    corner[i] = dot < (0.24 + 0.0048 * cornerSharpness) &&
+      Math.min(d1, d2) >= minCornerLength * (1.35 - 0.007 * cornerSharpness);
     const tx = dx1 / (d1 || 1) + dx2 / (d2 || 1);
     const ty = dy1 / (d1 || 1) + dy2 / (d2 || 1);
     const norm = Math.hypot(tx, ty);
@@ -114,7 +115,7 @@ function curvePath(points, minCornerLength = 1.65, maxBend = Infinity) {
   return path + 'Z';
 }
 
-export function smoothColorContours(indices, width, height, color, tolerance, minArea) {
+export function smoothColorContours(indices, width, height, color, tolerance, minArea, cornerSharpness = 50) {
   // One ghost-pixel border lets the contour close naturally at the image edge.
   const stride = width + 2, mask = new Uint8Array((width + 2) * (height + 2));
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
@@ -166,7 +167,7 @@ export function smoothColorContours(indices, width, height, color, tolerance, mi
     }
     if (!closed || ring.length < 3 || areaOf(ring) < minArea) continue;
     const simplified = simplifyRing(ring, tolerance);
-    if (simplified.length >= 3) paths.push(curvePath(simplified));
+    if (simplified.length >= 3) paths.push(curvePath(simplified, 1.65, Infinity, cornerSharpness));
   }
   return paths.join('');
 }
@@ -184,7 +185,7 @@ export function smoothColorContours(indices, width, height, color, tolerance, mi
  * Only use this for the confidently detected flat-logo color layers. Photos,
  * already-transparent art and unrelated color regions keep the binary tracer.
  */
-export function smoothCoverageContours(coverage, width, height, tolerance = .35, minArea = .5, maxCurveBend = Infinity) {
+export function smoothCoverageContours(coverage, width, height, tolerance = .35, minArea = .5, maxCurveBend = Infinity, cornerSharpness = 50) {
   if (!coverage || coverage.length !== width * height) throw new Error('Invalid coverage raster.');
   const stride = width + 2, field = new Float32Array((width + 2) * (height + 2));
   for (let y = 0; y < height; y++) {
@@ -278,7 +279,7 @@ export function smoothCoverageContours(coverage, width, height, tolerance = .35,
     }
     const rectilinear = areaOf(ring) >= 400 && perimeter && axisAligned / perimeter > .88;
     const simplified = simplifyRing(ring, rectilinear ? Math.max(.9, tolerance) : tolerance);
-    if (simplified.length >= 3) paths.push(curvePath(simplified, 1.05, maxCurveBend));
+    if (simplified.length >= 3) paths.push(curvePath(simplified, 1.05, maxCurveBend, cornerSharpness));
   }
   return paths.join('');
 }
