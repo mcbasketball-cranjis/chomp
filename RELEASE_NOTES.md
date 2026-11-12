@@ -1,29 +1,25 @@
-# Chomp 2.1.0
+# Chomp 2.1.1
 
 ## Changes
 
-- **Software Update** in the sidebar. Checks published GitHub Releases on launch and every six hours while Chomp is open.
-- Windows NSIS installs: download an update inside Chomp and apply it when you select **Restart & install**. No restart during image processing.
-- macOS and Windows portable builds: version checks and a direct installer download. In-app replacement on macOS remains disabled until Developer ID signing and notarization are configured.
-- Streamlined interface: shorter labels, no taglines, no redundant helper copy. Destructive operations retain warnings.
-- SHA-512 metadata (`latest.yml`) for the Windows update feed, published alongside the matching NSIS installer.
+- **Compress:** WebP, JPEG, PNG, AVIF, or keep the original format. SVG is no longer offered as a new output format.
+- **Convert:** WebP, JPEG, PNG, and AVIF. SVG files remain supported as inputs for conversion into any raster format.
+- **Vectorize:** actual editable SVG path output. Tracing controls appear only here.
+- Each workspace remembers its chosen output format. In-place folder replacement stays in Compress and preserves original formats; switching to Convert or Vectorize switches to images-only export.
+- No changes to existing SVG transparency preservation, encoding, background removal, or macOS Icon Composer artwork.
 
-**One-time upgrade:** Chomp 2.0.0 does not contain an updater. Install 2.1.0 normally once. Future Windows NSIS releases can update through Chomp.
+## Update test
+
+Chomp 2.1.1 is the first patch release after the 2.1.0 updater. The release pipeline verifies that the Windows installer ships matching SHA-512 update metadata. The post-release updater test checks that an installed Chomp 2.1.0 detects and downloads Chomp 2.1.1 via the public GitHub feed.
+
+On **Windows NSIS installations**, open Updates and select **Check now**, **Download update**, then **Restart & install** when ready. The current 2.1.0 updater performs a non-silent installer launch; follow any installer prompts. Windows portable installations and ad-hoc-signed macOS apps continue to use update notifications and a direct download.
 
 ## Downloads
 
-[Chomp 2.1.0 on GitHub Releases](https://github.com/mcbasketball-cranjis/chomp/releases/tag/v2.1.0) after publication.
+[Chomp 2.1.1 on GitHub Releases](https://github.com/mcbasketball-cranjis/chomp/releases/tag/v2.1.1) once published.
 
-- Apple Silicon: `Chomp-2.1.0-mac-arm64.dmg` or ZIP
-- Intel Mac: `Chomp-2.1.0-mac-x64.dmg` or ZIP
-- Windows: `Chomp-2.1.0-win-x64-Setup.exe` and portable variants
+- Intel Mac: `Chomp-2.1.1-mac-x64.dmg` or ZIP
+- Apple Silicon: `Chomp-2.1.1-mac-arm64.dmg` or ZIP
+- Windows: `Chomp-2.1.1-win-x64-Setup.exe` or portable packages
 
-## macOS signing
-
-Mac packages remain ad-hoc signed and are **not** Apple Developer ID signed or notarized. Gatekeeper may still require approval. The updater only checks and opens the verified published download on macOS; it does not silently replace your app. Signed and notarized automatic Mac updates can be added when developer credentials become available.
-
-## Update security and compatibility
-
-Windows updater metadata includes the installer SHA-512 checksum. Version checks use published GitHub Releases only; draft/prerelease versions are excluded. Windows publisher signature enforcement requires a trusted code-signing certificate, which is not yet configured. Portable Windows builds are excluded from in-place NSIS updates.
-
-All image processing and SVG conversion features are unchanged. Existing data and app preferences remain in place during an installer upgrade.
+macOS installers remain ad-hoc signed, not Apple Developer ID signed or notarized. Gatekeeper may still require manual approval.
