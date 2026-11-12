@@ -164,7 +164,7 @@ export function traceImageData(image, options = {}) {
     // Geometric, transparent and photographic artwork keep the existing tracer.
     const path = logo?.coverage?.[c]
       ? smoothCoverageContours(logo.coverage[c], width, height,
-          options.detail === 'detailed' ? .24 : options.detail === 'simple' ? .7 : .42,
+          options.detail === 'detailed' ? .32 : options.detail === 'simple' ? 1.1 : .8,
           options.detail === 'detailed' ? .35 : preset.minArea)
       : smoothColorContours(indices, width, height, c, logo ? Math.min(.65, preset.tolerance) : preset.tolerance, preset.minArea);
     if (!path) continue;
