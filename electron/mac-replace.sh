@@ -72,6 +72,9 @@ if ! /bin/mv "$NEW" "$TARGET"; then
 fi
 /bin/rm -rf "$TMP"
 
+# In disposable CI only, verify the swap without launching another GUI app.
+if [ "$CHOMP_UPDATE_SKIP_RELAUNCH" = "1" ]; then exit 0; fi
+
 # Relaunch as the logged-in user, never as administrator.
 if [ "$(/usr/bin/id -u)" -eq 0 ]; then
   USERNAME=$(/usr/bin/id -nu "$USER_ID")
