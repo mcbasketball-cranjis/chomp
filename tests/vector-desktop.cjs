@@ -357,8 +357,22 @@ const root = path.resolve(__dirname, '..');
     await page.click('#vector-edit-open');
     await expect(page.locator('#vector-edit-toolbar')).toBeVisible({timeout:45000});
     await expect(page.locator('.vector-edit-svg path')).toHaveCount(2);
+    await expect(page.locator('.vector-palette-swatch')).toHaveCount(1);
+    await expect(page.locator('.vector-palette-swatch small')).toHaveText('2');
     await page.locator('.vector-edit-svg path').first().click();
     await expect(page.locator('#vector-shape-color')).toBeEnabled();
+    await page.check('#vector-match-colors');
+    await page.locator('#vector-shape-color').evaluate(input=>{
+      input.value='#8145a6';
+      input.dispatchEvent(new Event('change',{bubbles:true}));
+    });
+    await expect(page.locator('.vector-edit-svg path[fill="#8145a6"]')).toHaveCount(2);
+    await page.click('#vector-undo');
+    await expect(page.locator('.vector-edit-svg path[fill="#eb4237"]')).toHaveCount(2);
+    await page.click('#vector-redo');
+    await expect(page.locator('.vector-edit-svg path[fill="#8145a6"]')).toHaveCount(2);
+    await page.click('#vector-undo');
+    await page.uncheck('#vector-match-colors');
     await page.locator('#vector-shape-color').evaluate(input=>{
       input.value='#12ab34';
       input.dispatchEvent(new Event('change',{bubbles:true}));
@@ -378,13 +392,34 @@ const root = path.resolve(__dirname, '..');
     await page.click('#vector-done');
     await expect(page.locator('#vector-edit-toolbar')).toBeHidden();
     await page.click('#compress');
-    const cleaned=await fs.readFile(await saved(),'utf8');
+    const cleanedFile=await saved();
+    const cleaned=await fs.readFile(cleanedFile,'utf8');
     assert.ok(cleaned.includes('fill="#12ab34"'),
       'recolored shape must be written to the actual exported SVG');
     assert.ok(!cleaned.includes('data-chomp-shape="s1"'),
       'deleted shape must not reappear in exported SVG');
     assert.equal((cleaned.match(/<path /g)||[]).length,1);
     assert.ok(!cleaned.includes('<image'));
+    // Reopen Chomp's edited SVG with gaps in original path identifiers.
+    await page.click('#clear');
+    await choose([cleanedFile]);await page.click('#add');
+    await selectFormat('svg');
+    await expect(page.locator('#vector-edit-open')).toBeVisible({timeout:45000});
+    await page.click('#vector-edit-open');
+    await expect(page.locator('.vector-edit-svg path')).toHaveCount(1);
+    await page.locator('.vector-edit-svg path').first().click();
+    await page.locator('#vector-shape-color').evaluate(input=>{
+      input.value='#105abb';
+      input.dispatchEvent(new Event('change',{bubbles:true}));
+    });
+    await page.click('#vector-done');
+    await page.click('#compress');
+    const reedited=await fs.readFile(await saved(),'utf8');
+    assert.match(reedited,/fill="#105abb"/);
+    assert.ok(!reedited.includes('fill="#12ab34"'));
+    assert.ok(!reedited.includes('data-chomp-shape="s1"'));
+    assert.deepEqual(await fs.readFile(cleanedFile,'utf8'),cleaned,
+      'reopening must not modify its source vector file');
 
     assert.deepEqual(await fs.readFile(transparent), before);
     assert.deepEqual(await fs.readFile(whiteJpeg), Buffer.from(jpegSamples[0], 'base64'));
