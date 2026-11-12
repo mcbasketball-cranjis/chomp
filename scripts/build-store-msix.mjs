@@ -13,15 +13,18 @@ const fixture = process.argv.includes('--ci-fixture');
 const reservedIdentity = JSON.parse(await fs.readFile('store/identity.json','utf8'));
 const identity = {
   name: fixture ? 'Chomp.CIPackagingTest' : process.env.CHOMP_STORE_PACKAGE_NAME || reservedIdentity.name,
+  displayName: fixture ? 'Chomp CI Packaging Test' : reservedIdentity.displayName,
   publisher: fixture ? 'CN=Chomp CI Packaging Test' : process.env.CHOMP_STORE_PUBLISHER || reservedIdentity.publisher,
   publisherDisplayName: fixture ? 'Chomp CI Packaging Test' : process.env.CHOMP_STORE_PUBLISHER_DISPLAY_NAME || reservedIdentity.publisherDisplayName
 };
-if (!identity.name || !identity.publisher || !identity.publisherDisplayName)
+if (!identity.name || !identity.displayName || !identity.publisher || !identity.publisherDisplayName)
   throw new Error('Set CHOMP_STORE_PACKAGE_NAME, CHOMP_STORE_PUBLISHER and CHOMP_STORE_PUBLISHER_DISPLAY_NAME from Partner Center > Product identity.');
 if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]{2,49}$/.test(identity.name) || /[.]$|[.]{2}/.test(identity.name))
   throw new Error('Invalid Store Package Identity Name.');
 if (!/^CN=[^<>"\r\n]{2,}/i.test(identity.publisher) || identity.publisher.length > 512)
   throw new Error('Invalid Store Publisher distinguished name.');
+if (identity.displayName.length > 256 || /[\u0000-\u001f]/.test(identity.displayName))
+  throw new Error('Invalid or unreserved Store app display name.');
 if (identity.publisherDisplayName.length > 256 || /[\u0000-\u001f]/.test(identity.publisherDisplayName))
   throw new Error('Invalid publisher display name.');
 const xml=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
@@ -67,7 +70,7 @@ try{
     '  <Identity Name="'+xml(identity.name)+'" Publisher="'+xml(identity.publisher)+'"',
     '    Version="'+pkg.version+'.0" ProcessorArchitecture="x64" />',
     '  <Properties>',
-    '    <DisplayName>Chomp</DisplayName>',
+    '    <DisplayName>'+xml(identity.displayName)+'</DisplayName>',
     '    <PublisherDisplayName>'+xml(identity.publisherDisplayName)+'</PublisherDisplayName>',
     '    <Description>Local image compression and vector tracing</Description>',
     '    <Logo>Assets\\StoreLogo.png</Logo>',
@@ -77,7 +80,7 @@ try{
     '    MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" /></Dependencies>',
     '  <Applications><Application Id="Chomp" Executable="Chomp.exe"',
     '    uap10:RuntimeBehavior="packagedClassicApp" uap10:TrustLevel="mediumIL">',
-    '    <uap:VisualElements DisplayName="Chomp" Description="Local image compression and vector tracing"',
+    '    <uap:VisualElements DisplayName="'+xml(identity.displayName)+'" Description="Local image compression and vector tracing"',
     '      BackgroundColor="transparent" Square150x150Logo="Assets\\Square150x150Logo.png"',
     '      Square44x44Logo="Assets\\Square44x44Logo.png">',
     '      <uap:DefaultTile Wide310x150Logo="Assets\\Wide310x150Logo.png"/>',
@@ -99,7 +102,9 @@ try{
     await fs.access(path.join(check,file));
   }
   const result=await fs.readFile(path.join(check,'AppxManifest.xml'),'utf8');
-  if(!result.includes('Name="'+xml(identity.name)+'"')||
+  if(!result.includes('<DisplayName>'+xml(identity.displayName)+'</DisplayName>')||
+     !result.includes('<uap:VisualElements DisplayName="'+xml(identity.displayName)+'"')||
+     !result.includes('Name="'+xml(identity.name)+'"')||
      !result.includes('Publisher="'+xml(identity.publisher)+'"')||
      !result.includes('<PublisherDisplayName>'+xml(identity.publisherDisplayName)+'</PublisherDisplayName>'))
     throw new Error('Packaged MSIX manifest identity mismatch.');
