@@ -13,7 +13,7 @@ const work = path.join(root, 'test-results');
     const page = await app.firstWindow(); await page.waitForSelector('#compress');
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     const updateState = await page.evaluate(() => window.desktop.getUpdateState());
-    assert.match(updateState.version, /^2\\.1\\.0$/);
+    assert.equal(updateState.version, '2.1.0');
     assert.ok(['manual', 'automatic', 'unavailable'].includes(updateState.mode));
     await page.click('#updates-open');
     await expect(page.locator('#updates-modal')).toBeVisible();
