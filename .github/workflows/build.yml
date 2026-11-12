@@ -151,7 +151,7 @@ jobs:
           if [[ "$RUNNER_OS" == "macOS" ]]; then
             files=(release/*.dmg release/*.zip)
           else
-            files=(release/*-Setup.exe release/*-Portable.exe release/*.zip release/Defender-*.json release/Defender-*.txt)
+            files=(release/*-Setup.exe release/*-Portable.exe release/*.zip release/*.yml release/Defender-*.json release/Defender-*.txt)
           fi
           if (( ${#files[@]} == 0 )); then
             echo "No distributable packages found" >&2
