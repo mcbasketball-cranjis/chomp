@@ -34,7 +34,7 @@ function macInstallMode() {
   if (!bundle) return 'unavailable';
   // An app launched directly from a mounted DMG cannot be replaced. Electron
   // can offer a one-click move to Applications, then restart the app.
-  return bundle.startsWith('/Volumes/') ? 'mac-move' : 'mac';
+  return bundle.startsWith('/Volumes/') || bundle.includes('/AppTranslocation/') ? 'mac-move' : 'mac';
 }
 
 async function command(program, args, timeout = 100000) {
