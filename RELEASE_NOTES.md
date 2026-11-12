@@ -1,28 +1,28 @@
-# Chomp 2.1.2
+# Chomp 2.1.3
 
-## Mac updates without the browser
+## Smoother SVG vector tracing
 
-- **Chomp now downloads macOS updates inside the app** instead of opening Safari and requiring a DMG drag-and-drop each time.
-- Published GitHub Release assets are selected for Intel or Apple Silicon, verified against their GitHub SHA-256 digest, extracted, and checked for a valid macOS code signature, expected bundle identifier, version, and CPU architecture.
-- Once the update is prepared, choose **Restart & install**. Chomp replaces the installed .app and relaunches automatically; the previous version is kept as a hidden rollback backup.
-- If the application is protected by macOS permissions, an administrator authentication prompt may appear. Chomp never receives your macOS password.
-- If launched directly from a DMG or App Translocation, Chomp offers to move into Applications and relaunch before trying to update.
+- Generate smoother, editable SVG contours with subpixel edge tracing and cubic Bézier curves instead of visible pixel-grid stair steps.
+- Keep intentional sharp corners on logos and artwork; simplify unnecessary edge nodes.
+- Better handle antialiased colors and semi-transparent edges while preserving transparent backgrounds and letterform counters.
+- Keep SVG-to-raster conversion and direct SVG passthrough intact.
 
-**One-time installation:** Chomp 2.1.1 and earlier do not contain this Mac installer. Install **2.1.2 once** using a DMG or ZIP. Future updates from installed 2.1.2 Mac builds can use the new workflow.
+## Context-aware editing
 
-**Trust limitation:** These Mac builds are still ad-hoc signed and not notarized. This custom updater verifies the GitHub download digest and bundle integrity, but it does not provide the publisher identity assurance of Apple Developer ID signing. When Developer ID signing and notarization become available, switch macOS to the standard Electron updater with matching Team ID.
+- Show folder-processing choices only when a genuine folder-only batch is selected, instead of showing them while editing individual images.
+- Hide irrelevant tracing, compression quality, and size-cap controls based on the operation and output format.
+- Add obvious **Clear all** and **New batch** controls, including directly on the finished-batch summary.
+- Reset folder import handling to preserve non-image files when duplicating a folder, and release stale folder roots when their final image is removed.
 
-## Windows
+## Compatibility and updates
 
-- Windows NSIS automatic updates, checksum validation, and silent restart-and-install remain available.
-- Windows portable builds still require manual replacement.
+- No new dependencies. Existing Windows and macOS installers and in-app updater remain unchanged.
+- macOS builds remain ad-hoc signed until Developer ID signing and notarization are configured.
 
 ## Downloads
 
-[Chomp 2.1.2 on GitHub Releases](https://github.com/mcbasketball-cranjis/chomp/releases/tag/v2.1.2) after publication.
+[Chomp 2.1.3 on GitHub Releases](https://github.com/mcbasketball-cranjis/chomp/releases/tag/v2.1.3)
 
-- Apple Silicon: `Chomp-2.1.2-mac-arm64.dmg` or ZIP
-- Intel Mac: `Chomp-2.1.2-mac-x64.dmg` or ZIP
-- Windows installer: `Chomp-2.1.2-win-x64-Setup.exe`
-
-Image compression, raster conversion, SVG tracing, transparency and background-removal behavior are unchanged.
+- Apple Silicon: `Chomp-2.1.3-mac-arm64.dmg` or ZIP
+- Intel Mac: `Chomp-2.1.3-mac-x64.dmg` or ZIP
+- Windows: `Chomp-2.1.3-win-x64-Setup.exe` or portable build
