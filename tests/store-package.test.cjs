@@ -16,3 +16,12 @@ test('Store builds are detected independently of normal NSIS downloads', () => {
     assert.equal(isStorePackage('win32', executable, false), true);
   } finally { fs.rmSync(root, { recursive:true, force:true }); }
 });
+
+test('reserved Microsoft Store identity is complete and unchanged', () => {
+  const identity = JSON.parse(fs.readFileSync(path.join(__dirname, '../store/identity.json'), 'utf8'));
+  assert.deepEqual(identity, {
+    name: 'CranjisMcBasketball.ChompImageConverter',
+    publisher: 'CN=5CADBE67-B82C-4702-A7DC-41355D6CC8AF',
+    publisherDisplayName: 'Cranjis McBasketball'
+  });
+});

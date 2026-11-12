@@ -8,10 +8,13 @@ import sharp from 'sharp';
 // The pinned electron-builder v26 lacks the native v27 MSIX target.
 if (process.platform !== 'win32') throw new Error('MSIX packaging requires Windows and the Windows SDK.');
 const fixture = process.argv.includes('--ci-fixture');
+// Product identity is public: keeping it in source ensures every Store build
+// (including unattended release builds) matches the reserved Partner Center app.
+const reservedIdentity = JSON.parse(await fs.readFile('store/identity.json','utf8'));
 const identity = {
-  name: fixture ? 'Chomp.CIPackagingTest' : process.env.CHOMP_STORE_PACKAGE_NAME,
-  publisher: fixture ? 'CN=Chomp CI Packaging Test' : process.env.CHOMP_STORE_PUBLISHER,
-  publisherDisplayName: fixture ? 'Chomp CI Packaging Test' : process.env.CHOMP_STORE_PUBLISHER_DISPLAY_NAME
+  name: fixture ? 'Chomp.CIPackagingTest' : process.env.CHOMP_STORE_PACKAGE_NAME || reservedIdentity.name,
+  publisher: fixture ? 'CN=Chomp CI Packaging Test' : process.env.CHOMP_STORE_PUBLISHER || reservedIdentity.publisher,
+  publisherDisplayName: fixture ? 'Chomp CI Packaging Test' : process.env.CHOMP_STORE_PUBLISHER_DISPLAY_NAME || reservedIdentity.publisherDisplayName
 };
 if (!identity.name || !identity.publisher || !identity.publisherDisplayName)
   throw new Error('Set CHOMP_STORE_PACKAGE_NAME, CHOMP_STORE_PUBLISHER and CHOMP_STORE_PUBLISHER_DISPLAY_NAME from Partner Center > Product identity.');
@@ -96,8 +99,10 @@ try{
     await fs.access(path.join(check,file));
   }
   const result=await fs.readFile(path.join(check,'AppxManifest.xml'),'utf8');
-  if(!result.includes('Name="'+xml(identity.name)+'"')||!result.includes('Publisher="'+xml(identity.publisher)+'"'))
-    throw new Error('Package identity mismatch.');
+  if(!result.includes('Name="'+xml(identity.name)+'"')||
+     !result.includes('Publisher="'+xml(identity.publisher)+'"')||
+     !result.includes('<PublisherDisplayName>'+xml(identity.publisherDisplayName)+'</PublisherDisplayName>'))
+    throw new Error('Packaged MSIX manifest identity mismatch.');
   console.log('PASS: '+(fixture?'CI fixture':'Store upload')+' MSIX: '+output+' ('+Math.round(stat.size/1048576)+' MiB)');
   console.log('This MSIX is unsigned for Microsoft Store submission, not direct sideloading.');
 }finally{

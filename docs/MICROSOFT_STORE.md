@@ -8,25 +8,28 @@ This repo uses the Windows SDK `makeappx.exe` to produce a native `.msix`.
 The pinned electron-builder 26 remains unchanged. The ordinary installers
 are also unchanged.
 
-## Obtain the Store identity
+## Configured Partner Center identity
 
-1. Create a developer account at https://storedeveloper.microsoft.com.
-2. In Partner Center, reserve **Chomp** as an **MSIX/PWA** app, if available.
-3. Open **Product management → Product identity** for the reserved app.
-4. Copy these values exactly (do not guess or substitute company names):
-   - `Package/Identity/Name` → `CHOMP_STORE_PACKAGE_NAME`
-   - `Package/Identity/Publisher` → `CHOMP_STORE_PUBLISHER` (an X.509 distinguished name)
-   - `Package/Properties/PublisherDisplayName` → `CHOMP_STORE_PUBLISHER_DISPLAY_NAME`
+Chomp's real Partner Center identity is committed in
+[`store/identity.json`](../store/identity.json), using the exact values supplied
+for its reserved Microsoft Store product:
 
-Microsoft checks package identity during submission. A package created with
-a placeholder identity will **not** be accepted for your Store listing.
+- Package/Identity/Name: `CranjisMcBasketball.ChompImageConverter`
+- Package/Identity/Publisher: `CN=5CADBE67-B82C-4702-A7DC-41355D6CC8AF`
+- Package/Properties/PublisherDisplayName: `Cranjis McBasketball`
+
+These are public package identifiers, not passwords or signing credentials.
 
 ## Build the Store package on GitHub
 
-Open **Actions → Build Microsoft Store MSIX → Run workflow** on `main`.
-Enter the three Partner Center values. This Windows job builds and validates
-an unsigned `.msix`, then attaches it to the corresponding Chomp GitHub Release
-as `Chomp-<version>-win-x64-Store-unsigned.msix`.
+When this identity is first merged into `main`, the **Build Microsoft Store
+MSIX** GitHub Actions workflow runs automatically. For later rebuilds, open
+**Actions → Build Microsoft Store MSIX → Run workflow** on `main`. It no longer
+requires manually entering the identity each time.
+
+The Windows job builds and validates an unsigned `.msix`, then attaches it
+to the corresponding Chomp GitHub Release as
+`Chomp-<version>-win-x64-Store-unsigned.msix`.
 
 Upload the `.msix` to the **Packages** section of the Partner Center
 submission. Once certified, Microsoft signs and hosts the Store-distributed
@@ -36,21 +39,14 @@ The GitHub release's `-Store-unsigned.msix` is **for submission**, not a
 click-to-install download for normal Windows users. Windows requires trusted
 signatures for MSIX installation outside the Store.
 
-For future Chomp releases you can optionally set these **repository variables**
-under GitHub **Settings → Secrets and variables → Actions → Variables**:
-
-- `CHOMP_STORE_PACKAGE_NAME`
-- `CHOMP_STORE_PUBLISHER`
-- `CHOMP_STORE_PUBLISHER_DISPLAY_NAME`
-
-Once configured, the normal Windows release job builds and uploads the MSIX
-automatically on **new versioned releases**. It does not modify an already
-published release or use a guessed Store identity.
+Future versioned releases automatically build and upload an MSIX using
+`store/identity.json`, without requiring extra GitHub repository variables.
+The build script permits explicit `CHOMP_STORE_...` environment overrides,
+but they must also match the identity of the intended Store listing.
 
 ## Build locally on Windows
 
-Run `pnpm install`, then set all three `CHOMP_STORE_...` environment
-variables to your actual identity and run:
+Run `pnpm install`, then build the MSIX with the committed identity:
 
 ```powershell
 pnpm dist:store
