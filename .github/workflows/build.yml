@@ -8,7 +8,8 @@ permissions:
   contents: read
 concurrency:
   group: chomp-${{ github.ref }}
-  cancel-in-progress: true
+  # Do not cancel queued Windows jobs when a new commit is pushed.
+  cancel-in-progress: false
 jobs:
   prepare-release:
     # Run only for trusted main/tag workflows, never for pull requests.
@@ -56,7 +57,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
+          - os: windows-2022
             platform: win
             arch: x64
             command: dist:win
