@@ -34,7 +34,7 @@ document.querySelector('#app').innerHTML = `
       <button type="button" id="add-folder" class="add-folder">${icon('folder')} Add folder</button>
     </div>
     <div class="queue-footer"><span id="total">No images added yet</span><button id="clear" class="text-button" disabled>Clear all</button></div>
-    <div class="sidebar-updates"><button id="updates-open" type="button" aria-haspopup="dialog">${icon('refresh')}<span>Updates</span><span id="update-indicator" hidden></span></button><span id="app-version">v2.1.0</span></div>
+    <div class="sidebar-updates"><button id="updates-open" type="button" aria-haspopup="dialog">${icon('refresh')}<span>Updates</span><span id="update-indicator" hidden></span></button><span id="app-version">v2.1.1</span></div>
   </aside>
   <main class="main-content">
     <header class="intro"><h1 id="workspace-title">Compress</h1><div class="header-actions"><button type="button" class="button secondary" id="add">${icon('upload')} Add images</button></div></header>
@@ -108,7 +108,7 @@ document.querySelector('#app').innerHTML = `
     <section class="updates-dialog" role="dialog" aria-modal="true" aria-labelledby="updates-heading">
       <header class="updates-dialog-header"><h2 id="updates-heading">Software Update</h2><button id="updates-close" type="button" aria-label="Close">×</button></header>
       <div class="updates-dialog-body">
-        <div class="updates-version" id="updates-version">Chomp 2.1.0</div>
+        <div class="updates-version" id="updates-version">Chomp 2.1.1</div>
         <p id="updates-message">Check for updates.</p>
         <div class="updates-progress" id="updates-progress-wrap" hidden><progress max="100" value="0" id="updates-progress"></progress><span id="updates-percent"></span></div>
         <p id="updates-warning" class="updates-warning" hidden></p>
@@ -131,6 +131,22 @@ let workspaceMode='compress',selectedId=null,previewTimer=null,previewVersion=0,
 const MIME={jpg:'image/jpeg',png:'image/png',svg:'image/svg+xml',webp:'image/webp',avif:'image/avif'};
 const workspaceCopy={compress:['Compress','Compression'],convert:['Convert','Conversion'],vectorize:['Vectorize','Vectorization']};
 const preferredFormats={compress:'webp',convert:'png',vectorize:'svg'};
+// The input formats are intentionally shared, including SVG. These lists only
+// restrict OUTPUT choices, so SVG -> PNG/JPEG/WebP/AVIF remains possible in Convert.
+const outputFormats={
+  compress:['original','webp','jpg','png','avif'],
+  convert:['webp','jpg','png','avif'],
+  vectorize:['svg']
+};
+const optionLabels=new Map([...$('format').options].map(option=>[option.value,option.textContent]));
+function syncOutputFormats(){
+  const values=mode()==='replace'?['original']:outputFormats[workspaceMode];
+  const requested=mode()==='replace'?'original':preferredFormats[workspaceMode];
+  $('format').replaceChildren(...values.map(value=>new Option(optionLabels.get(value),value)));
+  $('format').value=values.includes(requested)?requested:values[0];
+  $('format').disabled=mode()==='replace';
+  $('format').onchange();
+}
 function selectedItem(){return items.find(item=>item.id===selectedId)||null;}
 function releasePreviewUrls(){
   if(previewOriginalUrl)URL.revokeObjectURL(previewOriginalUrl);
@@ -209,7 +225,10 @@ async function renderPreview(){
 }
 function setWorkspace(next){
   if(running||!workspaceCopy[next])return;
-  if(workspaceMode!==next&&!$('format').disabled)preferredFormats[workspaceMode]=$('format').value;
+  // Replacing in place must keep the original file format. Switching to a
+  // conversion workspace uses images-only export instead of overwriting.
+  if(next!=='compress'&&mode()==='replace')
+    document.querySelector('[name="folder-mode"][value="images"]').checked=true;
   workspaceMode=next;
   const [title,settingsTitle]=workspaceCopy[next];
   $('workspace-title').textContent=title;$('settings-title').textContent=settingsTitle;
@@ -217,8 +236,7 @@ function setWorkspace(next){
     el.classList.toggle('active',el.dataset.workspace===next);
     el.setAttribute('aria-current',el.dataset.workspace===next?'page':'false');
   });
-  $('format').value=mode()==='replace'?'original':preferredFormats[next];
-  $('format').onchange();buttonState();
+  syncOutputFormats();buttonState();
 }
 function updatePreviewSplit(){
   const value=$('compare-slider').value;
@@ -311,11 +329,11 @@ document.querySelectorAll('[data-trace]').forEach(el=>el.onclick=()=>{
   queuePreview();
 });
 $('add-folder').onclick = () => api ? importFiles(() => api.pickFolders()) : notice('Open the desktop app to select folders.');
-document.querySelectorAll('[name="folder-mode"]').forEach(el => el.onchange = () => { if(mode()==='replace'){$('format').value='original';workspaceMode='compress';}else if($('format').value==='original')$('format').value=preferredFormats[workspaceMode];$('format').onchange();buttonState(); });
+document.querySelectorAll('[name="folder-mode"]').forEach(el => el.onchange = () => { if(mode()==='replace')setWorkspace('compress');else{syncOutputFormats();buttonState();} });
 window.addEventListener('dragover', e => { e.preventDefault(); if (!running) $('drop').classList.add('dragging'); });
 window.addEventListener('dragleave', e => { if (!e.relatedTarget) $('drop').classList.remove('dragging'); });
 window.addEventListener('drop', async e => { e.preventDefault(); $('drop').classList.remove('dragging'); if (running || !api) return; const files = [...e.dataTransfer.files]; await importFiles(() => api.dropImages(files)); });
-$('clear').onclick = async () => { try { await api.clearInputs(); for (const url of urls) URL.revokeObjectURL(url); urls.clear(); items = []; folderRoots = []; $('queue').replaceChildren(); $('summary').hidden = true; notice(''); selectItem(null); buttonState(); } catch (e) { notice(e.message); } };
+$('clear').onclick = async () => { try { await api.clearInputs(); for (const url of urls) URL.revokeObjectURL(url); urls.clear(); items = []; folderRoots = []; $('queue').replaceChildren(); $('summary').hidden = true; notice(''); syncOutputFormats(); selectItem(null); buttonState(); } catch (e) { notice(e.message); } };
 $('folder').onclick = async () => { if (!api) return; try { const folder = await api.pickOutput(); if (folder) { output = folder; $('folder-label').textContent = folder.split(/[\\/]/).filter(Boolean).pop() || folder; $('folder').title = folder; buttonState(); } } catch (e) { notice(e.message); } };
 function quality() { $('quality-value').innerHTML = `${$('quality').value}<span>%</span>`; document.querySelectorAll('[data-quality]').forEach(el => el.classList.toggle('selected', el.dataset.quality === $('quality').value));queuePreview(); }
 $('quality').oninput = quality;
@@ -335,6 +353,9 @@ $('bg-tolerance').oninput=()=>{$('bg-value').textContent=$('bg-tolerance').value
 $('trace-detail').onchange=queuePreview;
 $('format').onchange = () => {
   const format = $('format').value, lossless = format === 'png' || format === 'svg';
+  // Preserve each workspace's last valid non-destructive output format.
+  if(mode()!=='replace'&&outputFormats[workspaceMode].includes(format))
+    preferredFormats[workspaceMode]=format;
   $('quality').disabled = lossless;
   document.querySelectorAll('[data-quality]').forEach(el => el.disabled = lossless);
   $('quality-value').innerHTML = format === 'svg' ? '<span>Vector</span>' : lossless ? '<span>Lossless</span>' : `${$('quality').value}<span>%</span>`;
@@ -413,7 +434,7 @@ $('compress').onclick = async () => {
     if(selectedItem())queuePreview();
   }
 };
-let updateState = { version: '2.1.0', mode: 'unavailable', status: 'idle', availableVersion: null, progress: 0 };
+let updateState = { version: '2.1.1', mode: 'unavailable', status: 'idle', availableVersion: null, progress: 0 };
 let lastUpdateNotice = '';
 let updateDialogOpen = false;
 let updateReturnFocus = null;
