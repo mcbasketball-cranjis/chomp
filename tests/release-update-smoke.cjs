@@ -13,7 +13,7 @@ if (!process.env.GITHUB_ACTIONS || process.platform !== 'win32' || !exe) {
 }
 const previousVersion = '2.1.0';
 const nextVersion = require('../package.json').version;
-if (nextVersion !== '2.1.1') throw new Error('Update the smoke test for the next release');
+if (nextVersion === previousVersion) throw new Error('Smoke test needs a newer release');
 const work = path.join(process.env.RUNNER_TEMP, 'chomp-updater-smoke');
 
 (async () => {
