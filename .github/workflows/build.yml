@@ -36,6 +36,11 @@ jobs:
             exit 1
           fi
           if gh release view "$tag" --json isDraft >/dev/null 2>&1; then
+            # Previous builds could upload Electron Builder's internal debug YAML.
+            # It is not an installer or update feed; keep public downloads clean.
+            if gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fxq 'builder-debug.yml'; then
+              gh release delete-asset "$tag" 'builder-debug.yml' --yes
+            fi
             draft="$(gh release view "$tag" --json isDraft --jq '.isDraft')"
             if [[ "$draft" != "true" ]]; then
               echo "Release $tag is already published. Skipping duplicate build."
