@@ -126,10 +126,14 @@ function editableRegions(rings) {
   if (rings.length > 2048)
     throw new Error('Too many separate shapes to edit. Reduce tracing detail or increase noise cleanup.');
   const records = rings.map(({ points, path }) => {
-    const xs = points.map(p => p[0]), ys = points.map(p => p[1]);
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    for(const [x,y] of points){
+      if(x<minX)minX=x;if(x>maxX)maxX=x;
+      if(y<minY)minY=y;if(y>maxY)maxY=y;
+    }
     return {
       points, path, area: areaOf(points),
-      bounds: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)],
+      bounds: [minX,minY,maxX,maxY],
       parent: -1, depth: -1, holes: []
     };
   });
