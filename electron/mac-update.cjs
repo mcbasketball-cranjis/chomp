@@ -123,7 +123,7 @@ async function stageMacUpdate(info, onProgress) {
     await verifyMacBundle(newBundle, info.version, info.arch);
     const oldId = await plist(current, 'CFBundleIdentifier');
     if (oldId !== BUNDLE_ID) throw new Error('The running app has a different bundle identifier.');
-    return { root, newBundle, version: info.version, arch: info.arch, target: current };
+    return { root, newBundle, archive, sha256: info.sha256, version: info.version, arch: info.arch, target: current };
   } catch (error) {
     await fsp.rm(root, { recursive: true, force: true }).catch(() => {});
     throw error;
@@ -163,7 +163,8 @@ async function installMacUpdate(stage) {
   const ready = path.join(stage.root, 'prepared');
   const userId = process.getuid();
   const args = [
-    stage.target, stage.newBundle, String(process.pid), ready, stage.version, stage.arch, String(userId)
+    stage.target, stage.archive, stage.sha256, String(process.pid), ready,
+    stage.version, stage.arch, String(userId)
   ];
   const parent = path.dirname(stage.target);
   const needsAdmin = !fs.existsSync(parent) || (() => {
