@@ -234,6 +234,112 @@ function stopPreview(){
   ++previewVersion;clearTimeout(previewTimer);
   if(previewWorker){previewWorker.terminate();previewWorker=null;}
 }
+
+function vectorSignature(){
+  return JSON.stringify({
+    detail:$('trace-detail').value, options:traceControls(),
+    removeBackground:$('remove-bg').checked, tolerance:$('bg-tolerance').value,
+    area:document.querySelector('[name="bg-mode"]:checked').value,
+    background:$('bg-color-source').value==='manual' ? $('bg-color').value : null,
+    resize:$('resize').checked ? $('max-size').value : null
+  });
+}
+function currentVectorEditor(item=selectedItem()){
+  if (!item || !item.vectorEditor || item.vectorEditor.signature!==vectorSignature()) return null;
+  return item.vectorEditor.doc;
+}
+function closeVectorEditor(){
+  editorActive=false;editorPending=false;editorSelection=null;
+  if(editorSvg){editorSvg.remove();editorSvg=null;}
+  $('vector-edit-toolbar').hidden=true;
+  $('preview-stage').classList.remove('editing-vector');
+  $('preview-stage').classList.toggle('result-only', $('result-view').classList.contains('selected'));
+  $('result-img').hidden=!previewResultUrl;
+}
+function editorToolbar(){
+  const doc=currentVectorEditor();
+  const shape=doc?.shapes.find(s=>s.id===editorSelection && !s.hidden);
+  const visible=doc?.shapes.filter(s=>!s.hidden)||[];
+  const position=shape ? visible.indexOf(shape)+1 : 0;
+  $('vector-edit-label').textContent=shape ? 'Shape '+position+' of '+visible.length
+    : visible.length ? 'Select a shape · '+visible.length+' available' : 'No visible shapes';
+  $('vector-shape-color').disabled=!shape;
+  if(shape)$('vector-shape-color').value=shape.fill;
+  $('vector-delete-shape').disabled=!shape;
+  $('vector-undo').disabled=!doc?.undoStack.length;
+  $('vector-redo').disabled=!doc?.redoStack.length;
+  $('vector-reset').disabled=!doc || !hasVectorEdits(doc);
+}
+function renderShapeOverlay(){
+  if(editorSvg){editorSvg.remove();editorSvg=null;}
+  if(!editorActive)return;
+  const doc=currentVectorEditor();
+  if(!doc)return;
+  const svg=document.createElementNS(SVG_NS,'svg');
+  svg.classList.add('vector-edit-svg');
+  svg.setAttribute('viewBox','0 0 '+doc.boxWidth+' '+doc.boxHeight);
+  svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+  svg.setAttribute('aria-label','Select a vector shape to change its color or remove it');
+  for(const shape of doc.shapes){
+    if(shape.hidden)continue;
+    const path=document.createElementNS(SVG_NS,'path');
+    path.setAttribute('d',shape.d);
+    path.setAttribute('fill',shape.fill);
+    path.setAttribute('fill-rule','evenodd');
+    if(shape.opacity!==null)path.setAttribute('fill-opacity',String(shape.opacity));
+    path.setAttribute('data-chomp-shape',shape.id);
+    if(shape.id===editorSelection)path.classList.add('selected-vector-shape');
+    svg.append(path);
+  }
+  svg.addEventListener('click',event=>{
+    if(previewPanMode && previewZoom>1)return;
+    const path=event.target.closest('path[data-chomp-shape]');
+    editorSelection=path?.getAttribute('data-chomp-shape')||null;
+    renderShapeOverlay();
+  });
+  editorSvg=svg;
+  $('result-layer').append(svg);
+  $('result-img').hidden=true;
+  renderZoom();editorToolbar();
+}
+function editedSvgBytes(doc){
+  return new TextEncoder().encode(serializeVectorDocument(doc));
+}
+function refreshEditedPreview(){
+  const doc=currentVectorEditor();
+  if(!doc)return;
+  const data=editedSvgBytes(doc);
+  if(previewResultUrl)URL.revokeObjectURL(previewResultUrl);
+  previewResultUrl=URL.createObjectURL(new Blob([data],{type:'image/svg+xml'}));
+  $('result-img').src=previewResultUrl;
+  $('result-img').hidden=editorActive;
+  $('metric-output').textContent=bytes(data.byteLength);
+  const item=selectedItem();
+  const percent=Math.round((1-data.byteLength/item.size)*100);
+  $('metric-savings').textContent=percent>=0 ? percent+'% smaller' : Math.abs(percent)+'% larger';
+  $('preview-status').textContent=hasVectorEdits(doc) ? 'Edited · ready' : 'Editable preview ready';
+  if(editorActive)renderShapeOverlay();
+}
+function openShapeEditor(){
+  const item=selectedItem();
+  if(!item || running || scanning || editorPending || workspaceMode!=='vectorize' ||
+     $('format').value!=='svg' || item.format==='svg' || item.size>32*1024*1024)return;
+  if(!currentVectorEditor(item)){
+    editorPending=true;buttonState();queuePreview();return;
+  }
+  editorActive=true;editorPending=false;editorSelection=null;
+  $('preview-stage').classList.add('editing-vector');
+  $('preview-stage').classList.add('result-only');
+  $('vector-edit-toolbar').hidden=false;
+  refreshEditedPreview();
+  buttonState();
+}
+function afterShapeEdit(){
+  const doc=currentVectorEditor();
+  if(editorSelection && doc?.shapes.find(s=>s.id===editorSelection)?.hidden)editorSelection=null;
+  refreshEditedPreview();
+}
+
 function selectItem(item){
   closeVectorEditor();
   selectedId=item?.id??null;
