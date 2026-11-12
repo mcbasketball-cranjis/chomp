@@ -1,5 +1,7 @@
 import { decodeSvgBitmap } from './svg-input.js';
 import { normalizeTraceOptions } from './trace-options.js';
+import { openVectorDocument, modifyVectorShape, undoVectorEdit, redoVectorEdit,
+  resetVectorEdits, hasVectorEdits, serializeVectorDocument } from './vector-editor.js';
 import './style.css';
 const icons = {
   layers: '<rect x="4" y="4" width="11" height="11" rx="3"/><path d="M9 19h8a3 3 0 0 0 3-3V9"/>',
@@ -52,7 +54,18 @@ document.querySelector('#app').innerHTML = `
             <button id="drop" class="dropzone" type="button"><span class="upload-icon">${icon('upload')}</span><strong>Drop images or folders here</strong><span><b>Browse files</b></span><span class="drop-note">JPEG, PNG, WebP, AVIF, SVG</span></button>
             <div id="empty-note" class="empty-note"><span>Drop an image to get started</span></div>
           </div>
-          <footer class="preview-footer"><span class="image-metadata">${icon('image')}<span id="stage-caption">Select an image to see its preview</span></span><div class="preview-actions"><div class="preview-zoom" aria-label="Preview zoom"><button type="button" id="zoom-out" aria-label="Zoom out">−</button><button type="button" id="zoom-fit" title="Fit preview"><span id="zoom-value">100%</span></button><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-pan" aria-pressed="false" title="Drag image to pan">Pan</button></div><div class="preview-switch"><button type="button" id="compare-view" class="selected">Compare</button><button type="button" id="result-view">Result only</button></div></div></footer>
+          <footer class="preview-footer"><span class="image-metadata">${icon('image')}<span id="stage-caption">Select an image to see its preview</span></span><div class="preview-actions"><button type="button" id="vector-edit-open" class="vector-edit-open" hidden>Edit shapes</button><div class="preview-zoom" aria-label="Preview zoom"><button type="button" id="zoom-out" aria-label="Zoom out">−</button><button type="button" id="zoom-fit" title="Fit preview"><span id="zoom-value">100%</span></button><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-pan" aria-pressed="false" title="Drag image to pan">Pan</button></div><div class="preview-switch"><button type="button" id="compare-view" class="selected">Compare</button><button type="button" id="result-view">Result only</button></div></div></footer>
+          <div id="vector-edit-toolbar" class="vector-edit-toolbar" hidden>
+            <span id="vector-edit-label" class="vector-edit-label">Select a shape</span>
+            <label for="vector-shape-color">Fill</label>
+            <input type="color" id="vector-shape-color" aria-label="Selected shape color" value="#000000" disabled>
+            <button type="button" id="vector-delete-shape" disabled>Remove</button>
+            <div class="vector-edit-spacer"></div>
+            <button type="button" id="vector-undo" disabled>Undo</button>
+            <button type="button" id="vector-redo" disabled>Redo</button>
+            <button type="button" id="vector-reset" disabled>Reset</button>
+            <button type="button" id="vector-done" class="vector-edit-done">Done</button>
+          </div>
         </section>
         <div class="metrics"><div class="metric"><span>Original</span><strong id="metric-original">—</strong>${icon('image')}</div><div class="metric"><span>Output</span><strong id="metric-output">—</strong>${icon('folder')}</div><div class="metric"><span>Difference</span><strong id="metric-savings">—</strong>${icon('layers')}</div></div>
       </div>
@@ -161,6 +174,8 @@ const mode = () => isFolderBatch() ? document.querySelector('[name="folder-mode"
 const urls = new Set();
 let workspaceMode='compress',selectedId=null,previewTimer=null,previewVersion=0,previewWorker=null,previewOriginalUrl=null,previewResultUrl=null;
 let previewZoom=1,previewX=0,previewY=0,previewPanMode=false,previewPointer=null;
+let editorActive=false,editorPending=false,editorSelection=null,editorSvg=null;
+const SVG_NS='http://www.w3.org/2000/svg';
 const traceControls = () => normalizeTraceOptions({
   mode:$('trace-mode').value, colors:$('trace-colors').value,
   smoothing:$('trace-smoothing').value,corners:$('trace-corners').value,
@@ -170,6 +185,7 @@ function renderZoom(){
   const transform='translate('+previewX+'px, '+previewY+'px) scale('+previewZoom+')';
   $('original-img').style.transform=transform;
   $('result-img').style.transform=transform;
+  if(editorSvg)editorSvg.style.transform=transform;
   $('zoom-value').textContent=Math.round(previewZoom*100)+'%';
   const enabled=previewPanMode&&previewZoom>1;
   $('zoom-pan').disabled=previewZoom===1;
@@ -219,6 +235,7 @@ function stopPreview(){
   if(previewWorker){previewWorker.terminate();previewWorker=null;}
 }
 function selectItem(item){
+  closeVectorEditor();
   selectedId=item?.id??null;
   previewPanMode=false;previewPointer=null;setZoom(1);
   document.querySelectorAll('.image-row').forEach(el=>el.classList.toggle('selected',el.dataset.id===String(selectedId)));
@@ -288,6 +305,7 @@ async function renderPreview(){
 }
 function setWorkspace(next){
   if(running||!workspaceCopy[next])return;
+  if(next!=='vectorize')closeVectorEditor();
   // Replacing in place must keep the original file format. Switching to a
   // conversion workspace uses images-only export instead of overwriting.
   if(next!=='compress'&&mode()==='replace')
@@ -310,7 +328,7 @@ const bytes = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)}
 function notice(message) { $('notice').textContent = message; }
 function buttonState() {
   const replacing = mode() === 'replace';
-  $('compress').disabled = running || scanning || (!replacing && !output) || !items.length;
+  $('compress').disabled = running || scanning || editorPending || (!replacing && !output) || !items.length;
   const amount=items.length+' image'+(items.length===1?'':'s');
   const label=replacing?'Replace original images':items.length&&items.every(i=>i.status==='done')?'Export again':workspaceMode==='vectorize'&&$('format').value==='svg'?'Export '+items.length+' SVG'+(items.length===1?'':'s'):workspaceMode==='convert'?'Convert '+amount:'Compress '+amount;
   $('compress').innerHTML=icon('upload')+' '+label;
@@ -339,6 +357,11 @@ function buttonState() {
   $('format').disabled = replacing;
   $('action-note').textContent = scanning ? 'Scanning…' : (!replacing && items.length && !output) ? 'Choose an output folder.' : '';
   $('action-note').hidden = !$('action-note').textContent;
+  const editable=workspaceMode==='vectorize' && $('format').value==='svg' &&
+    selectedItem()?.format!=='svg' && !!selectedItem() &&
+    selectedItem().size<=32*1024*1024 && !replacing;
+  $('vector-edit-open').hidden=!editable || editorActive;
+  $('vector-edit-open').disabled=!editable || scanning || running || editorPending;
 }
 function row(item) {
   const el=document.createElement('div');el.className='image-row';el.dataset.id=item.id;
