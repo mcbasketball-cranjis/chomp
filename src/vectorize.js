@@ -8,9 +8,9 @@ import { flatLogoLayers } from './logo-trace.js';
  */
 
 const TRACE_PRESETS = {
-  simple: { colors: 8, edge: 384, tolerance: 1.8, minArea: 2 },
-  balanced: { colors: 16, edge: 768, tolerance: 1.15, minArea: 1 },
-  detailed: { colors: 32, edge: 1024, tolerance: 0.72, minArea: 0.5 }
+  simple: { colors: 8, edge: 640, tolerance: 1.8, minArea: 2 },
+  balanced: { colors: 16, edge: 1200, tolerance: 1.15, minArea: 1 },
+  detailed: { colors: 32, edge: 1420, tolerance: 0.72, minArea: 0.5 }
 };
 
 export function tracePreset(name = 'balanced') {
@@ -159,7 +159,7 @@ export function traceImageData(image, options = {}) {
     svg += '<path fill="' + hex + '" d="M0 0H' + width + 'V' + height + 'H0Z"/>';
   }
   for (let c = 0; c < palette.length; c++) {
-    const path = smoothColorContours(indices, width, height, c, preset.tolerance, preset.minArea);
+    const path = smoothColorContours(indices, width, height, c, logo ? Math.min(.65, preset.tolerance) : preset.tolerance, preset.minArea);
     if (!path) continue;
     const color = palette[c];
     const hex = '#' + color.slice(0, 3).map(n => n.toString(16).padStart(2, '0')).join('');
