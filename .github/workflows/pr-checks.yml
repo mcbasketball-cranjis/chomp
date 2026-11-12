@@ -19,14 +19,7 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      # One-time lockfile refresh; removed after generating the pinned lock.
-      - run: pnpm install --no-frozen-lockfile
-      - name: Show generated lockfile changes
-        shell: bash
-        run: |
-          echo CHOMP_LOCK_DIFF_BEGIN
-          git --no-pager diff --no-ext-diff --no-color -- pnpm-lock.yaml
-          echo CHOMP_LOCK_DIFF_END
+      - run: pnpm install --frozen-lockfile
       - run: pnpm test
       - run: pnpm build
       - run: node node_modules/electron/install.js
