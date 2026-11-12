@@ -394,6 +394,7 @@ $('format').onchange = () => {
   $('trace-controls').hidden = format !== 'svg' || svgPassthrough;
   $('compression-controls').hidden=lossless;
   $('limit-section').hidden = format === 'svg';
+  $('advanced-settings').hidden = svgPassthrough;
   $('background-section').hidden = opaque || svgPassthrough;
   $('preview-after-label').textContent=format==='svg'?'VECTOR':'RESULT';
   $('preview-badge').textContent=format==='svg'?'SVG · transparent':format==='original'?'Original format':format.toUpperCase()+(format==='jpg'?' · opaque':' · transparency');
