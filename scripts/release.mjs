@@ -34,7 +34,8 @@ const required = [
 // A configured Partner Center identity makes the MSIX an expected asset on
 // every future release. Without that identity, omit it rather than upload an
 // unusable package with a fabricated publisher.
-if (process.env.CHOMP_STORE_PACKAGE_NAME) {
+const hasStoreIdentity = await fs.access('store/identity.json').then(() => true, () => false);
+if (hasStoreIdentity) {
   required.push('Chomp-' + version + '-win-x64-Store-unsigned.msix');
 }
 const assets = new Map((state.assets || []).map(asset => [asset.name, asset]));
