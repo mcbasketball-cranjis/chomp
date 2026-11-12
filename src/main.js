@@ -1,4 +1,5 @@
 import { decodeSvgBitmap } from './svg-input.js';
+import { normalizeTraceOptions } from './trace-options.js';
 import './style.css';
 const icons = {
   layers: '<rect x="4" y="4" width="11" height="11" rx="3"/><path d="M9 19h8a3 3 0 0 0 3-3V9"/>',
@@ -51,7 +52,7 @@ document.querySelector('#app').innerHTML = `
             <button id="drop" class="dropzone" type="button"><span class="upload-icon">${icon('upload')}</span><strong>Drop images or folders here</strong><span><b>Browse files</b></span><span class="drop-note">JPEG, PNG, WebP, AVIF, SVG</span></button>
             <div id="empty-note" class="empty-note"><span>Drop an image to get started</span></div>
           </div>
-          <footer class="preview-footer"><span class="image-metadata">${icon('image')}<span id="stage-caption">Select an image to see its preview</span></span><div class="preview-switch"><button type="button" id="compare-view" class="selected">Compare</button><button type="button" id="result-view">Result only</button></div></footer>
+          <footer class="preview-footer"><span class="image-metadata">${icon('image')}<span id="stage-caption">Select an image to see its preview</span></span><div class="preview-actions"><div class="preview-zoom" aria-label="Preview zoom"><button type="button" id="zoom-out" aria-label="Zoom out">−</button><button type="button" id="zoom-fit" title="Fit preview"><span id="zoom-value">100%</span></button><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-pan" aria-pressed="false" title="Drag image to pan">Pan</button></div><div class="preview-switch"><button type="button" id="compare-view" class="selected">Compare</button><button type="button" id="result-view">Result only</button></div></div></footer>
         </section>
         <div class="metrics"><div class="metric"><span>Original</span><strong id="metric-original">—</strong>${icon('image')}</div><div class="metric"><span>Output</span><strong id="metric-output">—</strong>${icon('folder')}</div><div class="metric"><span>Difference</span><strong id="metric-savings">—</strong>${icon('layers')}</div></div>
       </div>
@@ -65,6 +66,27 @@ document.querySelector('#app').innerHTML = `
               <label class="field-label" for="trace-detail">Tracing detail</label>
               <select id="trace-detail" class="visually-hidden"><option value="simple">Simple</option><option value="balanced" selected>Balanced</option><option value="detailed">Detailed</option></select>
               <div class="presets trace-presets" aria-label="Tracing detail"><button type="button" data-trace="simple">Simple</button><button type="button" class="selected" data-trace="balanced">Balanced</button><button type="button" data-trace="detailed">Detailed</button></div>
+              <details id="trace-advanced" class="trace-advanced">
+                <summary>Advanced tracing</summary>
+                <div class="advanced-fields">
+                  <label class="field-label" for="trace-mode">Artwork type</label>
+                  <select id="trace-mode"><option value="auto">Auto detect</option><option value="logo">Logo &amp; text</option><option value="artwork">Illustration</option></select>
+                  <label class="field-label" for="trace-colors">Colors</label>
+                  <select id="trace-colors"><option value="0">Auto</option><option value="2">2</option><option value="4">4</option><option value="8">8</option><option value="12">12</option><option value="16">16</option><option value="24">24</option><option value="32">32</option></select>
+                  <div class="label-row"><label class="field-label" for="trace-smoothing">Curve smoothing</label><output id="trace-smoothing-value">50</output></div>
+                  <input type="range" id="trace-smoothing" min="0" max="100" value="50">
+                  <div class="range-labels"><span>Precise</span><span>Smoother</span></div>
+                  <div class="label-row"><label class="field-label" for="trace-corners">Sharp corners</label><output id="trace-corners-value">50</output></div>
+                  <input type="range" id="trace-corners" min="0" max="100" value="50">
+                  <div class="range-labels"><span>Softer</span><span>Sharper</span></div>
+                  <div class="label-row"><label class="field-label" for="trace-cleanup">Noise cleanup</label><output id="trace-cleanup-value">50</output></div>
+                  <input type="range" id="trace-cleanup" min="0" max="100" value="50">
+                  <div class="range-labels"><span>Keep small details</span><span>Remove specks</span></div>
+                  <label class="field-label" for="trace-resolution">Tracing resolution</label>
+                  <select id="trace-resolution"><option value="standard">Standard</option><option value="high">High fidelity (slower)</option></select>
+                  <button type="button" id="trace-reset" class="text-button trace-reset">Reset advanced settings</button>
+                </div>
+              </details>
               
             </section>
             <div class="settings-section" id="background-section">
@@ -130,6 +152,35 @@ const isFolderBatch = () => !!items.length && !!folderRoots.length && items.ever
 const mode = () => isFolderBatch() ? document.querySelector('[name="folder-mode"]:checked').value : 'files';
 const urls = new Set();
 let workspaceMode='compress',selectedId=null,previewTimer=null,previewVersion=0,previewWorker=null,previewOriginalUrl=null,previewResultUrl=null;
+let previewZoom=1,previewX=0,previewY=0,previewPanMode=false,previewPointer=null;
+const traceControls = () => normalizeTraceOptions({
+  mode:$('trace-mode').value, colors:$('trace-colors').value,
+  smoothing:$('trace-smoothing').value,corners:$('trace-corners').value,
+  cleanup:$('trace-cleanup').value,resolution:$('trace-resolution').value
+});
+function renderZoom(){
+  const transform='translate('+previewX+'px, '+previewY+'px) scale('+previewZoom+')';
+  $('original-img').style.transform=transform;
+  $('result-img').style.transform=transform;
+  $('zoom-value').textContent=Math.round(previewZoom*100)+'%';
+  const enabled=previewPanMode&&previewZoom>1;
+  $('zoom-pan').disabled=previewZoom===1;
+  $('zoom-pan').classList.toggle('selected',enabled);
+  $('zoom-pan').setAttribute('aria-pressed',String(enabled));
+  $('preview-stage').classList.toggle('pan-mode',enabled);
+}
+function setZoom(value){
+  previewZoom=Math.max(1,Math.min(8,Math.round(value*4)/4));
+  if(previewZoom===1){previewX=0;previewY=0;previewPanMode=false;}
+  renderZoom();
+}
+function limitPan(){
+  const stage=$('preview-stage');
+  const maxX=stage.clientWidth*(previewZoom-1)/2;
+  const maxY=stage.clientHeight*(previewZoom-1)/2;
+  previewX=Math.max(-maxX,Math.min(maxX,previewX));
+  previewY=Math.max(-maxY,Math.min(maxY,previewY));
+}
 const MIME={jpg:'image/jpeg',png:'image/png',svg:'image/svg+xml',webp:'image/webp',avif:'image/avif'};
 const workspaceCopy={compress:['Compress','Compression'],convert:['Convert','Conversion'],vectorize:['Vectorize','Vectorization']};
 const preferredFormats={compress:'webp',convert:'png',vectorize:'svg'};
@@ -161,6 +212,7 @@ function stopPreview(){
 }
 function selectItem(item){
   selectedId=item?.id??null;
+  previewPanMode=false;previewPointer=null;setZoom(1);
   document.querySelectorAll('.image-row').forEach(el=>el.classList.toggle('selected',el.dataset.id===String(selectedId)));
   $('selected-name').textContent=item?(item.relative||item.name):'No image selected';
   $('metric-original').textContent=item?bytes(item.size):'—';
@@ -219,7 +271,7 @@ async function renderPreview(){
       bytes:data,bitmap,format:target,sourceFormat:item.format,
       quality:Number($('quality').value),maxSize:$('resize').checked?Number($('max-size').value):null,
       maxBytes:$('limit-size').checked?Math.floor(Number($('max-bytes').value)*Number($('size-unit').value)):null,
-      traceDetail:$('trace-detail').value,removeBackground:$('remove-bg').checked,
+      traceDetail:$('trace-detail').value,traceOptions:traceControls(),removeBackground:$('remove-bg').checked,
       bgTolerance:Number($('bg-tolerance').value),bgMode:document.querySelector('[name="bg-mode"]:checked').value
     };
     local.postMessage(payload,bitmap?[data.buffer,bitmap]:[data.buffer]);
@@ -335,6 +387,30 @@ async function pick() { if (!api) { notice('Open the desktop app to select image
 $('add').onclick=pick;$('add-sidebar').onclick=pick;$('drop').onclick=pick;
 document.querySelectorAll('[data-workspace]').forEach(el=>el.onclick=()=>setWorkspace(el.dataset.workspace));
 $('compare-slider').oninput=updatePreviewSplit;
+$('zoom-in').onclick=()=>setZoom(previewZoom+.5);
+$('zoom-out').onclick=()=>setZoom(previewZoom-.5);
+$('zoom-fit').onclick=()=>setZoom(1);
+$('zoom-pan').onclick=()=>{previewPanMode=!previewPanMode;renderZoom();};
+const previewStage=$('preview-stage');
+previewStage.addEventListener('pointerdown',e=>{
+  if(!previewPanMode||previewZoom<=1||!selectedItem()||e.button!==0)return;
+  previewPointer={id:e.pointerId,x:e.clientX,y:e.clientY,startX:previewX,startY:previewY};
+  previewStage.setPointerCapture(e.pointerId);
+  previewStage.classList.add('dragging-pan');
+  e.preventDefault();
+});
+previewStage.addEventListener('pointermove',e=>{
+  if(!previewPointer||previewPointer.id!==e.pointerId)return;
+  previewX=previewPointer.startX+e.clientX-previewPointer.x;
+  previewY=previewPointer.startY+e.clientY-previewPointer.y;
+  limitPan();renderZoom();
+});
+function endPan(e){
+  if(!previewPointer||previewPointer.id!==e.pointerId)return;
+  previewPointer=null;previewStage.classList.remove('dragging-pan');
+}
+previewStage.addEventListener('pointerup',endPan);
+previewStage.addEventListener('pointercancel',endPan);
 $('compare-view').onclick=()=>{
   $('preview-stage').classList.remove('result-only');
   $('compare-view').classList.add('selected');$('result-view').classList.remove('selected');
@@ -382,6 +458,23 @@ document.querySelectorAll('[name="bg-mode"]').forEach(el => el.onchange = () => 
 $('bg-tolerance').oninput=()=>{$('bg-value').textContent=$('bg-tolerance').value;queuePreview();};
 ['max-size','max-bytes','size-unit'].forEach(id=>{$(id).onchange=queuePreview;});
 $('trace-detail').onchange=queuePreview;
+for(const id of ['trace-mode','trace-colors','trace-resolution']){
+  $(id).onchange=queuePreview;
+}
+for(const id of ['trace-smoothing','trace-corners','trace-cleanup']){
+  $(id).oninput=()=>{
+    $(id+'-value').textContent=$(id).value;
+    queuePreview();
+  };
+}
+$('trace-reset').onclick=()=>{
+  $('trace-mode').value='auto';$('trace-colors').value='0';
+  $('trace-resolution').value='standard';
+  for(const id of ['trace-smoothing','trace-corners','trace-cleanup']){
+    $(id).value='50';$(id+'-value').textContent='50';
+  }
+  queuePreview();
+};
 $('format').onchange = () => {
   const format = $('format').value;
   const svgPassthrough = format === 'svg' && items.length > 0 && items.every(item => item.format === 'svg');
@@ -425,7 +518,7 @@ $('compress').onclick = async () => {
   if ($('resize').checked && (!Number.isInteger(maxSize) || maxSize < 64 || maxSize > 32768)) { notice('Enter a maximum edge between 64 and 32,768 pixels.'); $('max-size').focus(); return; }
   const maxBytes = $('format').value !== 'svg' && $('limit-size').checked ? Math.floor(Number($('max-bytes').value) * Number($('size-unit').value)) : null;
   if (maxBytes !== null && (!Number.isInteger(maxBytes) || maxBytes < 1024 || maxBytes > 512 * 1024 * 1024)) { notice('Set a file size between 1 KB and 512 MB.'); $('max-bytes').focus(); return; }
-  const settings = { format: $('format').value, quality: Number($('quality').value), maxSize: $('resize').checked ? maxSize : null, maxBytes, traceDetail: $('trace-detail').value, removeBackground: $('remove-bg').checked, bgTolerance: Number($('bg-tolerance').value), bgMode: document.querySelector('[name="bg-mode"]:checked').value };
+  const settings = { format: $('format').value, quality: Number($('quality').value), maxSize: $('resize').checked ? maxSize : null, maxBytes, traceDetail: $('trace-detail').value, traceOptions:traceControls(), removeBackground: $('remove-bg').checked, bgTolerance: Number($('bg-tolerance').value), bgMode: document.querySelector('[name="bg-mode"]:checked').value };
   if (settings.removeBackground && settings.format === 'original' && items.some(item => item.format === 'jpg')) { notice('JPEG cannot save transparency. Choose PNG, WebP, AVIF or SVG to remove the background.'); return; }
   const outputMode = mode();
   if (outputMode === 'replace' && items.some(item => !item.rootId)) { notice('Clear individual image files from the queue before replacing a folder in place.'); return; }
