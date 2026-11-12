@@ -10,7 +10,7 @@ import { flatLogoLayers } from './logo-trace.js';
 const TRACE_PRESETS = {
   simple: { colors: 8, edge: 640, tolerance: 1.8, minArea: 2 },
   balanced: { colors: 16, edge: 1200, tolerance: 1.15, minArea: 1 },
-  detailed: { colors: 32, edge: 1420, tolerance: 0.72, minArea: 0.5 }
+  detailed: { colors: 32, edge: 4096, tolerance: 0.72, minArea: 0.5 }
 };
 
 export function tracePreset(name = 'balanced') {
@@ -164,8 +164,9 @@ export function traceImageData(image, options = {}) {
     // Geometric, transparent and photographic artwork keep the existing tracer.
     const path = logo?.coverage?.[c]
       ? smoothCoverageContours(logo.coverage[c], width, height,
-          options.detail === 'detailed' ? .32 : options.detail === 'simple' ? 1.1 : .8,
-          options.detail === 'detailed' ? .35 : preset.minArea)
+          options.detail === 'detailed' ? .45 : options.detail === 'simple' ? 1.1 : .8,
+          options.detail === 'detailed' ? .35 : preset.minArea,
+          options.detail === 'detailed' ? .24 : Infinity)
       : smoothColorContours(indices, width, height, c, logo ? Math.min(.65, preset.tolerance) : preset.tolerance, preset.minArea);
     if (!path) continue;
     const color = palette[c];
