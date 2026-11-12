@@ -86,3 +86,22 @@ test('smoothing and corner fidelity affect vector geometry, not image data', asy
   assert.ok(precise.includes('fill-rule="evenodd"') && smooth.includes('fill-rule="evenodd"'));
   assert.ok(!precise.includes('<image') && !smooth.includes('<image'));
 });
+
+
+test('manual background color removes a selected edge color even if corners disagree', async () => {
+  const { removeBackgroundColor } = await vector;
+  const img = image(12, 12);
+  fillRect(img, 0, 0, 12, 12, [230,230,230,255]);
+  img.data.set([255,0,0,255], 0);
+  img.data.set([0,255,0,255], (12-1)*4);
+  img.data.set([0,0,255,255], (11*12)*4);
+  img.data.set([250,250,0,255], (12*12-1)*4);
+  fillRect(img, 0, 5, 6, 2, [130,45,210,255]);
+  const auto = { ...img, data:new Uint8ClampedArray(img.data) };
+  assert.equal(removeBackgroundColor(auto, 8, 'edges'), 0,
+    'automatic selection must not guess when all four corners differ');
+  assert.equal(removeBackgroundColor(img, 8, 'edges', '#822dd2'), 12);
+  assert.equal(img.data[(5*12+0)*4+3], 0);
+  assert.equal(img.data[(2*12+2)*4+3], 255);
+  assert.throws(() => removeBackgroundColor(img, 8, 'edges', 'white'), /Invalid selected/);
+});
