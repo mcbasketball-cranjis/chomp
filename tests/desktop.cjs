@@ -14,7 +14,7 @@ const work = path.join(root, 'test-results');
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     const updateState = await page.evaluate(() => window.desktop.getUpdateState());
     assert.equal(updateState.version, '2.1.2');
-    assert.ok(['manual', 'automatic', 'unavailable'].includes(updateState.mode));
+    assert.ok(['manual', 'automatic', 'unavailable', 'mac', 'mac-move'].includes(updateState.mode));
     await page.click('#updates-open');
     await expect(page.locator('#updates-modal')).toBeVisible();
     await expect(page.locator('#updates-version')).toContainText('2.1.2');
