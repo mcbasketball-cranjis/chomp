@@ -29,20 +29,27 @@ function distanceSquared(data, p, color) {
  * background-colored holes in letterforms such as O, e, and p.
  * This intentionally cannot distinguish other matching-colored logo details.
  */
-export function removeBackgroundColor(image, tolerance = 28, mode = 'edges') {
+export function removeBackgroundColor(image, tolerance = 28, mode = 'edges', chosenColor = null) {
   if (!['edges', 'all'].includes(mode)) throw new Error('Invalid background removal mode.');
   const { width, height, data } = image;
   if (!width || !height || data.length < width * height * 4) throw new Error('Invalid image data.');
   const limit = Math.max(0, Math.min(100, Number(tolerance) || 0));
-  const corners = [0, width - 1, (height - 1) * width, height * width - 1].filter(i => data[i * 4 + 3] >= 240);
-  if (corners.length < 2) return 0;
-  let seed = -1, matches = 0;
-  for (const i of corners) {
-    const other = corners.filter(j => distanceSquared(data, j * 4, [data[i * 4], data[i * 4 + 1], data[i * 4 + 2]]) <= limit * limit * 3).length;
-    if (other > matches) { seed = i; matches = other; }
+  let background = null;
+  if (chosenColor !== null) {
+    if (typeof chosenColor !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(chosenColor))
+      throw new Error('Invalid selected background color.');
+    background = [1, 3, 5].map(index => parseInt(chosenColor.slice(index, index + 2), 16));
+  } else {
+    const corners = [0, width - 1, (height - 1) * width, height * width - 1].filter(i => data[i * 4 + 3] >= 240);
+    if (corners.length < 2) return 0;
+    let seed = -1, matches = 0;
+    for (const i of corners) {
+      const other = corners.filter(j => distanceSquared(data, j * 4, [data[i * 4], data[i * 4 + 1], data[i * 4 + 2]]) <= limit * limit * 3).length;
+      if (other > matches) { seed = i; matches = other; }
+    }
+    if (matches < 2) return 0;
+    background = [data[seed * 4], data[seed * 4 + 1], data[seed * 4 + 2]];
   }
-  if (matches < 2) return 0;
-  const background = [data[seed * 4], data[seed * 4 + 1], data[seed * 4 + 2]];
   const maxDistance = limit * limit * 3;
   if (mode === 'all') {
     let removed = 0;
