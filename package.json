@@ -1,6 +1,6 @@
 {
   "name": "chomp",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "private": true,
   "type": "module",
   "description": "Local image compression and SVG vector tracing for Windows and macOS",
@@ -118,6 +118,12 @@
         "owner": "mcbasketball-cranjis",
         "repo": "chomp",
         "releaseType": "release"
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "electron/mac-replace.sh",
+        "to": "mac-replace.sh"
       }
     ]
   }
