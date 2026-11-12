@@ -62,6 +62,7 @@ jobs:
         run: |
           pnpm dist:mac
           node scripts/verify-dmg.mjs x64
+          node scripts/test-mac-updater.mjs
       - name: Cross-build and verify Apple Silicon package with native layered icon
         run: |
           pnpm exec electron-builder --mac dmg zip --arm64 --publish never
