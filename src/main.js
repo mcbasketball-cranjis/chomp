@@ -452,6 +452,7 @@ function renderUpdateState(state) {
     current: 'Up to date.',
     available: 'Version ' + state.availableVersion + ' is available.',
     downloading: 'Downloading…',
+    installing: 'Preparing installation…',
     ready: 'Update downloaded.',
     error: state.error || 'Update check failed.',
     unavailable: 'Update checks are available in the installed app.',
@@ -461,7 +462,7 @@ function renderUpdateState(state) {
   $('updates-progress-wrap').hidden = state.status !== 'downloading';
   $('updates-progress').value = state.progress || 0;
   $('updates-percent').textContent = (state.progress || 0) + '%';
-  $('updates-check').disabled = ['checking', 'downloading', 'ready'].includes(state.status) || state.mode === 'unavailable';
+  $('updates-check').disabled = ['checking', 'downloading', 'ready', 'installing'].includes(state.status) || state.mode === 'unavailable';
   $('updates-action').hidden = !['available', 'ready', 'move-required'].includes(state.status);
   $('updates-action').disabled = state.status === 'downloading' || running;
   $('updates-action').textContent = state.status === 'ready' ? 'Restart & install' :
