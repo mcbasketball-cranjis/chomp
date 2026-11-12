@@ -55,6 +55,29 @@ Microsoft Store listing is still under certification.**
 - The SVG editor and palette are local and optional. No images, paths or color
   swatches are uploaded or embedded in repo fixtures. Test artwork is generated.
 
+## Shape inspector and point editing
+
+- The in-preview **Shapes inspector** lists individual editable paths, including
+  paths too small to click accurately in the canvas. Choose **Small only** to
+  isolate tiny details. Lists are paginated to bound UI size. Click an entry to
+  select and zoom to its contour, or use Previous/Next (`[` and `]` shortcuts).
+- Select a shape and enable **Points** to expose editable anchors and the two
+  control handles for each cubic Bézier segment. Drag any handle to refine the
+  outline. This changes real path coordinates; it does not overlay a bitmap.
+- Selected points can be nudged with arrow keys by one SVG unit, or by a
+  quarter unit with Shift+arrow. Point edits are individually undoable and
+  persist through exported SVGs and subsequent Chomp editing sessions.
+- Simple H/V drawing commands normalize to equivalent L commands only when
+  geometry is edited. SVG inputs with external markup, scripts, unsupported
+  path commands, or complex external SVG structures are not admitted to the
+  shape editing model.
+- To avoid unresponsive editing on extremely complex art, the inspector pages
+  48 entries at a time and the Points view declines to display more than 480
+  handles for one path. Default tracing and export still work for complex
+  vector regions even if they exceed the interactive point-editing limit.
+- Path editing currently covers anchor and control-handle movement, not new
+  point insertion, deletion, automatic path joining, or text/font recovery.
+
 ## Safety and compatibility
 
 - All work remains local; source images never leave the user's machine.
