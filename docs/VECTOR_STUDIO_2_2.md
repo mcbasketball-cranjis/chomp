@@ -32,6 +32,29 @@ Microsoft Store listing is still under certification.**
   both synchronized preview layers. Fit resets zoom and pan. When panning, the
   compare slider temporarily stops intercepting pointer events.
 
+## Shape cleanup and palette
+
+- **Edit shapes** appears on a traced raster preview. Selecting it produces
+  independently editable, path-only SVG regions, preserving connected holes
+  (such as letter counters) within their filled region. Existing ordinary SVG
+  export is unchanged unless shape editing is requested.
+- Click a shape to recolor it or remove it. Edit history supports Undo, Redo
+  and Reset. The source raster file is never changed.
+- The palette shows current SVG fill colors and the number of visible shapes
+  using each color. Click a swatch to select a shape of that color.
+- Enable **All matching colors** to apply the selected recolor or removal to
+  every currently visible shape with that same fill. The whole operation is
+  one undo/redo step; the default remains single-shape editing.
+- SVG output uses the exact edited document shown in the preview. Chomp checks
+  the SHA-256 hash of the source before exporting an edited document and
+  refuses to use stale edits on changed source files.
+- A previously exported **Chomp shape-editor SVG** can be reopened in Vectorize
+  and edited again without retracing, including after shapes were removed. The
+  editor deliberately does not claim to support arbitrary external SVG syntax.
+  Other safe SVG inputs retain the existing passthrough behavior.
+- The SVG editor and palette are local and optional. No images, paths or color
+  swatches are uploaded or embedded in repo fixtures. Test artwork is generated.
+
 ## Safety and compatibility
 
 - All work remains local; source images never leave the user's machine.
