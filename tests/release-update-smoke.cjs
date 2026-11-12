@@ -15,9 +15,9 @@ const previousVersion = '2.1.0';
 const nextVersion = require('../package.json').version;
 if (nextVersion !== '2.1.1') throw new Error('Update the smoke test for the next release');
 const work = path.join(process.env.RUNNER_TEMP, 'chomp-updater-smoke');
-await fs.mkdir(work, { recursive: true });
 
 (async () => {
+  await fs.mkdir(work, { recursive: true });
   const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
   const app = await electron.launch({
     executablePath: exe,
