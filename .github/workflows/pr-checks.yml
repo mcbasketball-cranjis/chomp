@@ -66,3 +66,24 @@ jobs:
         run: |
           pnpm exec electron-builder --mac dmg zip --arm64 --publish never
           node scripts/verify-dmg.mjs arm64
+
+  windows-updater:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node node_modules/electron/install.js
+      - name: Build NSIS and portable packages with update metadata
+        run: pnpm dist:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Verify packaged desktop, update feed and checksum metadata
+        run: pnpm test:package
