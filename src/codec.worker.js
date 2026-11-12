@@ -64,7 +64,7 @@ self.onmessage = async ({ data: { bytes, format, sourceFormat, quality, maxSize,
         result = bytes;
       } else {
         const edge = tracePreset(traceDetail).edge;
-        const factor = Math.min(1, edge / Math.max(width, height));
+        const factor = Math.min(1, edge / Math.max(width, height), Math.sqrt(1_100_000 / (width * height)));
         const tw = Math.max(1, Math.round(width * factor)), th = Math.max(1, Math.round(height * factor));
         const traceCanvas = new OffscreenCanvas(tw, th);
         const traceContext = traceCanvas.getContext('2d', { willReadFrequently: true, alpha: true });
