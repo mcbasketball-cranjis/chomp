@@ -102,3 +102,51 @@ test('everywhere mode preserves different-colored details and existing transpare
   assert.equal(alpha(img, 4, 4), 0);
   assert.throws(() => removeBackgroundColor(img, 28, 'unexpected'), /Invalid background removal mode/);
 });
+
+
+test('circular logos use smooth Bézier curves without pixel-staircase paths', async () => {
+  const { traceImageData } = await vector;
+  const disc = image(72, 72);
+  for (let y = 0; y < 72; y++) for (let x = 0; x < 72; x++) {
+    if (Math.hypot(x - 35.5, y - 35.5) <= 26) pixel(disc, x, y, [42, 105, 180, 255]);
+  }
+  const svg = traceImageData(disc, { detail: 'balanced' });
+  assert.match(svg, /<path fill="#2a69b4"/);
+  assert.match(svg, /C[\d.]+ [\d.]+ [\d.]+ [\d.]+ [\d.]+ [\d.]+/, 'curves are real SVG cubic Béziers');
+  assert.ok((svg.match(/L/g) || []).length < 16, 'curved contours should not follow each pixel');
+  assert.ok(!svg.includes('<image'));
+});
+
+test('hard rectangular logo corners remain straight and editable', async () => {
+  const { traceImageData } = await vector;
+  const square = image(60, 60);
+  for (let y = 12; y < 48; y++) for (let x = 12; x < 48; x++) pixel(square, x, y, [20, 40, 80, 255]);
+  const svg = traceImageData(square);
+  assert.match(svg, /<path fill="#142850"/);
+  assert.ok(!svg.includes('C'), 'straight logo outlines should not be needlessly rounded');
+});
+
+test('smooth vector counters keep true transparency in letters and rings', async () => {
+  const { traceImageData } = await vector;
+  const ring = image(64, 64);
+  for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) {
+    const radius = Math.hypot(x - 31.5, y - 31.5);
+    if (radius < 23 && radius > 11) pixel(ring, x, y, [15, 100, 210, 255]);
+  }
+  const svg = traceImageData(ring);
+  assert.equal((svg.match(/<path /g) || []).length, 1);
+  assert.equal((svg.match(/M[\d.]+/g) || []).length, 2, 'outer contour and transparent hole both survive');
+  assert.match(svg, /fill-rule="evenodd"/);
+});
+
+test('antialiased edges do not get split into opaque pixel-color bands', async () => {
+  const { traceImageData } = await vector;
+  const disc = image(48, 48);
+  for (let y = 0; y < 48; y++) for (let x = 0; x < 48; x++) {
+    const coverage = Math.max(0, Math.min(255, Math.round(255 * (18.5 - Math.hypot(x - 24, y - 24)))));
+    pixel(disc, x, y, [240, 40, 80, coverage]);
+  }
+  const svg = traceImageData(disc);
+  assert.equal((svg.match(/<path /g) || []).length, 1);
+  assert.match(svg, /C[\d.]+/);
+});

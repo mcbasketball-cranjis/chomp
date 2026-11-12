@@ -34,10 +34,10 @@ document.querySelector('#app').innerHTML = `
       <button type="button" id="add-folder" class="add-folder">${icon('folder')} Add folder</button>
     </div>
     <div class="queue-footer"><span id="total">No images added yet</span><button id="clear" class="text-button" disabled>Clear all</button></div>
-    <div class="sidebar-updates"><button id="updates-open" type="button" aria-haspopup="dialog">${icon('refresh')}<span>Updates</span><span id="update-indicator" hidden></span></button><span id="app-version">v2.1.2</span></div>
+    <div class="sidebar-updates"><button id="updates-open" type="button" aria-haspopup="dialog">${icon('refresh')}<span>Updates</span><span id="update-indicator" hidden></span></button><span id="app-version">v2.1.3</span></div>
   </aside>
   <main class="main-content">
-    <header class="intro"><h1 id="workspace-title">Compress</h1><div class="header-actions"><button type="button" class="button secondary" id="add">${icon('upload')} Add images</button></div></header>
+    <header class="intro"><h1 id="workspace-title">Compress</h1><div class="header-actions"><button type="button" class="button secondary" id="new-batch" hidden>Clear all</button><button type="button" class="button secondary" id="add">${icon('upload')} Add images</button></div></header>
     <div class="workspace">
       <div class="center-column">
         <section class="preview-panel" aria-label="Image comparison">
@@ -67,7 +67,7 @@ document.querySelector('#app').innerHTML = `
               <div class="presets trace-presets" aria-label="Tracing detail"><button type="button" data-trace="simple">Simple</button><button type="button" class="selected" data-trace="balanced">Balanced</button><button type="button" data-trace="detailed">Detailed</button></div>
               
             </section>
-            <div class="settings-section">
+            <div class="settings-section" id="background-section">
               <label class="toggle-row"><span><strong>Remove background</strong></span><input id="remove-bg" type="checkbox" role="switch"><span class="switch"></span></label>
               <div id="background-controls" hidden>
                 <fieldset class="bg-scope"><legend class="field-label">Removal area</legend>
@@ -85,8 +85,8 @@ document.querySelector('#app').innerHTML = `
               <div class="presets"><button type="button" data-quality="60">Smallest</button><button type="button" class="selected" data-quality="80">Balanced</button><button type="button" data-quality="92">Best quality</button></div>
             </section>
             <section class="settings-section" id="advanced-settings"><h3>Options</h3>
-              <label class="toggle-row"><span><strong>Maximum file size</strong></span><input id="limit-size" type="checkbox" role="switch"><span class="switch"></span></label>
-              <div id="limit-options" hidden><label class="field-label" for="max-bytes">Maximum per image</label><div class="size-input"><input id="max-bytes" type="number" min="0.001" step="any" value="500"><select id="size-unit" aria-label="File size unit"><option value="1024">KB</option><option value="1048576">MB</option></select></div></div>
+              <div id="limit-section"><label class="toggle-row"><span><strong>Maximum file size</strong></span><input id="limit-size" type="checkbox" role="switch"><span class="switch"></span></label>
+              <div id="limit-options" hidden><label class="field-label" for="max-bytes">Maximum per image</label><div class="size-input"><input id="max-bytes" type="number" min="0.001" step="any" value="500"><select id="size-unit" aria-label="File size unit"><option value="1024">KB</option><option value="1048576">MB</option></select></div></div></div>
               <div class="mini-divider"></div><label class="toggle-row"><span><strong>Resize large images</strong></span><input id="resize" type="checkbox" role="switch"><span class="switch"></span></label>
               <div id="resize-options" hidden><label class="field-label" for="max-size">Maximum long edge</label><div class="number-wrap"><input id="max-size" type="number" min="64" max="32768" value="2400" step="1"><span>px</span></div></div>
             </section>
@@ -108,7 +108,7 @@ document.querySelector('#app').innerHTML = `
     <section class="updates-dialog" role="dialog" aria-modal="true" aria-labelledby="updates-heading">
       <header class="updates-dialog-header"><h2 id="updates-heading">Software Update</h2><button id="updates-close" type="button" aria-label="Close">×</button></header>
       <div class="updates-dialog-body">
-        <div class="updates-version" id="updates-version">Chomp 2.1.2</div>
+        <div class="updates-version" id="updates-version">Chomp 2.1.3</div>
         <p id="updates-message">Check for updates.</p>
         <div class="updates-progress" id="updates-progress-wrap" hidden><progress max="100" value="0" id="updates-progress"></progress><span id="updates-percent"></span></div>
         <p id="updates-warning" class="updates-warning" hidden></p>
@@ -125,7 +125,9 @@ function applyAppearance(state) { document.documentElement.dataset.theme = state
 if (api) { api.getAppearance().then(applyAppearance).catch(error => notice(error.message)); api.onAppearance(applyAppearance); }
 else { applyAppearance({ dark: matchMedia('(prefers-color-scheme: dark)').matches, platform: 'browser', preference: 'system' }); }
 let items = [], folderRoots = [], output = null, running = false, stopped = false, worker = null, scanning = false;
-const mode = () => folderRoots.length ? document.querySelector('[name="folder-mode"]:checked').value : 'files';
+// Folder actions only apply when every queued item came from a folder import.
+const isFolderBatch = () => !!items.length && !!folderRoots.length && items.every(item => !!item.rootId);
+const mode = () => isFolderBatch() ? document.querySelector('[name="folder-mode"]:checked').value : 'files';
 const urls = new Set();
 let workspaceMode='compress',selectedId=null,previewTimer=null,previewVersion=0,previewWorker=null,previewOriginalUrl=null,previewResultUrl=null;
 const MIME={jpg:'image/jpeg',png:'image/png',svg:'image/svg+xml',webp:'image/webp',avif:'image/avif'};
@@ -252,6 +254,10 @@ function buttonState() {
   const label=replacing?'Replace original images':items.length&&items.every(i=>i.status==='done')?'Export again':workspaceMode==='vectorize'&&$('format').value==='svg'?'Export '+items.length+' SVG'+(items.length===1?'':'s'):workspaceMode==='convert'?'Convert '+amount:'Compress '+amount;
   $('compress').innerHTML=icon('upload')+' '+label;
   $('clear').disabled = running || scanning || (!items.length && !folderRoots.length);
+  $('new-batch').hidden = !items.length && !folderRoots.length;
+  $('new-batch').disabled = running || scanning;
+  $('new-batch').innerHTML = icon('refresh') + ' ' +
+    (items.length && items.every(item => item.status === 'done') ? 'New batch' : 'Clear all');
   $('add').disabled = running || scanning;
   $('add-folder').disabled = running || scanning;
   $('drop').disabled = running || scanning;
@@ -264,7 +270,7 @@ function buttonState() {
   $('empty-note').hidden = items.length > 0;
   $('drop').hidden=items.length>0;
   $('preview-stage').classList.toggle('is-empty',!items.length);
-  $('quick-panel').hidden = !folderRoots.length;
+  $('quick-panel').hidden = !isFolderBatch();
   $('folder-count').textContent = `${folderRoots.length} folder${folderRoots.length === 1 ? '' : 's'}`;
   $('source-folders').textContent = folderRoots.map(root => root.name).join(' · ');
   $('output-controls').hidden = replacing;
@@ -288,7 +294,12 @@ function row(item) {
   remove.onclick=async e=>{e.stopPropagation();if(running)return;
     items=items.filter(i=>i!==item);await api.forgetImages([item.id]);
     if(item.url){URL.revokeObjectURL(item.url);urls.delete(item.url);}
-    el.remove();if(selectedId===item.id)selectItem(items[0]||null);else buttonState();
+    el.remove();
+    folderRoots = folderRoots.filter(root => items.some(entry => entry.rootId === root.id));
+    if (!isFolderBatch() && document.querySelector('[name="folder-mode"][value="replace"]').checked)
+      document.querySelector('[name="folder-mode"][value="images"]').checked = true;
+    syncOutputFormats();
+    if(selectedId===item.id)selectItem(items[0]||null);else buttonState();
   };
   el.append(thumb, info, status, remove); item.el = el;
   return el;
@@ -296,7 +307,6 @@ function row(item) {
 async function add(result) {
   const firstFolder = !folderRoots.length && result.roots?.length;
   folderRoots.push(...(result.roots || []));
-  if(firstFolder){setWorkspace('compress');$('format').value='original';$('format').onchange();}
   let duplicates = 0;
   for (const file of result.files) {
     const existing = items.find(i => i.key === file.key);
@@ -305,6 +315,16 @@ async function add(result) {
       if (existing.url) { URL.revokeObjectURL(existing.url); urls.delete(existing.url); }
     } else if (existing) { duplicates++; api.forgetImages([file.id]); continue; }
     const item = { ...file, status: 'ready' }; items.push(item); $('queue').append(row(item));
+  }
+  if (firstFolder && isFolderBatch()) {
+    document.querySelector('[name="folder-mode"][value="copy"]').checked = true;
+    setWorkspace('compress');
+    $('format').value = 'original';
+    $('format').onchange();
+  } else {
+    if (!isFolderBatch() && document.querySelector('[name="folder-mode"][value="replace"]').checked)
+      document.querySelector('[name="folder-mode"][value="images"]').checked = true;
+    syncOutputFormats();
   }
   $('summary').hidden=true;buttonState();
   if(!selectedItem()&&items.length)selectItem(items[0]);
@@ -333,7 +353,18 @@ document.querySelectorAll('[name="folder-mode"]').forEach(el => el.onchange = ()
 window.addEventListener('dragover', e => { e.preventDefault(); if (!running) $('drop').classList.add('dragging'); });
 window.addEventListener('dragleave', e => { if (!e.relatedTarget) $('drop').classList.remove('dragging'); });
 window.addEventListener('drop', async e => { e.preventDefault(); $('drop').classList.remove('dragging'); if (running || !api) return; const files = [...e.dataTransfer.files]; await importFiles(() => api.dropImages(files)); });
-$('clear').onclick = async () => { try { await api.clearInputs(); for (const url of urls) URL.revokeObjectURL(url); urls.clear(); items = []; folderRoots = []; $('queue').replaceChildren(); $('summary').hidden = true; notice(''); syncOutputFormats(); selectItem(null); buttonState(); } catch (e) { notice(e.message); } };
+async function clearBatch() {
+  if (!api || running || scanning) return;
+  try {
+    await api.clearInputs();
+    for (const url of urls) URL.revokeObjectURL(url);
+    urls.clear(); items = []; folderRoots = [];
+    $('queue').replaceChildren(); $('summary').hidden = true;
+    notice(''); syncOutputFormats(); selectItem(null); buttonState();
+  } catch (e) { notice(e.message); }
+}
+$('clear').onclick = clearBatch;
+$('new-batch').onclick = clearBatch;
 $('folder').onclick = async () => { if (!api) return; try { const folder = await api.pickOutput(); if (folder) { output = folder; $('folder-label').textContent = folder.split(/[\\/]/).filter(Boolean).pop() || folder; $('folder').title = folder; buttonState(); } } catch (e) { notice(e.message); } };
 function quality() { $('quality-value').innerHTML = `${$('quality').value}<span>%</span>`; document.querySelectorAll('[data-quality]').forEach(el => el.classList.toggle('selected', el.dataset.quality === $('quality').value));queuePreview(); }
 $('quality').oninput = quality;
@@ -352,21 +383,29 @@ $('bg-tolerance').oninput=()=>{$('bg-value').textContent=$('bg-tolerance').value
 ['max-size','max-bytes','size-unit'].forEach(id=>{$(id).onchange=queuePreview;});
 $('trace-detail').onchange=queuePreview;
 $('format').onchange = () => {
-  const format = $('format').value, lossless = format === 'png' || format === 'svg';
+  const format = $('format').value;
+  const svgPassthrough = format === 'svg' && items.length > 0 && items.every(item => item.format === 'svg');
+  const lossless = format === 'png' || format === 'svg' ||
+    (format === 'original' && items.length > 0 && items.every(item => ['png','svg'].includes(item.format)));
+  const opaque = format === 'jpg' || (format === 'original' && items.some(item => item.format === 'jpg'));
   // Preserve each workspace's last valid non-destructive output format.
   if(mode()!=='replace'&&outputFormats[workspaceMode].includes(format))
     preferredFormats[workspaceMode]=format;
   $('quality').disabled = lossless;
   document.querySelectorAll('[data-quality]').forEach(el => el.disabled = lossless);
   $('quality-value').innerHTML = format === 'svg' ? '<span>Vector</span>' : lossless ? '<span>Lossless</span>' : `${$('quality').value}<span>%</span>`;
-  $('trace-controls').hidden=format!=='svg';
+  $('trace-controls').hidden = format !== 'svg' || svgPassthrough;
   $('compression-controls').hidden=lossless;
+  $('limit-section').hidden = format === 'svg';
+  $('advanced-settings').hidden = svgPassthrough;
+  $('background-section').hidden = opaque || svgPassthrough;
   $('preview-after-label').textContent=format==='svg'?'VECTOR':'RESULT';
   $('preview-badge').textContent=format==='svg'?'SVG · transparent':format==='original'?'Original format':format.toUpperCase()+(format==='jpg'?' · opaque':' · transparency');
-  $('remove-bg').disabled = format === 'jpg';
-  if (format === 'jpg' && $('remove-bg').checked) { $('remove-bg').checked = false; $('remove-bg').onchange(); }
-  $('format-hint').textContent = format === 'jpg' ? 'JPEG does not support transparency.' : '';
-  $('format-hint').hidden = format !== 'jpg';
+  $('remove-bg').disabled = opaque || svgPassthrough;
+  if ($('remove-bg').disabled && $('remove-bg').checked) { $('remove-bg').checked = false; $('remove-bg').onchange(); }
+  $('format-hint').textContent = svgPassthrough ? 'Original SVG paths preserved.' :
+    opaque ? 'JPEG does not support transparency.' : '';
+  $('format-hint').hidden = !svgPassthrough && !opaque;
   queuePreview();buttonState();
 };
 async function encode(data, settings) {
@@ -384,7 +423,7 @@ $('cancel').onclick = () => { stopped = true; api.stopPreparation(); $('cancel')
 $('compress').onclick = async () => {
   const maxSize = Number($('max-size').value);
   if ($('resize').checked && (!Number.isInteger(maxSize) || maxSize < 64 || maxSize > 32768)) { notice('Enter a maximum edge between 64 and 32,768 pixels.'); $('max-size').focus(); return; }
-  const maxBytes = $('limit-size').checked ? Math.floor(Number($('max-bytes').value) * Number($('size-unit').value)) : null;
+  const maxBytes = $('format').value !== 'svg' && $('limit-size').checked ? Math.floor(Number($('max-bytes').value) * Number($('size-unit').value)) : null;
   if (maxBytes !== null && (!Number.isInteger(maxBytes) || maxBytes < 1024 || maxBytes > 512 * 1024 * 1024)) { notice('Set a file size between 1 KB and 512 MB.'); $('max-bytes').focus(); return; }
   const settings = { format: $('format').value, quality: Number($('quality').value), maxSize: $('resize').checked ? maxSize : null, maxBytes, traceDetail: $('trace-detail').value, removeBackground: $('remove-bg').checked, bgTolerance: Number($('bg-tolerance').value), bgMode: document.querySelector('[name="bg-mode"]:checked').value };
   if (settings.removeBackground && settings.format === 'original' && items.some(item => item.format === 'jpg')) { notice('JPEG cannot save transparency. Choose PNG, WebP, AVIF or SVG to remove the background.'); return; }
@@ -430,11 +469,18 @@ $('compress').onclick = async () => {
     const text = document.createElement('div'); const title = document.createElement('strong'); title.textContent = startupError ? stopped ? 'Batch stopped' : 'Batch could not start' : stopped ? 'Batch stopped' : failed ? 'Processing finished with errors' : 'Processing complete';
     const detail = document.createElement('p'); detail.textContent = `${completed} ${outputMode === 'replace' ? 'replaced' : 'saved'}${failed ? ` · ${failed} failed` : ''}${completed ? ` · ${delta >= 0 ? bytes(delta) + ' saved' : bytes(-delta) + ' larger'} · ${bytes(original)} → ${bytes(compressed)}` : ''}${stopped ? ' · Remaining images stay in the queue.' : ''}`;
     text.append(title, detail); const open = document.createElement('button'); open.className = 'button secondary'; open.innerHTML = `${icon('folder')}Open folder`; open.onclick = () => api.showOutput().catch(e => notice(e.message));
-    $('summary').append(mark,text);if(batch)$('summary').append(open);$('summary').hidden=false;
+    $('summary').append(mark,text);
+     if(batch)$('summary').append(open);
+     const next = document.createElement('button');
+     next.type = 'button'; next.className = 'button secondary';
+     next.innerHTML = icon('refresh') + ' New batch';
+     next.onclick = clearBatch;
+     $('summary').append(next);
+     $('summary').hidden=false;
     if(selectedItem())queuePreview();
   }
 };
-let updateState = { version: '2.1.2', mode: 'unavailable', status: 'idle', availableVersion: null, progress: 0 };
+let updateState = { version: '2.1.3', mode: 'unavailable', status: 'idle', availableVersion: null, progress: 0 };
 let lastUpdateNotice = '';
 let updateDialogOpen = false;
 let updateReturnFocus = null;

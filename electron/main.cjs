@@ -112,7 +112,14 @@ app.whenReady().then(async () => {
     await verifyFile(entry); entry.readSnapshot = { ...entry.snapshot };
     return data;
   });
-  handle('forget-images', ids => { if (activeBatch || preparing) return; for (const id of ids) inputs.delete(id); });
+  handle('forget-images', ids => {
+    if (activeBatch || preparing) return;
+    for (const id of ids) inputs.delete(id);
+    // Removing the final image in a folder must also release its folder root,
+    // otherwise importing that folder again incorrectly reports an overlap.
+    const referenced = new Set([...inputs.values()].map(input => input.rootId).filter(Boolean));
+    for (const id of roots.keys()) if (!referenced.has(id)) roots.delete(id);
+  });
   handle('clear-inputs', () => { if (activeBatch || preparing) throw new Error('Finish the batch first.'); inputs.clear(); roots.clear(); });
   handle('begin-batch', async ({ ids, mode, maxBytes }) => {
     if (activeBatch || preparing) throw new Error('A batch is already running.');
