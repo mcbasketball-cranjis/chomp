@@ -180,7 +180,7 @@ export function smoothCoverageContours(coverage, width, height, tolerance = .35,
   const stride = width + 2, field = new Float32Array((width + 2) * (height + 2));
   for (let y = 0; y < height; y++) {
     const row = y * width, dst = (y + 1) * stride + 1;
-    for (let x = 0; x < width; x++) field[dst + x] = coverage[row + x];
+    for (let x = 0; x < width; x++) field[dst + x] = coverage[row + x] / 255;
   }
 
   // Both sides of a shared cell edge get the same identifier. This avoids
