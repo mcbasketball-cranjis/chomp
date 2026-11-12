@@ -34,7 +34,7 @@ document.querySelector('#app').innerHTML = `
       <button type="button" id="add-folder" class="add-folder">${icon('folder')} Add folder</button>
     </div>
     <div class="queue-footer"><span id="total">No images added yet</span><button id="clear" class="text-button" disabled>Clear all</button></div>
-    <div class="sidebar-updates"><button id="updates-open" type="button" aria-haspopup="dialog">${icon('refresh')}<span>Updates</span><span id="update-indicator" hidden></span></button><span id="app-version">v2.1.1</span></div>
+    <div class="sidebar-updates"><button id="updates-open" type="button" aria-haspopup="dialog">${icon('refresh')}<span>Updates</span><span id="update-indicator" hidden></span></button><span id="app-version">v2.1.2</span></div>
   </aside>
   <main class="main-content">
     <header class="intro"><h1 id="workspace-title">Compress</h1><div class="header-actions"><button type="button" class="button secondary" id="add">${icon('upload')} Add images</button></div></header>
@@ -108,7 +108,7 @@ document.querySelector('#app').innerHTML = `
     <section class="updates-dialog" role="dialog" aria-modal="true" aria-labelledby="updates-heading">
       <header class="updates-dialog-header"><h2 id="updates-heading">Software Update</h2><button id="updates-close" type="button" aria-label="Close">×</button></header>
       <div class="updates-dialog-body">
-        <div class="updates-version" id="updates-version">Chomp 2.1.1</div>
+        <div class="updates-version" id="updates-version">Chomp 2.1.2</div>
         <p id="updates-message">Check for updates.</p>
         <div class="updates-progress" id="updates-progress-wrap" hidden><progress max="100" value="0" id="updates-progress"></progress><span id="updates-percent"></span></div>
         <p id="updates-warning" class="updates-warning" hidden></p>
@@ -434,7 +434,7 @@ $('compress').onclick = async () => {
     if(selectedItem())queuePreview();
   }
 };
-let updateState = { version: '2.1.1', mode: 'unavailable', status: 'idle', availableVersion: null, progress: 0 };
+let updateState = { version: '2.1.2', mode: 'unavailable', status: 'idle', availableVersion: null, progress: 0 };
 let lastUpdateNotice = '';
 let updateDialogOpen = false;
 let updateReturnFocus = null;
@@ -464,11 +464,12 @@ function renderUpdateState(state) {
   $('updates-action').hidden = state.status !== 'available' && state.status !== 'ready';
   $('updates-action').disabled = state.status === 'downloading' || running;
   $('updates-action').textContent = state.status === 'ready' ? 'Restart & install' :
-    state.mode === 'automatic' ? 'Download update' : 'Get update';
-  $('updates-warning').hidden = state.mode !== 'manual' || state.status !== 'available';
-  $('updates-warning').textContent = state.mode === 'manual'
-    ? 'Manual installation is required on macOS and portable builds.'
-    : '';
+    state.mode === 'mac-move' ? 'Move to Applications' :
+    ['automatic', 'mac'].includes(state.mode) ? 'Download update' : 'Get update';
+  $('updates-warning').hidden = state.mode !== 'manual' && state.mode !== 'mac-move';
+  $('updates-warning').textContent = state.mode === 'mac-move'
+    ? 'Move Chomp to Applications once to enable in-app updates.'
+    : state.mode === 'manual' ? 'Portable builds require manual installation.' : '';
   if ((state.status === 'available' || state.status === 'ready') &&
       !updateDialogOpen && state.availableVersion && lastUpdateNotice !== state.availableVersion + ':' + state.status) {
     lastUpdateNotice = state.availableVersion + ':' + state.status;
