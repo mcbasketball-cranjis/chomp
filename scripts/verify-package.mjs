@@ -18,6 +18,10 @@ if (process.platform === 'win32') {
 }
 if (process.platform === 'darwin') {
   const resources = path.join(path.dirname(path.dirname(executable)), 'Resources');
+  const macHelper = await fs.readFile(path.join(resources, 'mac-replace.sh'), 'utf8');
+  if (!macHelper.startsWith('#!/bin/sh') || !macHelper.includes('codesign --verify')) {
+    throw new Error('Packaged macOS in-place update helper is missing or invalid.');
+  }
   const names = await fs.readdir(resources);
   if (names.includes('Assets.car')) {
     const catalog = await fs.stat(path.join(resources, 'Assets.car'));
