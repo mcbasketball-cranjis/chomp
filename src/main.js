@@ -235,6 +235,10 @@ function stopPreview(){
   if(previewWorker){previewWorker.terminate();previewWorker=null;}
 }
 
+async function sourceSha256(data){
+  const digest=await crypto.subtle.digest('SHA-256',data);
+  return [...new Uint8Array(digest)].map(n=>n.toString(16).padStart(2,'0')).join('');
+}
 function vectorSignature(){
   return JSON.stringify({
     detail:$('trace-detail').value, options:traceControls(),
@@ -356,6 +360,12 @@ function selectItem(item){
 }
 function queuePreview(){
   if(!selectedItem()||!api||running||scanning)return;
+  const item=selectedItem();
+  if(item.vectorEditor && item.vectorEditor.signature!==vectorSignature()){
+    delete item.vectorEditor;
+    closeVectorEditor();
+    notice('Tracing settings changed. Previous shape edits were cleared.');
+  }
   stopPreview();$('preview-status').textContent='Rendering…';
   $('metric-output').textContent='—';$('metric-savings').textContent='—';
   previewTimer=setTimeout(renderPreview,350);
@@ -371,6 +381,19 @@ async function renderPreview(){
     previewOriginalUrl=URL.createObjectURL(new Blob([data],{type:MIME[item.format]||'application/octet-stream'}));
     $('original-img').src=previewOriginalUrl;$('original-img').hidden=false;
     const target=$('format').value==='original'?item.format:$('format').value;
+    const signature=vectorSignature();
+    let tracingForEditor=target==='svg' && item.format!=='svg' &&
+      (editorPending || !!currentVectorEditor(item));
+    let imageHash=null;
+    if(tracingForEditor){
+      imageHash=await sourceSha256(data);
+      if(token!==previewVersion)return;
+      if(item.vectorEditor && item.vectorEditor.sourceHash!==imageHash){
+        delete item.vectorEditor;closeVectorEditor();
+        tracingForEditor=false;
+        notice('Source image changed. Shape edits were cleared.');
+      }
+    }
     if(target==='jpg'&&$('remove-bg').checked){$('preview-status').textContent='JPEG cannot keep transparency';return;}
     const bitmap=item.format==='svg'?await decodeSvgBitmap(data):null;
     if(token!==previewVersion||running){bitmap?.close();return;}
@@ -379,7 +402,22 @@ async function renderPreview(){
     local.onmessage=({data:result})=>{
       if(token!==previewVersion)return;
       previewWorker=null;local.terminate();
-      if(result.error){$('preview-status').textContent='Preview unavailable';return;}
+      if(result.error){
+        editorPending=false;
+        $('preview-status').textContent=result.error;buttonState();return;
+      }
+      if(editorPending && tracingForEditor){
+        try {
+          item.vectorEditor={
+            signature, sourceHash:imageHash,
+            doc:openVectorDocument(new TextDecoder().decode(result.bytes))
+          };
+        }catch(error){
+          editorPending=false;
+          $('preview-status').textContent=error.message;
+          buttonState();return;
+        }
+      }
       previewResultUrl=URL.createObjectURL(new Blob([result.bytes],{type:MIME[target]}));
       $('result-img').src=previewResultUrl;$('result-img').hidden=false;
       $('metric-output').textContent=bytes(result.bytes.byteLength);
@@ -387,6 +425,12 @@ async function renderPreview(){
       $('metric-savings').textContent=percent>=0?percent+'% smaller':Math.abs(percent)+'% larger';
       $('preview-status').textContent='Preview ready';
       $('stage-caption').textContent=item.format.toUpperCase()+' · '+result.width+' × '+result.height;
+      if(editorPending && currentVectorEditor(item)){
+        openShapeEditor();
+      }else if(currentVectorEditor(item)){
+        refreshEditedPreview();
+      }
+      buttonState();
       if(result.thumbnail&&!item.url){
         const url=URL.createObjectURL(new Blob([result.thumbnail],{type:'image/webp'}));
         urls.add(url);item.url=url;
@@ -396,18 +440,26 @@ async function renderPreview(){
     };
     local.onerror=()=>{
       if(token!==previewVersion)return;
+      editorPending=false;
       previewWorker=null;local.terminate();$('preview-status').textContent='Preview unavailable';
+      buttonState();
     };
     const payload={
       bytes:data,bitmap,format:target,sourceFormat:item.format,
       quality:Number($('quality').value),maxSize:$('resize').checked?Number($('max-size').value):null,
       maxBytes:$('limit-size').checked?Math.floor(Number($('max-bytes').value)*Number($('size-unit').value)):null,
-      traceDetail:$('trace-detail').value,traceOptions:traceControls(),removeBackground:$('remove-bg').checked,
+      traceDetail:$('trace-detail').value,traceOptions:traceControls(),traceEditable:tracingForEditor,removeBackground:$('remove-bg').checked,
       bgTolerance:Number($('bg-tolerance').value),bgMode:document.querySelector('[name="bg-mode"]:checked').value,
       bgColor:$('bg-color-source').value==='manual'?$('bg-color').value:null
     };
     local.postMessage(payload,bitmap?[data.buffer,bitmap]:[data.buffer]);
-  }catch(error){if(token===previewVersion)$('preview-status').textContent='Preview unavailable';}
+  }catch(error){
+    if(token===previewVersion){
+      editorPending=false;
+      $('preview-status').textContent=error.message||'Preview unavailable';
+      buttonState();
+    }
+  }
 }
 function setWorkspace(next){
   if(running||!workspaceCopy[next])return;
