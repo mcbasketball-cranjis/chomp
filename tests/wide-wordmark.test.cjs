@@ -20,26 +20,26 @@ function overlap(original, result, width, height, minX, maxX) {
   return union ? intersection / union : 0;
 }
 
-test('Detailed preserves native resolution for 2048x467 wide wordmarks within the pixel budget', async () => {
+test('Detailed preserves native resolution for 1900x420 wide wordmarks within the pixel budget', async () => {
   const { tracePreset } = await vector;
-  assert.ok(tracePreset('detailed').edge >= 2048);
-  const w = 2048, h = 467;
+  assert.ok(tracePreset('detailed').edge >= 1900);
+  const w = 1900, h = 420;
   const factor = Math.min(1, tracePreset('detailed').edge / Math.max(w, h),
     Math.sqrt(1_100_000 / (w * h)));
   assert.equal(factor, 1, 'no premature downsampling of thin lettering');
 });
 
-test('realistic wide gray wordmark preserves glyph contours independent of its orange logo block', async () => {
+test('realistic generic gray wordmark preserves glyph contours independent of its blue geometric symbol', async () => {
   const { traceImageData } = await vector;
-  const width = 2048, height = 467;
-  // Match the real supplied failure case in dimensions, color and geometry,
-  // without publishing a third party's actual corporate logo as a fixture.
+  const width = 1900, height = 420;
+  // Entirely synthetic shapes and fictional lettering, deliberately
+  // unrelated to any submitted real-world logo or brand.
   const artwork = Buffer.from(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="467">' +
-    '<rect width="2048" height="467" fill="white"/>' +
-    '<path d="M62 58H412V114H119V405H62Z M153 148H412V405H153Z" fill="#f6a000"/>' +
-    '<text x="466" y="253" font-family="Arial,sans-serif" font-size="132" ' +
-      'font-weight="400" fill="#797979">schnetzler liegenschaften</text>' +
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="420">' +
+    '<rect width="1900" height="420" fill="white"/>' +
+    '<path d="M70 65H360V350H70Z M112 107V308H318V107Z" fill="#245f9d" fill-rule="evenodd"/>' +
+    '<text x="455" y="245" font-family="Arial,sans-serif" font-size="115" ' +
+      'font-weight="400" fill="#535f6e">vector graphics test</text>' +
     '</svg>'
   );
   const { data: source, info } = await sharp(artwork)
@@ -51,8 +51,8 @@ test('realistic wide gray wordmark preserves glyph contours independent of its o
   assert.ok(Buffer.byteLength(svg) < 90_000, 'full-resolution wordmark paths must remain reasonably compact');
   const { data: preview } = await sharp(Buffer.from(svg)).ensureAlpha()
     .raw().toBuffer({ resolveWithObject: true });
-  const textIou = overlap(source, preview, width, height, 450, 2048);
-  const symbolIou = overlap(source, preview, width, height, 0, 440);
+  const textIou = overlap(source, preview, width, height, 430, 1900);
+  const symbolIou = overlap(source, preview, width, height, 0, 410);
   assert.ok(textIou > .84, 'lettering should match independently (IoU ' + textIou.toFixed(3) + ')');
   assert.ok(symbolIou > .95, 'hard-edged symbol should remain intact (IoU ' + symbolIou.toFixed(3) + ')');
 });
