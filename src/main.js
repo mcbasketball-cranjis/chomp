@@ -426,6 +426,7 @@ async function renderPreview(){
       $('preview-status').textContent='Preview ready';
       $('stage-caption').textContent=item.format.toUpperCase()+' · '+result.width+' × '+result.height;
       if(editorPending && currentVectorEditor(item)){
+        editorPending=false;
         openShapeEditor();
       }else if(currentVectorEditor(item)){
         refreshEditedPreview();
@@ -577,6 +578,46 @@ async function pick() { if (!api) { notice('Open the desktop app to select image
 $('add').onclick=pick;$('add-sidebar').onclick=pick;$('drop').onclick=pick;
 document.querySelectorAll('[data-workspace]').forEach(el=>el.onclick=()=>setWorkspace(el.dataset.workspace));
 $('compare-slider').oninput=updatePreviewSplit;
+$('vector-edit-open').onclick=openShapeEditor;
+$('vector-done').onclick=()=>{
+  closeVectorEditor();buttonState();
+};
+$('vector-shape-color').onchange=()=>{
+  const doc=currentVectorEditor();
+  if(!doc || !editorSelection)return;
+  if(modifyVectorShape(doc,editorSelection,{fill:$('vector-shape-color').value}))afterShapeEdit();
+};
+$('vector-delete-shape').onclick=()=>{
+  const doc=currentVectorEditor();
+  if(!doc || !editorSelection)return;
+  if(modifyVectorShape(doc,editorSelection,{hidden:true}))afterShapeEdit();
+};
+$('vector-undo').onclick=()=>{
+  const doc=currentVectorEditor();
+  if(doc && undoVectorEdit(doc))afterShapeEdit();
+};
+$('vector-redo').onclick=()=>{
+  const doc=currentVectorEditor();
+  if(doc && redoVectorEdit(doc))afterShapeEdit();
+};
+$('vector-reset').onclick=()=>{
+  const doc=currentVectorEditor();
+  if(!doc)return;
+  resetVectorEdits(doc);editorSelection=null;afterShapeEdit();
+};
+document.addEventListener('keydown',event=>{
+  if(!editorActive || event.target.closest('input,select,textarea') || event.altKey)return;
+  const key=event.key.toLowerCase();
+  if((event.metaKey||event.ctrlKey)&&key==='z'){
+    event.preventDefault();
+    if(event.shiftKey)$('vector-redo').click();
+    else $('vector-undo').click();
+  }else if(!event.metaKey && !event.ctrlKey && (key==='delete'||key==='backspace')){
+    event.preventDefault();$('vector-delete-shape').click();
+  }else if(key==='escape'&&!event.metaKey&&!event.ctrlKey){
+    closeVectorEditor();buttonState();
+  }
+});
 $('zoom-in').onclick=()=>setZoom(previewZoom+.5);
 $('zoom-out').onclick=()=>setZoom(previewZoom-.5);
 $('zoom-fit').onclick=()=>setZoom(1);
@@ -717,7 +758,7 @@ $('compress').onclick = async () => {
   if (settings.removeBackground && settings.format === 'original' && items.some(item => item.format === 'jpg')) { notice('JPEG cannot save transparency. Choose PNG, WebP, AVIF or SVG to remove the background.'); return; }
   const outputMode = mode();
   if (outputMode === 'replace' && items.some(item => !item.rootId)) { notice('Clear individual image files from the queue before replacing a folder in place.'); return; }
-  stopPreview();running=true;stopped=false;buttonState();notice('');$('summary').hidden=true;$('preview-status').textContent='Exporting…';
+  closeVectorEditor();stopPreview();running=true;stopped=false;buttonState();notice('');$('summary').hidden=true;$('preview-status').textContent='Exporting…';
   $('compress').hidden = true; $('cancel').hidden = false; $('cancel').disabled = false; $('cancel').textContent = 'Stop after this image'; $('progress-wrap').hidden = false;
   document.querySelectorAll('.remove').forEach(el => el.disabled = true);
   const pending = folderRoots.length || items.every(i => i.status === 'done') ? [...items] : items.filter(i => i.status !== 'done'); let completed = 0, failed = 0, original = 0, compressed = 0, batch = null, startupError = null;
@@ -733,7 +774,16 @@ $('compress').onclick = async () => {
         const data = await api.readImage(item.id);
         const inputSize = data.byteLength;
         const format = settings.format === 'original' ? item.format : settings.format;
-        const result = await encode(data, { ...settings, format, sourceFormat: item.format });
+        const cache=item.vectorEditor;
+        let result;
+        if(cache && cache.signature===vectorSignature() && format==='svg' && item.format!=='svg'){
+          const hash=await sourceSha256(data);
+          if(hash!==cache.sourceHash)
+            throw new Error('Source image changed since editing. Remove and add the image again.');
+          result={bytes:editedSvgBytes(cache.doc),width:cache.doc.width,height:cache.doc.height};
+        }else{
+          result=await encode(data, { ...settings, format, sourceFormat: item.format });
+        }
         const saved = await api.saveImage({ id: item.id, batchId: batch.id, format, bytes: result.bytes });
         item.outputSize = result.bytes.byteLength;
         const saving = Math.round((1 - item.outputSize / inputSize) * 100);
