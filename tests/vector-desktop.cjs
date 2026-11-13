@@ -155,6 +155,23 @@ const root = path.resolve(__dirname, '..');
     // Background removal only when explicitly enabled.
     await page.click('#clear'); await choose([white]); await page.click('#add');
     await selectFormat('svg'); await page.check('#remove-bg');
+    await page.selectOption('#bg-color-source','manual');
+    await expect(page.locator('#bg-pick-source')).toBeVisible();
+    await page.click('#bg-pick-source');
+    await page.locator('#preview-stage').scrollIntoViewIfNeeded();
+    await page.locator('#original-img').evaluate(async img=>{if(!img.complete)await img.decode();});
+    const colorPoint=await page.locator('#original-img').evaluate(img=>{
+      const rect=img.getBoundingClientRect(),style=getComputedStyle(img);
+      const pl=parseFloat(style.paddingLeft)||0,pr=parseFloat(style.paddingRight)||0;
+      const pt=parseFloat(style.paddingTop)||0,pb=parseFloat(style.paddingBottom)||0;
+      const iw=rect.width-pl-pr,ih=rect.height-pt-pb;
+      const scale=Math.min(iw/img.naturalWidth,ih/img.naturalHeight);
+      const left=rect.left+pl+(iw-img.naturalWidth*scale)/2;
+      const top=rect.top+pt+(ih-img.naturalHeight*scale)/2;
+      return {x:left+img.naturalWidth*scale*.1,y:top+img.naturalHeight*scale*.1};
+    });
+    await page.mouse.click(colorPoint.x,colorPoint.y);
+    await expect(page.locator('#bg-color')).toHaveValue('#ffffff');
     await page.click('#compress'); const removedXml = await fs.readFile(await saved(), 'utf8');
     assert.ok(!removedXml.includes('fill="#ffffff"'), 'background removal must not trace the white exterior');
     assert.match(removedXml, /<path\b/);
