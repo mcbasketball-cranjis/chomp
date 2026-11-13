@@ -1244,6 +1244,11 @@ async function clearBatch() {
     for (const url of urls) URL.revokeObjectURL(url);
     urls.clear(); items = []; folderRoots = [];
     $('queue').replaceChildren(); $('summary').hidden = true;
+    // A sampled matte belongs to the current batch, not to unrelated images
+    // imported next. Keep manual choice while editing this batch only.
+    $('bg-color-source').value='auto';
+    $('bg-manual-controls').hidden=true;
+    $('bg-color').value='#ffffff';
     notice(''); syncOutputFormats(); selectItem(null); buttonState();
   } catch (e) { notice(e.message); }
 }
