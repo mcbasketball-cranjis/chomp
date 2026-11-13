@@ -312,6 +312,7 @@ function closeVectorEditor(){
   editorPointMode=false;editorPointSelection=null;editorPointDrag=null;inspectorPage=0;
   backgroundColorPick=false;$('preview-stage').classList.remove('source-color-picker');
   editorInsertMode=false;editorColorPick=false;
+  $('preview-stage').classList.remove('picking-source-color');
   sampleCanvas=null;sampleContext=null;sampleImageId=null;
   $('vector-source-overlay').hidden=true;
   $('vector-source-overlay').removeAttribute('src');
@@ -566,6 +567,7 @@ async function sampleEditorColor(event,svg){
   const fractionX=local.x/doc.boxWidth,fractionY=local.y/doc.boxHeight;
   const color=await sampleSourcePixel(fractionX,fractionY);
   editorColorPick=false;
+  $('preview-stage').classList.remove('picking-source-color');
   applySelectedFill(color);
   editorToolbar();
   notice('Sampled '+color+' from the original image.');
@@ -1079,7 +1081,11 @@ $('vector-eyedropper').onclick=()=>{
   if(!editorActive||!editorSelection)return;
   editorColorPick=!editorColorPick;
   editorInsertMode=false;
-  if(editorColorPick){editorPointMode=false;editorPointSelection=null;}
+  if(editorColorPick){
+    editorPointMode=false;editorPointSelection=null;
+    $('vector-overlay-toggle').checked=true;
+  }
+  $('preview-stage').classList.toggle('picking-source-color',editorColorPick);
   renderShapeOverlay();
   if(editorColorPick)$('preview-status').textContent='Click a source color in the preview';
 };
