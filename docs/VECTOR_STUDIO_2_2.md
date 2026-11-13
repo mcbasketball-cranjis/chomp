@@ -78,6 +78,34 @@ Microsoft Store listing is still under certification.**
 - Path editing currently covers anchor and control-handle movement, not new
   point insertion, deletion, automatic path joining, or text/font recovery.
 
+## Precision tools — second pass
+
+- **Insert point:** In Points mode, choose a shape, press Insert point and click
+  close to an outline. The nearest line or cubic Bézier segment is split at
+  the clicked position. Cubics use de Casteljau subdivision to preserve the
+  original curve geometry rather than flattening or approximating it.
+- **Delete point:** Select an anchor and use Delete point. The first anchor
+  cannot be deleted and a closed subpath must retain at least three vertices.
+- **Straight / Curve:** Convert a selected path segment from straight to
+  cubic or back. Newly created cubic handles initially lie on the original
+  line, so the outline stays in place until the user moves the handles.
+- **Source overlay:** Overlay the original image above traced artwork with a
+  0–80% opacity slider. The source overlay is only visual; exported SVG paths
+  never embed the raster image.
+- **Pick color:** Recolor a selected shape by sampling a pixel from the local
+  source image. The background removal color picker can also sample from the
+  source when manual background removal is enabled. Fully transparent pixels
+  are not accepted as a color.
+- **Optimize:** Safe, one-step undoable path cleanup removes duplicate points,
+  exactly collinear intermediate line coordinates and redundant straight
+  cubic segments. It does not apply lossy smoothness or shape-fitting.
+- **Desktop layout:** Editing expands the preview panel and enables ordinary
+  document scrolling, rather than clipping toolbars or placing the color
+  palette above the Undo button at small window heights.
+- All four workflows remain optional and local. The original raster is never
+  modified or uploaded. Point changes, color changes and optimization are
+  written as editable vector geometry in the actual exported SVG.
+
 ## Safety and compatibility
 
 - All work remains local; source images never leave the user's machine.
