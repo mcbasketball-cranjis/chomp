@@ -554,6 +554,7 @@ function stageImageFractions(x,y){
   const pt=parseFloat(style.paddingTop)||0,pb=parseFloat(style.paddingBottom)||0;
   const width=Math.max(1,rect.width-pl-pr),height=Math.max(1,rect.height-pt-pb);
   const naturalW=img.naturalWidth,naturalH=img.naturalHeight;
+  if(!naturalW || !naturalH)throw new Error('Original preview is still rendering.');
   const factor=Math.min(width/naturalW,height/naturalH);
   const scaledW=naturalW*factor,scaledH=naturalH*factor;
   const left=rect.left+pl+(width-scaledW)/2;
@@ -1270,6 +1271,10 @@ $('bg-color-source').onchange=()=>{
 $('bg-color').oninput=queuePreview;
 $('bg-pick-source').onclick=()=>{
   if(!selectedItem()||running||scanning)return;
+  if(!$('original-img').naturalWidth){
+    $('preview-status').textContent='Original preview is still rendering.';
+    return;
+  }
   backgroundColorPick=true;setZoom(1);
   $('preview-stage').classList.add('source-color-picker');
   $('preview-status').textContent='Click the original image to sample its background';
