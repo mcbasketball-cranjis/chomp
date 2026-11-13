@@ -499,6 +499,86 @@ function renderShapeInspector(){
   }
 }
 
+
+function updateSourceOverlay(){
+  const visible=editorActive && $('vector-overlay-toggle').checked && !!previewOriginalUrl;
+  const img=$('vector-source-overlay');
+  if(visible && img.src!==previewOriginalUrl)img.src=previewOriginalUrl;
+  img.hidden=!visible;
+  img.style.opacity=String(Number($('vector-overlay-opacity').value)/100);
+  $('vector-overlay-opacity').disabled=!editorActive || !$('vector-overlay-toggle').checked;
+  $('vector-overlay-percent').textContent=$('vector-overlay-opacity').value+'%';
+}
+function getLocalPoint(svg,clientX,clientY){
+  const matrix=svg.getScreenCTM();
+  if(!matrix)throw new Error('Preview coordinates unavailable.');
+  const p=svg.createSVGPoint();
+  p.x=clientX;p.y=clientY;
+  return p.matrixTransform(matrix.inverse());
+}
+async function ensureSourceCanvas(){
+  const item=selectedItem(),image=$('original-img');
+  if(!item || !image.src)throw new Error('Choose an image before sampling colors.');
+  if(sampleContext && sampleImageId===item.id)return {canvas:sampleCanvas,ctx:sampleContext};
+  if(!image.complete || !image.naturalWidth)await image.decode();
+  const factor=Math.min(1,Math.sqrt(3_000_000/(image.naturalWidth*image.naturalHeight)));
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(image.naturalWidth*factor));
+  canvas.height=Math.max(1,Math.round(image.naturalHeight*factor));
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  if(!ctx)throw new Error('Unable to sample source image colors.');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(image,0,0,canvas.width,canvas.height);
+  sampleCanvas=canvas;sampleContext=ctx;sampleImageId=item.id;
+  return {canvas,ctx};
+}
+async function sampleSourcePixel(fractionX,fractionY){
+  const {canvas,ctx}=await ensureSourceCanvas();
+  if(!Number.isFinite(fractionX)||!Number.isFinite(fractionY)||
+     fractionX<0||fractionY<0||fractionX>=1||fractionY>=1)
+    throw new Error('Click within the source image to sample a color.');
+  const x=Math.max(0,Math.min(canvas.width-1,Math.floor(fractionX*canvas.width)));
+  const y=Math.max(0,Math.min(canvas.height-1,Math.floor(fractionY*canvas.height)));
+  const [r,g,b,a]=ctx.getImageData(x,y,1,1).data;
+  if(a<8)throw new Error('That source pixel is transparent.');
+  return '#'+[r,g,b].map(n=>n.toString(16).padStart(2,'0')).join('');
+}
+function stageImageFractions(x,y){
+  // The original preview uses object-fit: contain with fixed inner padding.
+  const img=$('original-img');
+  const rect=img.getBoundingClientRect();
+  const style=getComputedStyle(img);
+  const pl=parseFloat(style.paddingLeft)||0,pr=parseFloat(style.paddingRight)||0;
+  const pt=parseFloat(style.paddingTop)||0,pb=parseFloat(style.paddingBottom)||0;
+  const width=Math.max(1,rect.width-pl-pr),height=Math.max(1,rect.height-pt-pb);
+  const naturalW=img.naturalWidth,naturalH=img.naturalHeight;
+  const factor=Math.min(width/naturalW,height/naturalH);
+  const scaledW=naturalW*factor,scaledH=naturalH*factor;
+  const left=rect.left+pl+(width-scaledW)/2;
+  const top=rect.top+pt+(height-scaledH)/2;
+  return [(x-left)/scaledW,(y-top)/scaledH];
+}
+async function sampleEditorColor(event,svg){
+  const doc=currentVectorEditor();
+  if(!doc)return;
+  const local=getLocalPoint(svg,event.clientX,event.clientY);
+  const fractionX=local.x/doc.boxWidth,fractionY=local.y/doc.boxHeight;
+  const color=await sampleSourcePixel(fractionX,fractionY);
+  editorColorPick=false;
+  applySelectedFill(color);
+  editorToolbar();
+  notice('Sampled '+color+' from the original image.');
+}
+function refreshPointButtons(){
+  const node=editorPointSelection;
+  const doc=currentVectorEditor();
+  const shape=doc?.shapes.find(s=>s.id===editorSelection && !s.hidden);
+  const anchor=!!shape && editorPointMode && node?.role==='anchor';
+  $('vector-remove-point').disabled=!anchor || node.index===0;
+  $('vector-straight').disabled=!anchor || node.index===0;
+  $('vector-curve').disabled=!anchor || node.index===0;
+}
+
 function renderSelectedPathPoints(svg,shape){
   if(!editorPointMode || !shape)return;
   let points;
