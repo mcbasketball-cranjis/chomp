@@ -371,3 +371,18 @@ progress{width:100%;height:6px;margin-bottom:10px;accent-color:var(--accent)}
 .vector-point-guides{pointer-events:none}
 .vector-point-guides line{stroke:var(--accent);stroke-width:1;stroke-dasharray:3 3;
   opacity:.65;vector-effect:non-scaling-stroke;pointer-events:none}
+
+/* Editor controls must not be squeezed into the normal compact preview.
+   Allow the main content to scroll instead of overlapping the toolbar on
+   Windows scaling / narrow desktop windows. */
+.workspace:has(.vector-edit-toolbar:not([hidden])){flex:0 0 auto}
+.preview-panel:has(.vector-edit-toolbar:not([hidden])){min-height:755px;flex:none}
+.preview-panel:has(.vector-edit-toolbar:not([hidden])) .preview-stage{
+  flex:1 0 275px;min-height:275px
+}
+.preview-panel:has(.vector-edit-toolbar:not([hidden])) .preview-footer,
+.preview-panel:has(.vector-edit-toolbar:not([hidden])) .vector-edit-toolbar,
+.preview-panel:has(.vector-edit-toolbar:not([hidden])) .vector-palette,
+.preview-panel:has(.vector-edit-toolbar:not([hidden])) .vector-inspector{
+  flex-shrink:0
+}
