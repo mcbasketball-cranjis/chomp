@@ -182,7 +182,9 @@ const root = path.resolve(__dirname, '..');
     // JPEG has no alpha channel, so remove its plain white/black background on export.
     // Test both true vector output and an ordinary transparent PNG output.
     for (const [input, outputFormat] of [[whiteJpeg, 'svg'], [blackJpeg, 'png']]) {
-      await page.click('#clear'); await choose([input]); await page.click('#add');
+      await page.click('#clear');
+      await expect(page.locator('#bg-color-source')).toHaveValue('auto');
+      await choose([input]); await page.click('#add');
       await selectFormat(outputFormat);
       await page.check('#remove-bg'); await page.click('#compress');
       const destination = await saved();
