@@ -698,10 +698,12 @@ function renderShapeOverlay(){
     }
     const path=event.target.closest('path[data-chomp-shape]');
     if(editorInsertMode){
-      if(!path || path.getAttribute('data-chomp-shape')!==editorSelection){
-        notice('Click the selected shape near the segment where a point is needed.');
+      if(path && path.getAttribute('data-chomp-shape')!==editorSelection){
+        notice('Select that shape first, then insert a point on its outline.');
         return;
       }
+      // Permit clicks just outside a thin stroke: the nearest segment is
+      // still checked against a small screen-pixel distance below.
       try{
         const local=getLocalPoint(svg,event.clientX,event.clientY);
         const selected=currentVectorEditor()?.shapes.find(s=>s.id===editorSelection);
