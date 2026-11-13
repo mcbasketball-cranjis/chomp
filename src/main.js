@@ -639,6 +639,33 @@ function renderSelectedPathPoints(svg,shape){
   }
   svg.append(group);
 }
+
+function updateVectorPointDrag(event){
+  const drag=editorPointDrag,svg=editorSvg;
+  if(!drag||drag.pointerId!==event.pointerId||!svg)return;
+  try{
+    const point=getLocalPoint(svg,event.clientX,event.clientY);
+    const d=moveVectorPathPoint(drag.original,drag.index,drag.role,point.x,point.y);
+    drag.current=d;drag.path?.setAttribute('d',d);
+    drag.circle?.setAttribute('cx',String(point.x));
+    drag.circle?.setAttribute('cy',String(point.y));
+  }catch{ /* Invalid out-of-bounds positions are ignored. */ }
+  event.preventDefault();
+}
+function finishVectorPointDrag(event,commit=true){
+  const drag=editorPointDrag;
+  if(!drag||drag.pointerId!==event.pointerId)return;
+  editorPointDrag=null;
+  const doc=currentVectorEditor();
+  if(commit && doc && drag.current!==drag.original &&
+      modifyVectorShape(doc,drag.shapeId,{d:drag.current})){
+    afterShapeEdit();
+  }else renderShapeOverlay();
+  event.preventDefault();
+}
+window.addEventListener('pointermove',updateVectorPointDrag,true);
+window.addEventListener('pointerup',event=>finishVectorPointDrag(event,true),true);
+window.addEventListener('pointercancel',event=>finishVectorPointDrag(event,false),true);
 function renderShapeOverlay(){
   if(editorSvg){editorSvg.remove();editorSvg=null;}
   if(!editorActive)return;
@@ -662,36 +689,6 @@ function renderShapeOverlay(){
   }
   const chosen=doc.shapes.find(shape=>shape.id===editorSelection && !shape.hidden);
   renderSelectedPathPoints(svg,chosen);
-  svg.addEventListener('pointermove',event=>{
-    const drag=editorPointDrag;
-    if(!drag || drag.pointerId!==event.pointerId)return;
-    const matrix=svg.getScreenCTM();
-    if(!matrix)return;
-    const point=svg.createSVGPoint();point.x=event.clientX;point.y=event.clientY;
-    const position=point.matrixTransform(matrix.inverse());
-    try{
-      const candidate=moveVectorPathPoint(drag.original,drag.index,drag.role,position.x,position.y);
-      drag.current=candidate;
-      drag.path?.setAttribute('d',candidate);
-      drag.circle?.setAttribute('cx',String(position.x));
-      drag.circle?.setAttribute('cy',String(position.y));
-    }catch{ /* Do not commit coordinates outside the supported vector range. */ }
-    event.preventDefault();
-  });
-  svg.addEventListener('pointerup',event=>{
-    const drag=editorPointDrag;
-    if(!drag || drag.pointerId!==event.pointerId)return;
-    editorPointDrag=null;
-    const doc=currentVectorEditor();
-    if(doc && drag.current!==drag.original &&
-       modifyVectorShape(doc,drag.shapeId,{d:drag.current}))afterShapeEdit();
-    else renderShapeOverlay();
-    event.preventDefault();
-  });
-  svg.addEventListener('pointercancel',event=>{
-    if(!editorPointDrag || editorPointDrag.pointerId!==event.pointerId)return;
-    editorPointDrag=null;renderShapeOverlay();
-  });
   svg.addEventListener('click',event=>{
     if(previewPanMode && previewZoom>1)return;
     if(event.target.closest('circle[data-node-index]'))return;
