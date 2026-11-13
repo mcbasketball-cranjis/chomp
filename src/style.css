@@ -420,3 +420,8 @@ progress{width:100%;height:6px;margin-bottom:10px;accent-color:var(--accent)}
   .vector-inspector-footer{flex-wrap:wrap}
   #vector-point-help{margin-left:0;flex-basis:100%}
 }
+
+.preview-stage.editing-vector.picking-source-color .vector-edit-svg,
+.preview-stage.editing-vector.picking-source-color .vector-edit-svg path{
+  cursor:crosshair
+}
