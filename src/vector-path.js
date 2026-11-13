@@ -239,7 +239,15 @@ export function optimizeVectorPath(d) {
   for(const original of commands){
     let c={type:original.type,values:[...original.values]};
     if(c.type==='M'){origin=c.values;current=c.values;cleaned.push(c);continue;}
-    if(c.type==='Z'){cleaned.push(c);current=origin;continue;}
+    if(c.type==='Z'){
+      // Z already draws the return segment. Remove a duplicate explicit L
+      // to its starting point without changing the visible geometry.
+      const last=cleaned[cleaned.length-1];
+      if(last?.type==='L' && origin &&
+         Math.hypot(last.values[0]-origin[0],last.values[1]-origin[1])<.004)
+        cleaned.pop();
+      cleaned.push(c);current=origin;continue;
+    }
     if(!current)throw new Error('Invalid path structure.');
     if(c.type==='C'){
       const end=c.values.slice(4),a=c.values.slice(0,2),b=c.values.slice(2,4);
