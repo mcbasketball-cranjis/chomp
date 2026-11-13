@@ -625,6 +625,7 @@ function renderSelectedPathPoints(svg,shape){
       if(event.button!==0)return;
       event.stopPropagation();event.preventDefault();
       editorPointSelection={index:node.index,role:node.role};
+      refreshPointButtons();
       editorPointDrag={
         pointerId:event.pointerId,shapeId:shape.id,original:shape.d,
         current:shape.d,index:node.index,role:node.role,circle,
@@ -692,14 +693,42 @@ function renderShapeOverlay(){
   });
   svg.addEventListener('click',event=>{
     if(previewPanMode && previewZoom>1)return;
-    if(event.target.closest('circle[data-node-index]') || (editorPointMode && event.target===svg))return;
+    if(event.target.closest('circle[data-node-index]'))return;
+    if(editorColorPick){
+      sampleEditorColor(event,svg).catch(e=>notice(e.message));
+      return;
+    }
     const path=event.target.closest('path[data-chomp-shape]');
+    if(editorInsertMode){
+      if(!path || path.getAttribute('data-chomp-shape')!==editorSelection){
+        notice('Click the selected shape near the segment where a point is needed.');
+        return;
+      }
+      try{
+        const local=getLocalPoint(svg,event.clientX,event.clientY);
+        const selected=currentVectorEditor()?.shapes.find(s=>s.id===editorSelection);
+        const nearest=nearestVectorPathSegment(selected.d,local.x,local.y);
+        const matrix=svg.getScreenCTM();
+        const screenDistance=nearest?.distance * (matrix?Math.hypot(matrix.a,matrix.b):1);
+        if(!nearest || screenDistance>14)
+          throw new Error('Click closer to the selected path outline.');
+        const d=insertVectorPathPoint(selected.d,nearest.index,nearest.t);
+        if(modifyVectorShape(currentVectorEditor(),selected.id,{d})){
+          editorPointSelection={index:nearest.index,role:'anchor'};
+          editorInsertMode=false;
+          afterShapeEdit();
+        }
+      }catch(e){notice(e.message);}
+      return;
+    }
+    if(editorPointMode && event.target===svg)return;
     selectEditorShape(path?.getAttribute('data-chomp-shape')||null);
   });
   editorSvg=svg;
   $('result-layer').append(svg);
   $('result-img').hidden=true;
   renderZoom();editorToolbar();renderVectorPalette();renderShapeInspector();
+  updateSourceOverlay();
 }
 function editedSvgBytes(doc){
   return new TextEncoder().encode(serializeVectorDocument(doc));
@@ -733,6 +762,7 @@ function openShapeEditor(){
   $('vector-edit-toolbar').hidden=false;
   $('vector-palette').hidden=false;
   $('vector-inspector').hidden=false;
+  updateSourceOverlay();
   refreshEditedPreview();
   buttonState();
 }
@@ -994,10 +1024,66 @@ $('compare-slider').oninput=updatePreviewSplit;
 $('vector-point-mode').onclick=()=>{
   if(!editorSelection || !currentVectorEditor())return;
   editorPointMode=!editorPointMode;
-  editorPointSelection=null;editorPointDrag=null;
+  editorPointSelection=null;editorPointDrag=null;editorInsertMode=false;editorColorPick=false;
   if(editorPointMode){previewPanMode=false;renderZoom();}
   renderShapeOverlay();
 };
+
+$('vector-add-point').onclick=()=>{
+  if(!editorActive||!editorPointMode||!editorSelection)return;
+  editorInsertMode=!editorInsertMode;
+  editorColorPick=false;
+  renderShapeOverlay();
+  $('preview-status').textContent=editorInsertMode
+    ? 'Click near the selected path edge to insert an anchor'
+    : 'Editable preview ready';
+};
+$('vector-remove-point').onclick=()=>{
+  if(!editorActive || !editorPointMode || !editorPointSelection ||
+     editorPointSelection.role!=='anchor')return;
+  const doc=currentVectorEditor(),shape=doc?.shapes.find(s=>s.id===editorSelection);
+  if(!shape)return;
+  try{
+    const d=deleteVectorPathPoint(shape.d,editorPointSelection.index);
+    if(modifyVectorShape(doc,shape.id,{d})){
+      editorPointSelection=null;afterShapeEdit();
+    }
+  }catch(e){notice(e.message);}
+};
+function changeSelectedSegment(style){
+  if(!editorActive||!editorPointMode||editorPointSelection?.role!=='anchor')return;
+  const doc=currentVectorEditor(),shape=doc?.shapes.find(s=>s.id===editorSelection);
+  if(!shape)return;
+  try{
+    const d=setVectorPathSegmentType(shape.d,editorPointSelection.index,style);
+    if(modifyVectorShape(doc,shape.id,{d}))afterShapeEdit();
+  }catch(e){notice(e.message);}
+}
+$('vector-straight').onclick=()=>changeSelectedSegment('line');
+$('vector-curve').onclick=()=>changeSelectedSegment('curve');
+$('vector-optimize').onclick=()=>{
+  const doc=currentVectorEditor();
+  if(!doc)return;
+  try{
+    const result=optimizeVectorDocument(doc);
+    if(result.changed){
+      editorPointSelection=null;editorInsertMode=false;
+      afterShapeEdit();
+      notice('Optimized '+result.changed+' vector path'+(result.changed===1?'':'s')+
+        ' · '+result.bytesSaved+' characters removed.');
+    }else notice('No redundant points found.');
+  }catch(e){notice(e.message);}
+};
+$('vector-eyedropper').onclick=()=>{
+  if(!editorActive||!editorSelection)return;
+  editorColorPick=!editorColorPick;
+  editorInsertMode=false;
+  if(editorColorPick){editorPointMode=false;editorPointSelection=null;}
+  renderShapeOverlay();
+  if(editorColorPick)$('preview-status').textContent='Click a source color in the preview';
+};
+$('vector-overlay-toggle').onchange=updateSourceOverlay;
+$('vector-overlay-opacity').oninput=updateSourceOverlay;
 $('vector-only-small').onchange=()=>{
   inspectorPage=0;renderShapeInspector();
 };
