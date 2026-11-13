@@ -386,3 +386,37 @@ progress{width:100%;height:6px;margin-bottom:10px;accent-color:var(--accent)}
 .preview-panel:has(.vector-edit-toolbar:not([hidden])) .vector-inspector{
   flex-shrink:0
 }
+
+/* Editing is a larger tool surface than the normal converter view. Keep every
+   control in document flow instead of letting lower panels intercept clicks. */
+.preview-panel:has(.vector-edit-toolbar:not([hidden])){min-height:890px}
+.vector-overlay-label{display:inline-flex;align-items:center;gap:5px;font-size:10px;
+  color:var(--muted);font-weight:700;cursor:pointer;margin-left:auto}
+.vector-overlay-label input{width:14px;height:14px;accent-color:var(--accent)}
+#vector-overlay-opacity{width:90px;min-width:50px;accent-color:var(--accent);cursor:pointer}
+#vector-overlay-opacity:disabled{opacity:.35;cursor:default}
+#vector-overlay-percent{font-size:10px;min-width:30px;color:var(--faint);font-weight:700}
+.preview-image-wrap img.vector-source-overlay{position:absolute;inset:0;z-index:10;
+  width:100%;height:100%;object-fit:contain;pointer-events:none;
+  transform-origin:center center;filter:none}
+.preview-image-wrap img.vector-source-overlay[hidden]{display:none!important}
+.preview-stage.editing-vector .vector-edit-svg{position:relative;z-index:3}
+.preview-stage.editing-vector.source-color-picker,
+.preview-stage.editing-vector:has(#vector-source-overlay:not([hidden])){
+  isolation:isolate
+}
+.preview-stage.source-color-picker{cursor:crosshair}
+.preview-stage.source-color-picker .compare-slider{pointer-events:none}
+.bg-pick-source{font-size:10px;font-weight:700;color:var(--accent-ink);border:1px solid var(--line);
+  border-radius:6px;background:var(--surface);height:32px;padding:0 8px;cursor:pointer}
+.bg-pick-source:hover{background:var(--soft)}
+.vector-edit-toolbar #vector-add-point.selected,.vector-edit-toolbar #vector-eyedropper.selected{
+  color:var(--accent-ink);background:var(--soft);border-color:var(--accent)
+}
+.preview-stage.editing-vector:has(#vector-source-overlay:not([hidden])) .vector-point-handle{
+  paint-order:stroke;stroke:var(--ink)
+}
+@media(max-width:1050px){
+  .vector-inspector-footer{flex-wrap:wrap}
+  #vector-point-help{margin-left:0;flex-basis:100%}
+}
