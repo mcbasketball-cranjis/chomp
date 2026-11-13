@@ -390,6 +390,7 @@ const root = path.resolve(__dirname, '..');
     // Insert an anchor by clicking near the selected vector outline.
     const countBefore = await page.locator('.vector-point-handle.anchor').count();
     await page.click('#vector-add-point');
+    await selectedEditable.scrollIntoViewIfNeeded();
     const edge = await selectedEditable.evaluate(el=>{
       const pt=el.getPointAtLength(el.getTotalLength()*.16);
       const p=pt.matrixTransform(el.getScreenCTM());
