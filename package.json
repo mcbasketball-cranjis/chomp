@@ -1,6 +1,6 @@
 {
   "name": "chomp",
-  "version": "2.1.4",
+  "version": "2.2.0",
   "private": true,
   "type": "module",
   "description": "Local image compression and SVG vector tracing for Windows and macOS",

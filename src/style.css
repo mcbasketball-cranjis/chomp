@@ -244,3 +244,184 @@ progress{width:100%;height:6px;margin-bottom:10px;accent-color:var(--accent)}
 .updates-toast button:last-child{font-size:18px;color:var(--muted);line-height:1}
 .intro{align-items:center}
 .intro h1{font-size:24px}
+
+/* Vector studio controls are collapsed by default to keep the workspace clean. */
+.trace-advanced{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+.trace-advanced summary{font-size:11px;font-weight:750;color:var(--accent-ink);cursor:pointer;list-style-position:inside;user-select:none}
+.trace-advanced summary:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:3px}
+.advanced-fields{display:grid;grid-template-columns:minmax(0,1fr);gap:0;padding-top:16px}
+.advanced-fields>.field-label{margin-top:14px}
+.advanced-fields>.field-label:first-child{margin-top:0}
+.advanced-fields>.label-row{margin-top:17px}
+.advanced-fields .range-labels{margin-bottom:5px}
+.trace-reset{justify-self:start;margin-top:14px;padding:6px 0;color:var(--accent-ink);font-size:10px}
+.preview-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.preview-zoom{display:flex;align-items:center;gap:1px;border:1px solid var(--line);background:var(--raised);border-radius:8px;padding:3px}
+.preview-zoom button{border:0;border-radius:5px;background:transparent;color:var(--muted);min-height:27px;min-width:27px;padding:4px 6px;font-size:12px;font-weight:750;cursor:pointer}
+.preview-zoom button:disabled{opacity:.4;cursor:default}
+.preview-zoom button:hover:not(:disabled),.preview-zoom button.selected{background:var(--surface);color:var(--accent-ink)}
+.preview-zoom #zoom-fit{min-width:46px;font-size:10px}
+.preview-zoom #zoom-pan{font-size:10px}
+.preview-image-wrap img{transform-origin:center center;will-change:transform}
+.preview-stage.pan-mode{cursor:grab;touch-action:none}
+.preview-stage.pan-mode.dragging-pan{cursor:grabbing}
+.preview-stage.pan-mode .compare-slider{pointer-events:none}
+.preview-stage.pan-mode .preview-image-wrap{pointer-events:none}
+@media(max-width:920px){.preview-footer{align-items:flex-start;flex-wrap:wrap;padding-top:9px;padding-bottom:9px}.preview-actions{width:100%;justify-content:space-between}}
+
+.background-picker{margin-top:14px}
+.background-picker>.field-label{margin-bottom:7px}
+#bg-manual-controls{display:flex;gap:10px;align-items:center;margin-top:9px;color:var(--faint);font-size:10px}
+#bg-manual-controls[hidden]{display:none}
+#bg-color{height:34px;width:54px;border-radius:7px;border:1px solid var(--line);background:var(--raised);padding:3px;cursor:pointer}
+
+/* Local, opt-in shape cleanup; standard comparisons are unchanged. */
+.vector-edit-open{border:1px solid var(--line);border-radius:7px;background:var(--surface);
+  color:var(--accent-ink);font-size:10px;font-weight:760;min-height:33px;padding:6px 10px;cursor:pointer}
+.vector-edit-open:hover{background:var(--soft)}
+.vector-edit-open:disabled{opacity:.5;cursor:default}
+.vector-edit-open[hidden],.vector-edit-toolbar[hidden]{display:none!important}
+.vector-edit-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:9px;padding:9px 14px;
+  border-top:1px solid var(--line);background:var(--raised);min-height:52px}
+.vector-edit-label{font-size:10px;font-weight:750;color:var(--ink);min-width:120px;flex:1}
+.vector-edit-toolbar label{font-size:10px;color:var(--faint);font-weight:700}
+.vector-edit-toolbar input[type=color]{height:29px;width:38px;padding:2px;border:1px solid var(--line);
+  border-radius:6px;background:var(--surface);cursor:pointer}
+.vector-edit-toolbar input[type=color]:disabled{opacity:.35;cursor:default}
+.vector-edit-toolbar button{border:1px solid var(--line);border-radius:7px;background:var(--surface);
+  min-height:29px;padding:5px 9px;color:var(--muted);font-size:10px;font-weight:720;cursor:pointer}
+.vector-edit-toolbar button:hover:not(:disabled){background:var(--soft);color:var(--accent-ink)}
+.vector-edit-toolbar button:disabled{opacity:.45;cursor:default}
+.vector-edit-toolbar .vector-edit-done{background:var(--accent);color:white;border-color:var(--accent)}
+.vector-edit-toolbar .vector-edit-done:hover{background:var(--accent);color:white}
+.vector-edit-spacer{flex:1;min-width:5px}
+.preview-stage.editing-vector #original-layer,.preview-stage.editing-vector .comparison-line,
+.preview-stage.editing-vector .comparison-handle,.preview-stage.editing-vector .compare-slider,
+.preview-stage.editing-vector .before-chip,.preview-stage.editing-vector .after-chip{display:none}
+.preview-stage.editing-vector #result-layer{z-index:3;pointer-events:auto}
+.vector-edit-svg{width:100%;height:100%;padding:38px 42px;box-sizing:border-box;
+  display:block;overflow:hidden;pointer-events:auto;transform-origin:center center}
+.vector-edit-svg path{cursor:pointer;pointer-events:visiblePainted}
+.vector-edit-svg path:hover{stroke:var(--accent);stroke-width:1;vector-effect:non-scaling-stroke}
+.vector-edit-svg path.selected-vector-shape{stroke:var(--accent);stroke-width:2;vector-effect:non-scaling-stroke;
+  stroke-dasharray:5 3;stroke-linejoin:round}
+.preview-stage.editing-vector.pan-mode .vector-edit-svg path{cursor:grab}
+.preview-stage.editing-vector.dragging-pan .vector-edit-svg path{cursor:grabbing}
+@media(max-width:720px){.vector-edit-label{flex-basis:100%}.vector-edit-spacer{display:none}}
+
+/* Color palette and grouped cleanup keep the editor useful without a new pane. */
+.vector-palette[hidden]{display:none!important}
+.vector-palette{display:flex;align-items:flex-start;gap:10px;padding:9px 14px;
+  border-top:1px solid var(--line);background:var(--surface)}
+.vector-palette-title{font-size:10px;font-weight:760;color:var(--faint);padding-top:9px}
+.vector-palette-swatches{display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0}
+.vector-palette-swatch{display:flex;gap:5px;align-items:center;min-height:29px;border-radius:7px;
+  border:1px solid var(--line);background:var(--raised);padding:4px 7px;color:var(--muted);
+  font-size:10px;font-weight:700;cursor:pointer}
+.vector-palette-swatch:hover,.vector-palette-swatch.active{border-color:var(--accent);background:var(--soft);color:var(--accent-ink)}
+.vector-palette-swatch:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.vector-palette-swatch small{font-size:9px;color:var(--faint)}
+.vector-swatch-dot{display:block;width:14px;height:14px;flex:none;border-radius:4px;border:1px solid #0002}
+.vector-match-option{display:flex!important;gap:5px;align-items:center;cursor:pointer;
+  font-size:10px;font-weight:700;color:var(--muted)!important}
+.vector-match-option input{width:14px;height:14px;margin:0;accent-color:var(--accent);cursor:pointer}
+.vector-match-option:has(input:disabled){opacity:.45;cursor:default}
+
+.vector-shape-hex{height:29px;width:76px;border:1px solid var(--line);border-radius:6px;
+  background:var(--surface);color:var(--ink);font-size:10px;font-weight:700;
+  font-family:ui-monospace,SFMono-Regular,Consolas,monospace;padding:0 7px}
+.vector-shape-hex:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.vector-shape-hex:disabled{opacity:.45}
+
+/* Compact inspector for selecting contours too small to click on the canvas. */
+.vector-inspector[hidden]{display:none!important}
+.vector-inspector{border-top:1px solid var(--line);background:var(--raised);padding:10px 14px 11px}
+.vector-inspector-header{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-bottom:8px}
+.vector-inspector-header strong{font-size:11px;font-weight:760;margin-right:3px}
+.vector-inspector-header label{display:flex;gap:5px;align-items:center;font-size:10px;color:var(--muted);cursor:pointer}
+.vector-inspector-header label input{accent-color:var(--accent);width:13px;height:13px}
+#vector-inspector-count{font-size:10px;color:var(--faint);margin-right:auto}
+.vector-inspector-header button,.vector-inspector-footer button{border:1px solid var(--line);background:var(--surface);
+ border-radius:6px;min-height:25px;padding:3px 8px;font-size:10px;color:var(--muted);font-weight:700;cursor:pointer}
+.vector-inspector-header button:disabled,.vector-inspector-footer button:disabled{opacity:.4;cursor:default}
+.vector-inspector-header button:hover:not(:disabled),.vector-inspector-footer button:hover:not(:disabled){color:var(--accent-ink);background:var(--soft)}
+.vector-inspector-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(133px,1fr));
+ gap:5px;max-height:143px;overflow:auto;scrollbar-width:thin}
+.vector-inspector-item{min-width:0;display:flex;align-items:center;gap:6px;text-align:left;
+ border:1px solid var(--line);border-radius:7px;background:var(--surface);padding:6px 8px;
+ color:var(--ink);font-size:10px;cursor:pointer}
+.vector-inspector-item strong{font-size:10px;font-weight:750;white-space:nowrap}
+.vector-inspector-item small{font-size:9px;color:var(--faint);margin-left:auto;white-space:nowrap}
+.vector-inspector-item.selected,.vector-inspector-item:hover{border-color:var(--accent);background:var(--soft)}
+.vector-inspector-item:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.vector-inspector-footer{display:flex;gap:6px;align-items:center;margin-top:8px}
+#vector-inspector-page{font-size:10px;color:var(--faint);min-width:40px}
+#vector-point-help{font-size:10px;color:var(--muted);margin-left:auto}
+#vector-point-help[hidden]{display:none}
+#vector-point-mode.selected{background:var(--soft);color:var(--accent-ink);border-color:var(--accent)}
+.vector-points{pointer-events:visiblePainted}
+.vector-point-handle{fill:var(--surface);stroke:var(--accent-ink);stroke-width:1.4;cursor:grab;
+  pointer-events:all;vector-effect:non-scaling-stroke}
+.vector-point-handle.control{fill:var(--soft);stroke:var(--muted);stroke-dasharray:2 1}
+.vector-point-handle.active{stroke:var(--accent);stroke-width:2.5;fill:var(--accent)}
+.preview-stage.editing-vector .vector-point-handle{pointer-events:all;cursor:grab;paint-order:stroke}
+.preview-stage.editing-vector .vector-point-handle:active{cursor:grabbing}
+@media(max-width:760px){.vector-inspector-list{grid-template-columns:repeat(auto-fill,minmax(115px,1fr));max-height:105px}}
+
+.vector-point-guides{pointer-events:none}
+.vector-point-guides line{stroke:var(--accent);stroke-width:1;stroke-dasharray:3 3;
+  opacity:.65;vector-effect:non-scaling-stroke;pointer-events:none}
+
+/* Editor controls must not be squeezed into the normal compact preview.
+   Allow the main content to scroll instead of overlapping the toolbar on
+   Windows scaling / narrow desktop windows. */
+.workspace:has(.vector-edit-toolbar:not([hidden])){flex:0 0 auto}
+.preview-panel:has(.vector-edit-toolbar:not([hidden])){min-height:755px;flex:none}
+.preview-panel:has(.vector-edit-toolbar:not([hidden])) .preview-stage{
+  flex:1 0 275px;min-height:275px
+}
+.preview-panel:has(.vector-edit-toolbar:not([hidden])) .preview-footer,
+.preview-panel:has(.vector-edit-toolbar:not([hidden])) .vector-edit-toolbar,
+.preview-panel:has(.vector-edit-toolbar:not([hidden])) .vector-palette,
+.preview-panel:has(.vector-edit-toolbar:not([hidden])) .vector-inspector{
+  flex-shrink:0
+}
+
+/* Editing is a larger tool surface than the normal converter view. Keep every
+   control in document flow instead of letting lower panels intercept clicks. */
+.preview-panel:has(.vector-edit-toolbar:not([hidden])){min-height:890px}
+.vector-overlay-label{display:inline-flex;align-items:center;gap:5px;font-size:10px;
+  color:var(--muted);font-weight:700;cursor:pointer;margin-left:auto}
+.vector-overlay-label input{width:14px;height:14px;accent-color:var(--accent)}
+#vector-overlay-opacity{width:90px;min-width:50px;accent-color:var(--accent);cursor:pointer}
+#vector-overlay-opacity:disabled{opacity:.35;cursor:default}
+#vector-overlay-percent{font-size:10px;min-width:30px;color:var(--faint);font-weight:700}
+.preview-image-wrap img.vector-source-overlay{position:absolute;inset:0;z-index:10;
+  width:100%;height:100%;object-fit:contain;pointer-events:none;
+  transform-origin:center center;filter:none}
+.preview-image-wrap img.vector-source-overlay[hidden]{display:none!important}
+.preview-stage.editing-vector .vector-edit-svg{position:relative;z-index:3}
+.preview-stage.editing-vector.source-color-picker,
+.preview-stage.editing-vector:has(#vector-source-overlay:not([hidden])){
+  isolation:isolate
+}
+.preview-stage.source-color-picker{cursor:crosshair}
+.preview-stage.source-color-picker .compare-slider{pointer-events:none}
+.bg-pick-source{font-size:10px;font-weight:700;color:var(--accent-ink);border:1px solid var(--line);
+  border-radius:6px;background:var(--surface);height:32px;padding:0 8px;cursor:pointer}
+.bg-pick-source:hover{background:var(--soft)}
+.vector-edit-toolbar #vector-add-point.selected,.vector-edit-toolbar #vector-eyedropper.selected{
+  color:var(--accent-ink);background:var(--soft);border-color:var(--accent)
+}
+.preview-stage.editing-vector:has(#vector-source-overlay:not([hidden])) .vector-point-handle{
+  paint-order:stroke;stroke:var(--ink)
+}
+@media(max-width:1050px){
+  .vector-inspector-footer{flex-wrap:wrap}
+  #vector-point-help{margin-left:0;flex-basis:100%}
+}
+
+.preview-stage.editing-vector.picking-source-color .vector-edit-svg,
+.preview-stage.editing-vector.picking-source-color .vector-edit-svg path{
+  cursor:crosshair
+}

@@ -26,6 +26,19 @@ const root = path.resolve(__dirname, '..');
     await page.click('[data-workspace="vectorize"]');
     assert.deepEqual(await values(), ['svg'], 'Vectorize must only export editable SVG');
     await expect(page.locator('#trace-controls')).toBeVisible();
+    await page.locator('#trace-advanced').evaluate(node => { node.open=true; });
+    await page.selectOption('#trace-mode','logo');
+    await page.selectOption('#trace-colors','8');
+    await page.selectOption('#trace-resolution','high');
+    await page.locator('#trace-smoothing').evaluate(node => {
+      node.value='82';node.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+    await expect(page.locator('#trace-smoothing-value')).toHaveText('82');
+    await page.click('#trace-reset');
+    await expect(page.locator('#trace-mode')).toHaveValue('auto');
+    await expect(page.locator('#trace-colors')).toHaveValue('0');
+    await expect(page.locator('#trace-resolution')).toHaveValue('standard');
+    await expect(page.locator('#trace-smoothing')).toHaveValue('50');
     await page.click('[data-workspace="compress"]');
     await expect(page.locator('#format')).toHaveValue('avif');
     await page.click('[data-workspace="convert"]');
@@ -82,6 +95,15 @@ const root = path.resolve(__dirname, '..');
     await expect(page.locator('#new-batch')).toBeVisible();
     await expect(page.locator('#new-batch')).toContainText('Clear all');
     await selectFormat('svg'); await expect(page.locator('#trace-controls')).toBeVisible();
+    await page.click('#zoom-in');
+    await expect(page.locator('#zoom-value')).toHaveText('150%');
+    await page.click('#zoom-pan');
+    await expect(page.locator('#zoom-pan')).toHaveAttribute('aria-pressed','true');
+    assert.equal(await page.locator('#compare-slider').evaluate(node => getComputedStyle(node).pointerEvents),
+      'none', 'pan mode must allow dragging instead of intercepting pointers with the compare slider');
+    await page.click('#zoom-fit');
+    await expect(page.locator('#zoom-value')).toHaveText('100%');
+    await expect(page.locator('#zoom-pan')).toHaveAttribute('aria-pressed','false');
     await expect(page.locator('#limit-section')).toBeHidden();
     await expect(page.locator('#compression-controls')).toBeHidden();
     await page.click('#compress');
@@ -133,6 +155,26 @@ const root = path.resolve(__dirname, '..');
     // Background removal only when explicitly enabled.
     await page.click('#clear'); await choose([white]); await page.click('#add');
     await selectFormat('svg'); await page.check('#remove-bg');
+    await page.selectOption('#bg-color-source','manual');
+    await expect(page.locator('#bg-pick-source')).toBeVisible();
+    await expect.poll(async()=>page.locator('#original-img').evaluate(img=>img.naturalWidth),
+      {timeout:45000}).toBeGreaterThan(0);
+    await expect(page.locator('#preview-status')).toHaveText('Preview ready',{timeout:45000});
+    await page.click('#bg-pick-source');
+    await page.locator('#preview-stage').scrollIntoViewIfNeeded();
+    await page.locator('#original-img').evaluate(async img=>{if(!img.naturalWidth)await img.decode();});
+    const colorPoint=await page.locator('#original-img').evaluate(img=>{
+      const rect=img.getBoundingClientRect(),style=getComputedStyle(img);
+      const pl=parseFloat(style.paddingLeft)||0,pr=parseFloat(style.paddingRight)||0;
+      const pt=parseFloat(style.paddingTop)||0,pb=parseFloat(style.paddingBottom)||0;
+      const iw=rect.width-pl-pr,ih=rect.height-pt-pb;
+      const scale=Math.min(iw/img.naturalWidth,ih/img.naturalHeight);
+      const left=rect.left+pl+(iw-img.naturalWidth*scale)/2;
+      const top=rect.top+pt+(ih-img.naturalHeight*scale)/2;
+      return {x:left+img.naturalWidth*scale*.1,y:top+img.naturalHeight*scale*.1};
+    });
+    await page.mouse.click(colorPoint.x,colorPoint.y);
+    await expect(page.locator('#bg-color')).toHaveValue('#ffffff');
     await page.click('#compress'); const removedXml = await fs.readFile(await saved(), 'utf8');
     assert.ok(!removedXml.includes('fill="#ffffff"'), 'background removal must not trace the white exterior');
     assert.match(removedXml, /<path\b/);
@@ -140,7 +182,9 @@ const root = path.resolve(__dirname, '..');
     // JPEG has no alpha channel, so remove its plain white/black background on export.
     // Test both true vector output and an ordinary transparent PNG output.
     for (const [input, outputFormat] of [[whiteJpeg, 'svg'], [blackJpeg, 'png']]) {
-      await page.click('#clear'); await choose([input]); await page.click('#add');
+      await page.click('#clear');
+      await expect(page.locator('#bg-color-source')).toHaveValue('auto');
+      await choose([input]); await page.click('#add');
       await selectFormat(outputFormat);
       await page.check('#remove-bg'); await page.click('#compress');
       const destination = await saved();
@@ -314,6 +358,161 @@ const root = path.resolve(__dirname, '..');
       'transparent wordmark should still be limited to its true ink colors');
     assert.ok(Buffer.byteLength(transparentWordmark) < 95000);
     assert.ok(!/fill="#ffffff"/i.test(transparentWordmark), 'removed background must stay transparent');
+
+
+    // Local shape cleanup: two completely fictional regions are edited without
+    // turning them into one color-layer path or embedding source raster bytes.
+    const editableBase64 = await page.evaluate(() => {
+      const canvas=document.createElement('canvas');
+      canvas.width=120;canvas.height=70;
+      const ctx=canvas.getContext('2d');
+      ctx.fillStyle='#eb4237';
+      ctx.fillRect(9,12,33,43);
+      ctx.fillRect(75,12,34,43);
+      return canvas.toDataURL('image/png').split(',')[1];
+    });
+    const editableFile=path.join(work,'generated-editable-shapes.png');
+    await fs.writeFile(editableFile,Buffer.from(editableBase64,'base64'));
+    await page.click('#clear');
+    await choose([editableFile]);await page.click('#add');
+    await selectFormat('svg');
+    await page.click('#vector-edit-open');
+    await expect(page.locator('#vector-edit-toolbar')).toBeVisible({timeout:45000});
+    await expect(page.locator('.vector-edit-svg path')).toHaveCount(2);
+    await expect(page.locator('#vector-inspector')).toBeVisible();
+    await expect(page.locator('.vector-inspector-item')).toHaveCount(2);
+    await page.check('#vector-only-small');
+    await expect(page.locator('.vector-inspector-item')).toHaveCount(0);
+    await page.uncheck('#vector-only-small');
+    await page.locator('.vector-inspector-item').nth(1).click();
+    await expect(page.locator('#zoom-value')).not.toHaveText('100%');
+    await page.click('#zoom-fit');
+    await page.locator('.vector-inspector-item').first().click();
+    await page.click('#zoom-fit');
+    await page.click('#vector-point-mode');
+    await expect(page.locator('.vector-point-handle.anchor')).not.toHaveCount(0);
+    const selectedEditable = page.locator('.vector-edit-svg path.selected-vector-shape');
+    const beforeGeometry = await selectedEditable.getAttribute('d');
+    const dragHandle = page.locator('.vector-point-handle.anchor').first();
+    await dragHandle.scrollIntoViewIfNeeded();
+    const coordinates = await dragHandle.boundingBox();
+    assert.ok(coordinates,'a vector anchor must be rendered on the preview');
+    const startX = coordinates.x + coordinates.width / 2;
+    const startY = coordinates.y + coordinates.height / 2;
+    await page.mouse.move(startX,startY);
+    await page.mouse.down();
+    await page.mouse.move(startX+20,startY+12,{steps:5});
+    await page.mouse.up();
+    const afterGeometry = await selectedEditable.getAttribute('d');
+    assert.notEqual(afterGeometry,beforeGeometry,'dragging an anchor must edit the SVG path geometry');
+    await page.click('#vector-undo');
+    assert.equal(await selectedEditable.getAttribute('d'),beforeGeometry,'undo restores the original path');
+    await page.click('#vector-redo');
+    assert.equal(await selectedEditable.getAttribute('d'),afterGeometry,'redo restores the modified path');
+    // Insert an anchor by clicking near the selected vector outline.
+    const countBefore = await page.locator('.vector-point-handle.anchor').count();
+    await page.click('#vector-add-point');
+    await selectedEditable.scrollIntoViewIfNeeded();
+    const edge = await selectedEditable.evaluate(el=>{
+      const pt=el.getPointAtLength(el.getTotalLength()*.16);
+      const p=pt.matrixTransform(el.getScreenCTM());
+      return {x:p.x,y:p.y};
+    });
+    await page.mouse.click(edge.x,edge.y);
+    await expect(page.locator('.vector-point-handle.anchor')).toHaveCount(countBefore+1);
+    await expect(page.locator('#vector-remove-point')).toBeEnabled();
+    await page.click('#vector-remove-point');
+    await expect(page.locator('.vector-point-handle.anchor')).toHaveCount(countBefore);
+    // Convert an existing segment to cubic and back.
+    await page.locator('.vector-point-handle.anchor').nth(1).click();
+    await page.click('#vector-curve');
+    assert.ok((await selectedEditable.getAttribute('d')).includes('C'));
+    await page.click('#vector-straight');
+    assert.ok(!(await selectedEditable.getAttribute('d')).includes('C'));
+    await page.click('#vector-point-mode');
+    // Overlay must match the original and permit adjustable opacity.
+    await page.check('#vector-overlay-toggle');
+    await expect(page.locator('#vector-source-overlay')).toBeVisible();
+    await page.locator('#vector-overlay-opacity').evaluate(input=>{
+      input.value='45';input.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+    await expect(page.locator('#vector-overlay-percent')).toHaveText('45%');
+    assert.equal(await page.locator('#vector-source-overlay').evaluate(
+      img=>getComputedStyle(img).opacity),'0.45');
+    await page.uncheck('#vector-overlay-toggle');
+    // An eyedropper samples the original raster rather than displayed fills.
+    await page.locator('.vector-edit-svg path').first().click();
+    await page.locator('#vector-shape-hex').fill('#ffffff');
+    await page.locator('#vector-shape-hex').press('Tab');
+    await expect(page.locator('#vector-shape-hex')).toHaveValue('#ffffff');
+    await page.click('#vector-eyedropper');
+    await page.locator('.vector-edit-svg path.selected-vector-shape').click();
+    await expect(page.locator('#vector-shape-hex')).toHaveValue('#eb4237');
+    // Cleanup modifies real path data and remains undoable.
+    await page.click('#vector-optimize');
+    await expect(page.locator('#vector-undo')).toBeEnabled();
+    await expect(page.locator('.vector-palette-swatch')).toHaveCount(1);
+    await expect(page.locator('.vector-palette-swatch small')).toHaveText('2');
+    await page.locator('.vector-edit-svg path').first().click();
+    await expect(page.locator('#vector-shape-color')).toBeEnabled();
+    await page.check('#vector-match-colors');
+    await page.locator('#vector-shape-color').evaluate(input=>{
+      input.value='#8145a6';
+      input.dispatchEvent(new Event('change',{bubbles:true}));
+    });
+    await expect(page.locator('.vector-edit-svg path[fill="#8145a6"]')).toHaveCount(2);
+    await page.click('#vector-undo');
+    await expect(page.locator('.vector-edit-svg path[fill="#eb4237"]')).toHaveCount(2);
+    await page.click('#vector-redo');
+    await expect(page.locator('.vector-edit-svg path[fill="#8145a6"]')).toHaveCount(2);
+    await page.click('#vector-undo');
+    await page.uncheck('#vector-match-colors');
+    await page.locator('#vector-shape-color').evaluate(input=>{
+      input.value='#12ab34';
+      input.dispatchEvent(new Event('change',{bubbles:true}));
+    });
+    await expect(page.locator('#vector-shape-color')).toHaveValue('#12ab34');
+    await page.click('#vector-undo');
+    await expect(page.locator('#vector-shape-color')).toHaveValue('#eb4237');
+    await page.click('#vector-redo');
+    await expect(page.locator('#vector-shape-color')).toHaveValue('#12ab34');
+    await page.locator('.vector-edit-svg path').nth(1).click();
+    await page.click('#vector-delete-shape');
+    await expect(page.locator('.vector-edit-svg path')).toHaveCount(1);
+    await page.click('#vector-undo');
+    await expect(page.locator('.vector-edit-svg path')).toHaveCount(2);
+    await page.click('#vector-redo');
+    await expect(page.locator('.vector-edit-svg path')).toHaveCount(1);
+    await page.click('#vector-done');
+    await expect(page.locator('#vector-edit-toolbar')).toBeHidden();
+    await page.click('#compress');
+    const cleanedFile=await saved();
+    const cleaned=await fs.readFile(cleanedFile,'utf8');
+    assert.ok(cleaned.includes('fill="#12ab34"'),
+      'recolored shape must be written to the actual exported SVG');
+    assert.ok(!cleaned.includes('data-chomp-shape="s1"'),
+      'deleted shape must not reappear in exported SVG');
+    assert.equal((cleaned.match(/<path /g)||[]).length,1);
+    assert.ok(!cleaned.includes('<image'));
+    // Reopen Chomp's edited SVG with gaps in original path identifiers.
+    await page.click('#clear');
+    await choose([cleanedFile]);await page.click('#add');
+    await selectFormat('svg');
+    await expect(page.locator('#vector-edit-open')).toBeVisible({timeout:45000});
+    await page.click('#vector-edit-open');
+    await expect(page.locator('.vector-edit-svg path')).toHaveCount(1);
+    await page.locator('.vector-edit-svg path').first().click();
+    await page.locator('#vector-shape-hex').fill('#105abb');
+    await page.locator('#vector-shape-hex').press('Tab');
+    await expect(page.locator('#vector-shape-color')).toHaveValue('#105abb');
+    await page.click('#vector-done');
+    await page.click('#compress');
+    const reedited=await fs.readFile(await saved(),'utf8');
+    assert.match(reedited,/fill="#105abb"/);
+    assert.ok(!reedited.includes('fill="#12ab34"'));
+    assert.ok(!reedited.includes('data-chomp-shape="s1"'));
+    assert.deepEqual(await fs.readFile(cleanedFile,'utf8'),cleaned,
+      'reopening must not modify its source vector file');
 
     assert.deepEqual(await fs.readFile(transparent), before);
     assert.deepEqual(await fs.readFile(whiteJpeg), Buffer.from(jpegSamples[0], 'base64'));

@@ -1,5 +1,6 @@
 import { smoothColorContours, smoothCoverageContours } from './smooth-contours.js';
 import { flatLogoLayers } from './logo-trace.js';
+import { normalizeTraceOptions, contourSettings } from './trace-options.js';
 
 /**
  * Dependency-free, local raster tracing for logos and illustrations.
@@ -28,20 +29,27 @@ function distanceSquared(data, p, color) {
  * background-colored holes in letterforms such as O, e, and p.
  * This intentionally cannot distinguish other matching-colored logo details.
  */
-export function removeBackgroundColor(image, tolerance = 28, mode = 'edges') {
+export function removeBackgroundColor(image, tolerance = 28, mode = 'edges', chosenColor = null) {
   if (!['edges', 'all'].includes(mode)) throw new Error('Invalid background removal mode.');
   const { width, height, data } = image;
   if (!width || !height || data.length < width * height * 4) throw new Error('Invalid image data.');
   const limit = Math.max(0, Math.min(100, Number(tolerance) || 0));
-  const corners = [0, width - 1, (height - 1) * width, height * width - 1].filter(i => data[i * 4 + 3] >= 240);
-  if (corners.length < 2) return 0;
-  let seed = -1, matches = 0;
-  for (const i of corners) {
-    const other = corners.filter(j => distanceSquared(data, j * 4, [data[i * 4], data[i * 4 + 1], data[i * 4 + 2]]) <= limit * limit * 3).length;
-    if (other > matches) { seed = i; matches = other; }
+  let background = null;
+  if (chosenColor !== null) {
+    if (typeof chosenColor !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(chosenColor))
+      throw new Error('Invalid selected background color.');
+    background = [1, 3, 5].map(index => parseInt(chosenColor.slice(index, index + 2), 16));
+  } else {
+    const corners = [0, width - 1, (height - 1) * width, height * width - 1].filter(i => data[i * 4 + 3] >= 240);
+    if (corners.length < 2) return 0;
+    let seed = -1, matches = 0;
+    for (const i of corners) {
+      const other = corners.filter(j => distanceSquared(data, j * 4, [data[i * 4], data[i * 4 + 1], data[i * 4 + 2]]) <= limit * limit * 3).length;
+      if (other > matches) { seed = i; matches = other; }
+    }
+    if (matches < 2) return 0;
+    background = [data[seed * 4], data[seed * 4 + 1], data[seed * 4 + 2]];
   }
-  if (matches < 2) return 0;
-  const background = [data[seed * 4], data[seed * 4 + 1], data[seed * 4 + 2]];
   const maxDistance = limit * limit * 3;
   if (mode === 'all') {
     let removed = 0;
@@ -130,10 +138,14 @@ function medianCutPalette(data, colorCount) {
 export function traceImageData(image, options = {}) {
   const { width, height, data } = image;
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1 || data.length !== width * height * 4) throw new Error('Invalid RGBA image for tracing.');
-  if (width * height > 1_200_000) throw new Error('Image is too large to trace. Reduce the trace resolution.');
+  if (width * height > 2_400_000) throw new Error('Image is too large to trace. Reduce the trace resolution.');
   const preset = tracePreset(options.detail);
-  const logo = flatLogoLayers(image, options.detail, options.matteColor);
-  const palette = logo ? logo.colors : medianCutPalette(data, preset.colors);
+  const advanced = normalizeTraceOptions(options.traceOptions);
+  const geometry = contourSettings(options.detail, advanced);
+  const logo = advanced.mode === 'artwork' ? null : flatLogoLayers(image, options.detail, options.matteColor, {
+    force: advanced.mode === 'logo', colors: advanced.colors
+  });
+  const palette = logo ? logo.colors : medianCutPalette(data, advanced.colors || preset.colors);
   const indices = logo ? logo.indices : new Int16Array(width * height).fill(-1);
   let maxAlpha = 0;
   for (let p = 3; p < data.length; p += 4) maxAlpha = Math.max(maxAlpha, data[p]);
@@ -152,11 +164,15 @@ export function traceImageData(image, options = {}) {
   }
   const docWidth = Math.max(1, Math.round(options.outputWidth || width));
   const docHeight = Math.max(1, Math.round(options.outputHeight || height));
+  const editable = options.editable === true;
+  let shapeNumber = 0;
   let svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + docWidth + '" height="' + docHeight +
     '" viewBox="0 0 ' + width + ' ' + height + '">';
   if (logo?.background) {
     const hex = '#' + logo.background.map(n => n.toString(16).padStart(2, '0')).join('');
-    svg += '<path fill="' + hex + '" d="M0 0H' + width + 'V' + height + 'H0Z"/>';
+    svg += editable
+      ? '<path data-chomp-shape="s' + shapeNumber++ + '" fill="' + hex + '" fill-rule="evenodd" d="M0 0H' + width + 'V' + height + 'H0Z"/>'
+      : '<path fill="' + hex + '" d="M0 0H' + width + 'V' + height + 'H0Z"/>';
   }
   for (let c = 0; c < palette.length; c++) {
     // When the flat-artwork detector can recover ink coverage, retain the
@@ -164,15 +180,21 @@ export function traceImageData(image, options = {}) {
     // Geometric, transparent and photographic artwork keep the existing tracer.
     const path = logo?.coverage?.[c]
       ? smoothCoverageContours(logo.coverage[c], width, height,
-          options.detail === 'detailed' ? .45 : options.detail === 'simple' ? 1.1 : .8,
-          options.detail === 'detailed' ? .35 : preset.minArea,
-          options.detail === 'detailed' ? .24 : Infinity)
-      : smoothColorContours(indices, width, height, c, logo ? Math.min(.65, preset.tolerance) : preset.tolerance, preset.minArea);
-    if (!path) continue;
+          geometry.coverageTolerance, geometry.coverageMinArea,
+          options.detail === 'detailed' ? .24 : Infinity, geometry.corners, editable)
+      : smoothColorContours(indices, width, height, c,
+          (logo ? Math.min(.65, preset.tolerance) : preset.tolerance) * geometry.toleranceFactor,
+          preset.minArea * geometry.areaFactor, geometry.corners, editable);
+    if (!path || (editable && !path.length)) continue;
     const color = palette[c];
     const hex = '#' + color.slice(0, 3).map(n => n.toString(16).padStart(2, '0')).join('');
     const opacity = color[3] < 255 ? ' fill-opacity="' + (color[3] / 255).toFixed(3) + '"' : '';
-    svg += '<path fill="' + hex + '"' + opacity + ' fill-rule="evenodd" d="' + path + '"/>';
+    if (editable) {
+      for (const region of path) {
+        svg += '<path data-chomp-shape="s' + shapeNumber++ + '" fill="' + hex + '"' + opacity + ' fill-rule="evenodd" d="' + region + '"/>';
+        if (svg.length > 12_000_000) throw new Error('Too many vector paths to edit. Reduce tracing detail.');
+      }
+    } else svg += '<path fill="' + hex + '"' + opacity + ' fill-rule="evenodd" d="' + path + '"/>';
     if (svg.length > 12_000_000) throw new Error('Too many vector paths. Try Simple tracing or resize your image.');
   }
   return svg + '</svg>';
