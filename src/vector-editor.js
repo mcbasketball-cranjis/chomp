@@ -3,7 +3,7 @@
  * Accepts only the restricted path-only SVG emitted by Chomp's own editable
  * tracer. It never parses arbitrary uploaded SVGs or inserts SVG markup as HTML.
  */
-import { parseVectorPath } from './vector-path.js';
+import { parseVectorPath, optimizeVectorPath } from './vector-path.js';
 const SVG_ROOT = /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="(\d+)" height="(\d+)" viewBox="0 0 (\d+) (\d+)">([\s\S]*)<\/svg>$/;
 const SVG_PATH = /<path data-chomp-shape="(s\d+)" fill="(#[\da-fA-F]{6})"(?: fill-opacity="(0?\.\d+|1(?:\.0+)?)")? fill-rule="evenodd" d="([^"]+)"\/>/g;
 const VALID_PATH = /^[MmLlCcHhVvZz0-9+.,\-\seE]+$/;
@@ -102,6 +102,28 @@ export function vectorPalette(doc) {
     colors.set(shape.fill, entry);
   }
   return [...colors.values()];
+}
+
+
+/** Optimize a document atomically: all path changes form one undo action. */
+export function optimizeVectorDocument(doc) {
+  if(!doc || !Array.isArray(doc.shapes))throw new Error('Invalid vector document.');
+  const actions=[];
+  for(const shape of doc.shapes){
+    if(shape.hidden)continue;
+    const d=optimizeVectorPath(shape.d);
+    if(d===shape.d)continue;
+    const previous={fill:shape.fill,hidden:shape.hidden,d:shape.d};
+    actions.push({id:shape.id,previous,next:{...previous,d}});
+  }
+  if(!actions.length)return {changed:0,bytesSaved:0};
+  const oldBytes=actions.reduce((sum,a)=>sum+a.previous.d.length,0);
+  const newBytes=actions.reduce((sum,a)=>sum+a.next.d.length,0);
+  actions.forEach(a=>Object.assign(findShape(doc,a.id),a.next));
+  doc.undoStack.push(actions);
+  if(doc.undoStack.length>100)doc.undoStack.shift();
+  doc.redoStack=[];
+  return {changed:actions.length,bytesSaved:Math.max(0,oldBytes-newBytes)};
 }
 
 export function undoVectorEdit(doc) {
