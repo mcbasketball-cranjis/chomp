@@ -372,30 +372,16 @@ const root = path.resolve(__dirname, '..');
     const selectedEditable = page.locator('.vector-edit-svg path.selected-vector-shape');
     const beforeGeometry = await selectedEditable.getAttribute('d');
     const dragHandle = page.locator('.vector-point-handle.anchor').first();
+    await dragHandle.scrollIntoViewIfNeeded();
     const coordinates = await dragHandle.boundingBox();
     assert.ok(coordinates,'a vector anchor must be rendered on the preview');
     const startX = coordinates.x + coordinates.width / 2;
     const startY = coordinates.y + coordinates.height / 2;
-    const hitBefore = await page.evaluate(({x,y})=>{
-      const hit=document.elementFromPoint(x,y);
-      return {tag:hit?.tagName,cls:hit?.getAttribute('class'),
-        parent:hit?.parentElement?.getAttribute('class')};
-    },{x:startX,y:startY});
-    await page.evaluate(()=>{
-      window.__vectorDragDebug={down:0,move:0,up:0};
-      document.querySelector('.vector-point-handle.anchor')?.addEventListener(
-        'pointerdown',()=>window.__vectorDragDebug.down++);
-      window.addEventListener('pointermove',()=>window.__vectorDragDebug.move++,{capture:true,once:false});
-      window.addEventListener('pointerup',()=>window.__vectorDragDebug.up++,{capture:true,once:false});
-    });
     await page.mouse.move(startX,startY);
     await page.mouse.down();
     await page.mouse.move(startX+20,startY+12,{steps:5});
     await page.mouse.up();
     const afterGeometry = await selectedEditable.getAttribute('d');
-    console.log('VECTOR DRAG DEBUG',JSON.stringify({hitBefore,
-      events:await page.evaluate(()=>window.__vectorDragDebug),
-      changed:afterGeometry!==beforeGeometry}));
     assert.notEqual(afterGeometry,beforeGeometry,'dragging an anchor must edit the SVG path geometry');
     await page.click('#vector-undo');
     assert.equal(await selectedEditable.getAttribute('d'),beforeGeometry,'undo restores the original path');
