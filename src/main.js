@@ -1,9 +1,11 @@
 import { decodeSvgBitmap } from './svg-input.js';
 import { normalizeTraceOptions } from './trace-options.js';
-import { vectorPathBounds, vectorPathPoints, moveVectorPathPoint } from './vector-path.js';
+import { vectorPathBounds, vectorPathPoints, moveVectorPathPoint,
+  nearestVectorPathSegment, insertVectorPathPoint, deleteVectorPathPoint,
+  setVectorPathSegmentType } from './vector-path.js';
 import { openVectorDocument, modifyVectorShape, modifyVectorShapes,
   matchingShapeIds, vectorPalette, undoVectorEdit, redoVectorEdit,
-  resetVectorEdits, hasVectorEdits, serializeVectorDocument } from './vector-editor.js';
+  resetVectorEdits, optimizeVectorDocument, hasVectorEdits, serializeVectorDocument } from './vector-editor.js';
 import './style.css';
 const icons = {
   layers: '<rect x="4" y="4" width="11" height="11" rx="3"/><path d="M9 19h8a3 3 0 0 0 3-3V9"/>',
@@ -48,7 +50,7 @@ document.querySelector('#app').innerHTML = `
         <section class="preview-panel" aria-label="Image comparison">
           <header class="preview-heading"><div><strong>Preview</strong><span id="selected-name" class="selected-filename"></span></div><div class="preview-heading-right"><span id="preview-badge" class="format-badge">SVG · transparent</span><span id="preview-status">Ready</span></div></header>
           <div class="preview-stage" id="preview-stage">
-            <div class="preview-image-wrap result-image" id="result-layer"><img id="result-img" alt="Processed image preview" hidden></div>
+            <div class="preview-image-wrap result-image" id="result-layer"><img id="result-img" alt="Processed image preview" hidden><img id="vector-source-overlay" class="vector-source-overlay" alt="" aria-hidden="true" hidden></div>
             <div class="preview-image-wrap original-image" id="original-layer"><img id="original-img" alt="Original image preview" hidden></div>
             <div id="comparison-line" class="comparison-line"></div><div id="comparison-handle" class="comparison-handle" aria-hidden="true">‹ ›</div>
             <span class="preview-chip before-chip">ORIGINAL</span><span class="preview-chip after-chip" id="preview-after-label">VECTOR</span>
@@ -64,11 +66,17 @@ document.querySelector('#app').innerHTML = `
             <input type="text" id="vector-shape-hex" class="vector-shape-hex" aria-label="Exact fill hex color" maxlength="7" autocomplete="off" spellcheck="false" value="#000000" disabled>
             <button type="button" id="vector-delete-shape" disabled>Remove</button>
             <button type="button" id="vector-point-mode" aria-pressed="false" disabled>Points</button>
+            <button type="button" id="vector-add-point" aria-pressed="false" disabled>Insert point</button>
+            <button type="button" id="vector-remove-point" disabled>Delete point</button>
+            <button type="button" id="vector-straight" disabled>Straight</button>
+            <button type="button" id="vector-curve" disabled>Curve</button>
             <label class="vector-match-option" for="vector-match-colors"><input id="vector-match-colors" type="checkbox"> All matching colors</label>
             <div class="vector-edit-spacer"></div>
             <button type="button" id="vector-undo" disabled>Undo</button>
             <button type="button" id="vector-redo" disabled>Redo</button>
             <button type="button" id="vector-reset" disabled>Reset</button>
+            <button type="button" id="vector-optimize" disabled>Optimize</button>
+            <button type="button" id="vector-eyedropper" aria-pressed="false" disabled>Pick color</button>
             <button type="button" id="vector-done" class="vector-edit-done">Done</button>
           </div>
           <div id="vector-palette" class="vector-palette" hidden>
@@ -90,6 +98,9 @@ document.querySelector('#app').innerHTML = `
               <button type="button" id="vector-inspector-back" aria-label="Previous page">Previous</button>
               <button type="button" id="vector-inspector-forward" aria-label="Next page">Next</button>
               <span id="vector-point-help" hidden>Drag points or curve handles to refine the selected path.</span>
+              <label class="vector-overlay-label"><input id="vector-overlay-toggle" type="checkbox"> Source overlay</label>
+              <input id="vector-overlay-opacity" type="range" min="0" max="80" step="5" value="30" aria-label="Source overlay opacity" disabled>
+              <output id="vector-overlay-percent">30%</output>
             </div>
           </div>
         </section>
@@ -140,7 +151,7 @@ document.querySelector('#app').innerHTML = `
                   <label class="field-label" for="bg-color-source">Background color</label>
                   <select id="bg-color-source"><option value="auto">Auto detect</option><option value="manual">Choose color</option></select>
                   <div id="bg-manual-controls" hidden>
-                    <input type="color" id="bg-color" value="#ffffff" aria-label="Background color to remove">
+                    <input type="color" id="bg-color" value="#ffffff" aria-label="Background color to remove"><button type="button" id="bg-pick-source" class="bg-pick-source">Pick from image</button>
                     <span>Selected color</span>
                   </div>
                 </div>
@@ -202,6 +213,8 @@ let workspaceMode='compress',selectedId=null,previewTimer=null,previewVersion=0,
 let previewZoom=1,previewX=0,previewY=0,previewPanMode=false,previewPointer=null;
 let editorActive=false,editorPending=false,editorSelection=null,editorSvg=null;
 let editorPointMode=false,editorPointSelection=null,editorPointDrag=null,inspectorPage=0;
+let editorInsertMode=false,editorColorPick=false,backgroundColorPick=false;
+let sampleCanvas=null,sampleContext=null,sampleImageId=null;
 const inspectorBoundsCache=new Map();
 const INSPECTOR_PAGE_SIZE=48;
 const SVG_NS='http://www.w3.org/2000/svg';
@@ -214,6 +227,7 @@ function renderZoom(){
   const transform='translate('+previewX+'px, '+previewY+'px) scale('+previewZoom+')';
   $('original-img').style.transform=transform;
   $('result-img').style.transform=transform;
+  $('vector-source-overlay').style.transform=transform;
   if(editorSvg){
     editorSvg.style.transform=transform;
     const doc=currentVectorEditor();
@@ -296,6 +310,14 @@ function currentVectorEditor(item=selectedItem()){
 function closeVectorEditor(){
   editorActive=false;editorPending=false;editorSelection=null;
   editorPointMode=false;editorPointSelection=null;editorPointDrag=null;inspectorPage=0;
+  editorInsertMode=false;editorColorPick=false;
+  sampleCanvas=null;sampleContext=null;sampleImageId=null;
+  $('vector-source-overlay').hidden=true;
+  $('vector-source-overlay').removeAttribute('src');
+  $('vector-overlay-toggle').checked=false;
+  $('vector-overlay-opacity').disabled=true;
+  $('vector-overlay-opacity').value='30';
+  $('vector-overlay-percent').textContent='30%';
   inspectorBoundsCache.clear();
   // Bulk actions are opt-in per editing session; never carry them to a new file.
   $('vector-match-colors').checked=false;
@@ -357,6 +379,19 @@ function editorToolbar(){
   $('vector-point-mode').classList.toggle('selected',editorPointMode);
   $('vector-point-mode').setAttribute('aria-pressed',String(editorPointMode));
   $('vector-point-help').hidden=!editorPointMode;
+  $('vector-add-point').disabled=!shape||!editorPointMode;
+  $('vector-add-point').classList.toggle('selected',editorInsertMode);
+  $('vector-add-point').setAttribute('aria-pressed',String(editorInsertMode));
+  $('vector-remove-point').disabled=!shape||!editorPointMode||!editorPointSelection||
+    editorPointSelection.role!=='anchor'||editorPointSelection.index===0;
+  const segmentSelected=!!shape&&editorPointMode&&editorPointSelection?.role==='anchor'&&
+    editorPointSelection.index>0;
+  $('vector-straight').disabled=!segmentSelected;
+  $('vector-curve').disabled=!segmentSelected;
+  $('vector-optimize').disabled=!doc||!doc.shapes.some(s=>!s.hidden);
+  $('vector-eyedropper').disabled=!shape;
+  $('vector-eyedropper').classList.toggle('selected',editorColorPick);
+  $('vector-eyedropper').setAttribute('aria-pressed',String(editorColorPick));
 }
 
 function shapeInspectorBounds(shape) {
