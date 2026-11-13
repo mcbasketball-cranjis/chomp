@@ -157,9 +157,12 @@ const root = path.resolve(__dirname, '..');
     await selectFormat('svg'); await page.check('#remove-bg');
     await page.selectOption('#bg-color-source','manual');
     await expect(page.locator('#bg-pick-source')).toBeVisible();
+    await expect.poll(async()=>page.locator('#original-img').evaluate(img=>img.naturalWidth),
+      {timeout:45000}).toBeGreaterThan(0);
+    await expect(page.locator('#preview-status')).toHaveText('Preview ready',{timeout:45000});
     await page.click('#bg-pick-source');
     await page.locator('#preview-stage').scrollIntoViewIfNeeded();
-    await page.locator('#original-img').evaluate(async img=>{if(!img.complete)await img.decode();});
+    await page.locator('#original-img').evaluate(async img=>{if(!img.naturalWidth)await img.decode();});
     const colorPoint=await page.locator('#original-img').evaluate(img=>{
       const rect=img.getBoundingClientRect(),style=getComputedStyle(img);
       const pl=parseFloat(style.paddingLeft)||0,pr=parseFloat(style.paddingRight)||0;
