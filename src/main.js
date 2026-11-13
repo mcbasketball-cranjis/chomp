@@ -41,7 +41,7 @@ document.querySelector('#app').innerHTML = `
       <button type="button" id="add-folder" class="add-folder">${icon('folder')} Add folder</button>
     </div>
     <div class="queue-footer"><span id="total">No images added yet</span><button id="clear" class="text-button" disabled>Clear all</button></div>
-    <div class="sidebar-updates"><button id="updates-open" type="button" aria-haspopup="dialog">${icon('refresh')}<span>Updates</span><span id="update-indicator" hidden></span></button><span id="app-version">v2.1.4</span></div>
+    <div class="sidebar-updates"><button id="updates-open" type="button" aria-haspopup="dialog">${icon('refresh')}<span>Updates</span><span id="update-indicator" hidden></span></button><span id="app-version">v2.2.0</span></div>
   </aside>
   <main class="main-content">
     <header class="intro"><h1 id="workspace-title">Compress</h1><div class="header-actions"><button type="button" class="button secondary" id="new-batch" hidden>Clear all</button><button type="button" class="button secondary" id="add">${icon('upload')} Add images</button></div></header>
@@ -188,7 +188,7 @@ document.querySelector('#app').innerHTML = `
     <section class="updates-dialog" role="dialog" aria-modal="true" aria-labelledby="updates-heading">
       <header class="updates-dialog-header"><h2 id="updates-heading">Software Update</h2><button id="updates-close" type="button" aria-label="Close">×</button></header>
       <div class="updates-dialog-body">
-        <div class="updates-version" id="updates-version">Chomp 2.1.4</div>
+        <div class="updates-version" id="updates-version">Chomp 2.2.0</div>
         <p id="updates-message">Check for updates.</p>
         <div class="updates-progress" id="updates-progress-wrap" hidden><progress max="100" value="0" id="updates-progress"></progress><span id="updates-percent"></span></div>
         <p id="updates-warning" class="updates-warning" hidden></p>
@@ -1410,7 +1410,7 @@ $('compress').onclick = async () => {
     if(selectedItem())queuePreview();
   }
 };
-let updateState = { version: '2.1.4', mode: 'unavailable', status: 'idle', availableVersion: null, progress: 0 };
+let updateState = { version: '2.2.0', mode: 'unavailable', status: 'idle', availableVersion: null, progress: 0 };
 let lastUpdateNotice = '';
 let updateDialogOpen = false;
 let updateReturnFocus = null;
