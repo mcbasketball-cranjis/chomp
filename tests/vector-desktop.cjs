@@ -401,7 +401,47 @@ const root = path.resolve(__dirname, '..');
     assert.equal(await selectedEditable.getAttribute('d'),beforeGeometry,'undo restores the original path');
     await page.click('#vector-redo');
     assert.equal(await selectedEditable.getAttribute('d'),afterGeometry,'redo restores the modified path');
+    // Insert an anchor by clicking near the selected vector outline.
+    const countBefore = await page.locator('.vector-point-handle.anchor').count();
+    await page.click('#vector-add-point');
+    const edge = await selectedEditable.evaluate(el=>{
+      const pt=el.getPointAtLength(el.getTotalLength()*.16);
+      const p=pt.matrixTransform(el.getScreenCTM());
+      return {x:p.x,y:p.y};
+    });
+    await page.mouse.click(edge.x,edge.y);
+    await expect(page.locator('.vector-point-handle.anchor')).toHaveCount(countBefore+1);
+    await expect(page.locator('#vector-remove-point')).toBeEnabled();
+    await page.click('#vector-remove-point');
+    await expect(page.locator('.vector-point-handle.anchor')).toHaveCount(countBefore);
+    // Convert an existing segment to cubic and back.
+    await page.locator('.vector-point-handle.anchor').nth(1).click();
+    await page.click('#vector-curve');
+    assert.ok((await selectedEditable.getAttribute('d')).includes('C'));
+    await page.click('#vector-straight');
+    assert.ok(!(await selectedEditable.getAttribute('d')).includes('C'));
     await page.click('#vector-point-mode');
+    // Overlay must match the original and permit adjustable opacity.
+    await page.check('#vector-overlay-toggle');
+    await expect(page.locator('#vector-source-overlay')).toBeVisible();
+    await page.locator('#vector-overlay-opacity').evaluate(input=>{
+      input.value='45';input.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+    await expect(page.locator('#vector-overlay-percent')).toHaveText('45%');
+    assert.equal(await page.locator('#vector-source-overlay').evaluate(
+      img=>getComputedStyle(img).opacity),'0.45');
+    await page.uncheck('#vector-overlay-toggle');
+    // An eyedropper samples the original raster rather than displayed fills.
+    await page.locator('.vector-edit-svg path').first().click();
+    await page.locator('#vector-shape-hex').fill('#ffffff');
+    await page.locator('#vector-shape-hex').press('Tab');
+    await expect(page.locator('#vector-shape-hex')).toHaveValue('#ffffff');
+    await page.click('#vector-eyedropper');
+    await page.locator('.vector-edit-svg path.selected-vector-shape').click();
+    await expect(page.locator('#vector-shape-hex')).toHaveValue('#eb4237');
+    // Cleanup modifies real path data and remains undoable.
+    await page.click('#vector-optimize');
+    await expect(page.locator('#vector-undo')).toBeEnabled();
     await expect(page.locator('.vector-palette-swatch')).toHaveCount(1);
     await expect(page.locator('.vector-palette-swatch small')).toHaveText('2');
     await page.locator('.vector-edit-svg path').first().click();
