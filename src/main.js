@@ -310,6 +310,7 @@ function currentVectorEditor(item=selectedItem()){
 function closeVectorEditor(){
   editorActive=false;editorPending=false;editorSelection=null;
   editorPointMode=false;editorPointSelection=null;editorPointDrag=null;inspectorPage=0;
+  backgroundColorPick=false;$('preview-stage').classList.remove('source-color-picker');
   editorInsertMode=false;editorColorPick=false;
   sampleCanvas=null;sampleContext=null;sampleImageId=null;
   $('vector-source-overlay').hidden=true;
@@ -797,6 +798,7 @@ function queuePreview(){
     closeVectorEditor();
     notice('Tracing settings changed. Previous shape edits were cleared.');
   }
+  sampleContext=null;sampleCanvas=null;sampleImageId=null;
   stopPreview();$('preview-status').textContent='Rendering…';
   $('metric-output').textContent='—';$('metric-savings').textContent='—';
   previewTimer=setTimeout(renderPreview,350);
@@ -1175,6 +1177,23 @@ $('zoom-out').onclick=()=>setZoom(previewZoom-.5);
 $('zoom-fit').onclick=()=>setZoom(1);
 $('zoom-pan').onclick=()=>{previewPanMode=!previewPanMode;renderZoom();};
 const previewStage=$('preview-stage');
+previewStage.addEventListener('pointerdown',async event=>{
+  if(!backgroundColorPick || event.button!==0)return;
+  event.preventDefault();event.stopPropagation();
+  backgroundColorPick=false;
+  previewStage.classList.remove('source-color-picker');
+  try{
+    const [fx,fy]=stageImageFractions(event.clientX,event.clientY);
+    const color=await sampleSourcePixel(fx,fy);
+    $('bg-color-source').value='manual';
+    $('bg-manual-controls').hidden=false;
+    $('bg-color').value=color;
+    notice('Selected background color: '+color);
+    queuePreview();
+  }catch(e){
+    $('preview-status').textContent=e.message;
+  }
+},true);
 previewStage.addEventListener('pointerdown',e=>{
   if(!previewPanMode||previewZoom<=1||!selectedItem()||e.button!==0)return;
   previewPointer={id:e.pointerId,x:e.clientX,y:e.clientY,startX:previewX,startY:previewY};
@@ -1244,6 +1263,12 @@ $('bg-color-source').onchange=()=>{
   queuePreview();
 };
 $('bg-color').oninput=queuePreview;
+$('bg-pick-source').onclick=()=>{
+  if(!selectedItem()||running||scanning)return;
+  backgroundColorPick=true;setZoom(1);
+  $('preview-stage').classList.add('source-color-picker');
+  $('preview-status').textContent='Click the original image to sample its background';
+};
 ['max-size','max-bytes','size-unit'].forEach(id=>{$(id).onchange=queuePreview;});
 $('trace-detail').onchange=queuePreview;
 for(const id of ['trace-mode','trace-colors','trace-resolution']){
