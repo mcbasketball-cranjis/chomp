@@ -78,7 +78,11 @@ async function stage(target){
       throw new Error('FFprobe is missing from the matched FFmpeg build.');
     await fs.mkdir(path.dirname(output),{recursive:true});
     await fs.rm(output,{recursive:true,force:true});
-    await fs.cp(root,output,{recursive:true});
+    // FFmpeg's macOS archives contain dylib version aliases. Electron Builder
+    // signs resources recursively and may stat the alias before following its
+    // target. Copy dereferenced files into the bundle so every dylib path is
+    // a standalone regular file and no signing step sees a broken link.
+    await fs.cp(root,output,{recursive:true,dereference:true});
     if(!target.startsWith('win32')) {
       await fs.chmod(file,0o755);await fs.chmod(probe,0o755);
     }
