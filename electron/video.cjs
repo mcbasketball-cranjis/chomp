@@ -166,10 +166,8 @@ async function processVideo({ executable, entry, directory, format, preset,
                 throw new Error('Video output copy was incomplete.');
               done = true; break;
             } catch (copyError) {
-              if (copyError.code !== 'EEXIST') {
-                await fs.unlink(final).catch(()=>{});
-                throw copyError;
-              }
+              // A failed exclusive copy must never delete an unrelated destination.
+              if (copyError.code !== 'EEXIST') throw copyError;
             }
           } else if (error.code !== 'EEXIST') throw error;
           final = await uniqueVideoTarget(destination,
