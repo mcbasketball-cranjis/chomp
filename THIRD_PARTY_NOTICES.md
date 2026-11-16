@@ -14,3 +14,18 @@ Electron and its Chromium/Node.js dependencies carry their own notices. Electron
 ## HandBrakeCLI (external, optional)
 
 Chomp can launch a separately installed HandBrakeCLI executable for local video transcoding. HandBrake is not bundled, downloaded, hosted, or redistributed as part of Chomp's installers and retains its own GNU GPL version 2 license and third-party notices. Official project: https://handbrake.fr/.
+
+## FFmpeg, bundled LGPL video engine
+
+Chomp includes independently built FFmpeg executables and libraries in
+Windows/macOS packages for local transcoding. The third-party binaries are
+licensed under LGPL 2.1-or-later, and their independent license, source,
+build/provenance, replacement and redistribution obligations must be honored.
+Chomp's Apache-2.0 license does not replace the terms of FFmpeg or external
+codec libraries. See [bundled FFmpeg details](docs/BUNDLED_FFMPEG.md),
+[FFmpeg legal guidance](https://ffmpeg.org/legal.html) and the licenses
+and source references shipped with the packaged video engine.
+
+H.264/HEVC/AV1 patent rights can apply separately from source licenses.
+A separately installed HandBrakeCLI is no longer required for video
+compression and no HandBrake executable is bundled.
