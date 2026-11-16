@@ -307,6 +307,12 @@ progress{width:100%;height:6px;margin-bottom:10px;accent-color:var(--accent)}
   stroke-dasharray:5 3;stroke-linejoin:round}
 .preview-stage.editing-vector.pan-mode .vector-edit-svg path{cursor:grab}
 .preview-stage.editing-vector.dragging-pan .vector-edit-svg path{cursor:grabbing}
+.preview-stage.editing-vector:not(.pan-mode) .vector-edit-svg.moving-vector path.selected-vector-shape{
+  cursor:grab;touch-action:none
+}
+.preview-stage.editing-vector:not(.pan-mode) .vector-edit-svg.dragging-vector path.selected-vector-shape{
+  cursor:grabbing
+}
 @media(max-width:720px){.vector-edit-label{flex-basis:100%}.vector-edit-spacer{display:none}}
 
 /* Color palette and grouped cleanup keep the editor useful without a new pane. */
@@ -410,7 +416,7 @@ progress{width:100%;height:6px;margin-bottom:10px;accent-color:var(--accent)}
 .bg-pick-source{font-size:10px;font-weight:700;color:var(--accent-ink);border:1px solid var(--line);
   border-radius:6px;background:var(--surface);height:32px;padding:0 8px;cursor:pointer}
 .bg-pick-source:hover{background:var(--soft)}
-.vector-edit-toolbar #vector-add-point.selected,.vector-edit-toolbar #vector-eyedropper.selected{
+.vector-edit-toolbar #vector-move-mode.selected,.vector-edit-toolbar #vector-add-point.selected,.vector-edit-toolbar #vector-eyedropper.selected{
   color:var(--accent-ink);background:var(--soft);border-color:var(--accent)
 }
 .preview-stage.editing-vector:has(#vector-source-overlay:not([hidden])) .vector-point-handle{
