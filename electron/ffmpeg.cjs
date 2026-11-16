@@ -72,7 +72,9 @@ function validateVideoSettings(options, encoders) {
 }
 function ffmpegArgs(input, output, options, encoders) {
   const { encoder, quality }=validateVideoSettings(options,encoders);
-  const args=['-hide_banner','-nostdin','-y','-i',input,'-map','0:v:0'];
+  // Disallow nested network protocols even if a media container references one.
+  const args=['-hide_banner','-nostdin','-y','-protocol_whitelist','file,pipe',
+    '-i',input,'-map','0:v:0'];
   if(options.codec==='gif') {
     const gifSize=quality.width ? Math.min(quality.width,640) : 800;
     args.push('-an','-sn','-dn','-vf','fps=12,scale=min(iw\\,'+gifSize+'):-2:flags=lanczos',
