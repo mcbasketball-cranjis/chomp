@@ -38,4 +38,4 @@ After the v2.3.0 build and release workflow completes, the GitHub release provid
 - Windows: `Chomp-2.3.0-win-x64-Setup.exe` or portable build
 - Microsoft Store: Updated via Microsoft certification, not directly from the unsigned MSIX archive
 
-*No new installer exists until the release workflow succeeds and publishes v2.3.0.*
+*Download packages only from the verified release assets. Microsoft Store updates may follow after certification.*
