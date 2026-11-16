@@ -10,7 +10,7 @@ const videoSupported = /\.(mp4|m4v|mov|mkv|webm|avi)$/i;
 const PRESETS = Object.freeze({
   small: 'Very Fast 720p30',
   balanced: 'Fast 1080p30',
-  quality: 'HQ 1080p30'
+  quality: 'HQ 1080p30 Surround'
 });
 const FORMATS = Object.freeze({ mp4: 'av_mp4', mkv: 'av_mkv' });
 const VIDEO_LIMIT = 16 * 1024 * 1024 * 1024;
