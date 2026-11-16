@@ -75,14 +75,14 @@ function ffmpegArgs(input, output, options, encoders) {
   const args=['-hide_banner','-nostdin','-y','-i',input,'-map','0:v:0'];
   if(options.codec==='gif') {
     const gifSize=quality.width ? Math.min(quality.width,640) : 800;
-    args.push('-an','-sn','-dn','-vf','fps=12,scale='+gifSize+':-2:flags=lanczos',
+    args.push('-an','-sn','-dn','-vf','fps=12,scale=min(iw\\,'+gifSize+'):-2:flags=lanczos',
       '-c:v','gif','-loop','0','-f','gif');
   } else {
     // Optional first audio track; subtitles and data can use unsupported codecs.
     args.push('-map','0:a:0?','-sn','-dn');
     const filters=[];
     if(quality.width && quality.height)
-      filters.push('scale='+quality.width+':'+quality.height+
+      filters.push("scale=w='min(iw,"+quality.width+")':h='min(ih,"+quality.height+")'"+
         ':force_original_aspect_ratio=decrease:force_divisible_by=2');
     if(quality.fps) filters.push('fps='+quality.fps);
     filters.push('format=yuv420p');
