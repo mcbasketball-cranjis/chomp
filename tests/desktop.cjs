@@ -33,6 +33,21 @@ const work = path.join(root, 'test-results');
     const select = async paths => {
       await app.evaluate(({ dialog }, paths) => { dialog.showOpenDialog = async (_win, options) => ({ canceled: false, filePaths: options.properties.includes('openDirectory') ? [paths.output] : paths.files }); }, { files: paths, output: work });
     };
+    // New Video tab, and mixed media queue, without requiring real HandBrake in CI.
+    const testVideo=path.join(work,'synthetic-video.mov');
+    await fs.writeFile(testVideo,Buffer.from('synthetic non-media test fixture'));
+    await select([source,testVideo]);await page.click('#add');
+    await expect(page.locator('.image-row')).toHaveCount(2);
+    await page.locator('[data-workspace="video"]').click();
+    await expect(page.locator('#video-controls')).toBeVisible();
+    await expect(page.locator('#image-format-controls')).toBeHidden();
+    await page.locator('.image-row').filter({hasText:'synthetic-video.mov'}).click();
+    await expect(page.locator('#video-preview')).toBeVisible();
+    await expect(page.locator('#video-preview-info')).toContainText('MOV');
+    await page.locator('[data-workspace="compress"]').click();
+    await expect(page.locator('#video-controls')).toBeVisible();
+    await expect(page.locator('#image-format-controls')).toBeVisible();
+    await page.click('#clear');
     await select([source, broken]); await page.click('#add'); await expect(page.locator('.image-row')).toHaveCount(2);
     await page.click('#folder'); await page.click('#resize'); await page.fill('#max-size', '300'); await page.click('#compress');
     await expect(page.locator('#summary')).toBeVisible({ timeout: 60000 });
