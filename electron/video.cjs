@@ -6,7 +6,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { safeStem } = require('./files.cjs');
 
-const videoSupported = /\.(mp4|m4v|mov|mkv|webm|avi)$/i;
+const videoSupported = /\.(mp4|m4v|mov|mkv|webm|avi|mpg|mpeg|m2v|ts|mts|m2ts|3gp|3g2|ogv|flv|wmv|asf|vob|mxf|gif)$/i;
 const PRESETS = Object.freeze({
   small: 'Very Fast 720p30',
   balanced: 'Fast 1080p30',
@@ -123,9 +123,12 @@ function transcode(executable, input, output, options, onProgress = () => {}, sp
 }
 async function processVideo({ executable, entry, directory, format, preset,
   copiedOriginal = null, copySnapshot = null, verifySource, onProgress = () => {},
-  onJob = () => {}, spawnProcess = spawn }) {
-  const settings = { format, preset };
-  videoOptions(settings);
+  onJob = () => {}, spawnProcess = spawn, encodeVideo = null, codec = null }) {
+  const settings = { format, preset, codec };
+  if (encodeVideo) {
+    const { OUTPUT_FORMATS } = require('./ffmpeg.cjs');
+    if (!OUTPUT_FORMATS[format]?.includes(codec)) throw new Error('Unsupported codec/container selection.');
+  } else videoOptions(settings);
   const source = entry.path;
   if (!videoSupported.test(source)) throw new Error('Unsupported video format.');
   await verifySource();
@@ -138,7 +141,8 @@ async function processVideo({ executable, entry, directory, format, preset,
   const tempDirectory=await fs.mkdtemp(path.join(destination,'.chomp-video-'));
   const temporary=path.join(tempDirectory,'encoded.'+format);
   try {
-    const job = transcode(executable, source, temporary, settings, onProgress, spawnProcess);
+    const job = encodeVideo ? encodeVideo(source, temporary, settings, onProgress) :
+      transcode(executable, source, temporary, settings, onProgress, spawnProcess);
     onJob(job);
     await job.promise;
     const result = await fs.lstat(temporary);
