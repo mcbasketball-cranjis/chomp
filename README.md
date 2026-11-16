@@ -1,13 +1,25 @@
 # Chomp
 
-Batch image compression and vector conversion for Windows and macOS. Uses Squoosh-derived codecs through [jSquash](https://github.com/jamsinclair/jSquash) and a built-in JavaScript SVG tracer. Images are processed locally, without uploads.
+Local image/video compression and vector conversion for Windows and macOS. Uses Squoosh-derived codecs through [jSquash](https://github.com/jamsinclair/jSquash) and a built-in JavaScript SVG tracer. Images are processed locally, without uploads.
 
 ## Usage
 
 1. Windows: run `Chomp-<version>-win-x64-Setup.exe`. It installs the supporting files and a Start menu shortcut. macOS: open the DMG, drag Chomp into Applications.
-2. Drop images or folders into the window, or click **Add images** / **Add folder**.
+2. Drop images, videos, or folders into the window, or click **Add media** / **Add folder**. Video compression requires a separately installed HandBrakeCLI.
 3. Choose an output format. Select **SVG (editable vectors)** to trace raster artwork into actual vector paths, or choose PNG/WebP/JPEG/AVIF to rasterize an SVG. Optionally resize or remove a solid background.
-4. Choose an output folder and click **Compress batch**.
+4. Choose an output folder and click **Compress batch** (or **Compress videos** in the Video workspace).
+
+## Video compression (HandBrakeCLI)
+
+Choose the **Video** tab to compress MP4, MOV, MKV, WebM, M4V and AVI files with
+small, balanced or higher-quality H.264 presets and MP4/MKV output.
+Use the existing **Compress** tab to process **mixed image and video folders**
+in one queue. Both workflows run locally. The app requires a separately installed
+**HandBrakeCLI** executable; select it with **Locate HandBrakeCLI** if auto-detection
+cannot find it. Video transcoding runs in a native process and can take time.
+In-place source replacement is deliberately disabled for video files.
+
+Full details: [Video compression setup and behavior](docs/VIDEO_COMPRESSION.md).
 
 ## Appearance and size limits
 
