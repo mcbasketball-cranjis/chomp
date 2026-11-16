@@ -91,12 +91,12 @@ async function uniqueVideoTarget(directory, sourceName, extension, replaceStem =
   }
   throw new Error('Too many videos with the same name.');
 }
-function transcode(executable, input, output, options, onProgress = () => {}) {
+function transcode(executable, input, output, options, onProgress = () => {}, spawnProcess = spawn) {
   const args = handBrakeArgs(input, output, options);
   let child, canceled = false, tail = '', outputLog = '';
   const promise = new Promise((resolve, reject) => {
     try {
-      child = spawn(executable, args, { shell: false, windowsHide: true,
+      child = spawnProcess(executable, args, { shell: false, windowsHide: true,
         stdio: ['ignore', 'pipe', 'pipe'] });
     } catch (error) { reject(error); return; }
     const read = chunk => {
@@ -123,7 +123,7 @@ function transcode(executable, input, output, options, onProgress = () => {}) {
 }
 async function processVideo({ executable, entry, directory, format, preset,
   copiedOriginal = null, copySnapshot = null, verifySource, onProgress = () => {},
-  onJob = () => {} }) {
+  onJob = () => {}, spawnProcess = spawn }) {
   const settings = { format, preset };
   videoOptions(settings);
   const source = entry.path;
@@ -140,7 +140,7 @@ async function processVideo({ executable, entry, directory, format, preset,
   const handle = await fs.open(temporary, 'wx', 0o600);
   await handle.close();
   try {
-    const job = transcode(executable, source, temporary, settings, onProgress);
+    const job = transcode(executable, source, temporary, settings, onProgress, spawnProcess);
     onJob(job);
     await job.promise;
     const result = await fs.lstat(temporary);
