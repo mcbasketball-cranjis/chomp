@@ -44,6 +44,10 @@ const work = path.join(root, 'test-results');
     await page.locator('.image-row').filter({hasText:'synthetic-video.mov'}).click();
     await expect(page.locator('#video-preview')).toBeVisible();
     await expect(page.locator('#video-preview-info')).toContainText('MOV');
+    await expect(page.locator('#video-preview')).not.toContainText('HandBrake');
+    await expect(page.locator('#video-engine-state')).toHaveCount(0);
+    await expect(page.locator('#cancel')).toHaveText('Stop');
+
     await page.locator('[data-workspace="compress"]').click();
     await expect(page.locator('#video-controls')).toBeVisible();
     await expect(page.locator('#image-format-controls')).toBeVisible();

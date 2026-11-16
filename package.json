@@ -27,7 +27,8 @@
     "verify:updates": "node scripts/verify-update-metadata.mjs",
     "prepare:ffmpeg": "node scripts/prepare-ffmpeg.mjs",
     "test:ffmpeg:real": "node tests/ffmpeg-real.cjs",
-    "test:ffmpeg:package": "node scripts/verify-bundled-ffmpeg.cjs"
+    "test:ffmpeg:package": "node scripts/verify-bundled-ffmpeg.cjs",
+    "test:media:desktop": "node tests/mixed-media-desktop.cjs"
   },
   "dependencies": {
     "@jsquash/avif": "2.1.1",
