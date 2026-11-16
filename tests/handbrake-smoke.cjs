@@ -34,7 +34,7 @@ function command(binary, args) {
       '-f','lavfi','-i','sine=frequency=440:sample_rate=48000',
       '-t','3','-c:v','mpeg4','-q:v','6','-c:a','aac','-shortest',source]);
     const original=await fs.readFile(source);
-    const entry={path:source,relative:path.basename(source),
+    const entry={path:await fs.realpath(source),relative:path.basename(source),
       snapshot:fingerprint(await fs.lstat(source))};
     assert.ok(original.byteLength>1024,'Synthetic source should contain real video packets.');
 
