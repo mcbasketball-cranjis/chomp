@@ -16,7 +16,8 @@ async function withFixture(run) {
   const file = path.join(source, 'clip.mov');
   await fs.writeFile(file, Buffer.from('synthetic-video-fixture-no-real-media'));
   const snapshot = fingerprint(await fs.lstat(file));
-  const entry = { path: file, snapshot, relative: 'clip.mov' };
+  // Mirror the importer's canonical paths: /var on macOS and Windows case aliases can differ from realpath.
+  const entry = { path: await fs.realpath(file), snapshot, relative: 'clip.mov' };
   try { await run({ temp, source, destination, entry, file }); }
   finally { await fs.rm(temp, { recursive: true, force: true }); }
 }
