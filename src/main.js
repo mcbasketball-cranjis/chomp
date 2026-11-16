@@ -1086,6 +1086,7 @@ $('vector-move-mode').onclick=()=>{
   if(editorMoveMode){
     editorPointMode=false;editorPointSelection=null;editorPointDrag=null;
     editorInsertMode=false;editorColorPick=false;
+    $('preview-stage').classList.remove('picking-source-color');
     previewPanMode=false;renderZoom();
   }
   renderShapeOverlay();
@@ -1098,6 +1099,7 @@ $('vector-point-mode').onclick=()=>{
   editorPointMode=!editorPointMode;
   editorMoveMode=false;editorShapeDrag=null;
   editorPointSelection=null;editorPointDrag=null;editorInsertMode=false;editorColorPick=false;
+  $('preview-stage').classList.remove('picking-source-color');
   if(editorPointMode){previewPanMode=false;renderZoom();}
   renderShapeOverlay();
 };
