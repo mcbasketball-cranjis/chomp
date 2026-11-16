@@ -398,11 +398,18 @@ const root = path.resolve(__dirname, '..');
     assert.ok(movingBounds,'selected shape should be draggable');
     const mouseX=movingBounds.x+movingBounds.width/2;
     const mouseY=movingBounds.y+movingBounds.height/2;
+    const moveHit=await page.evaluate(({x,y})=>{
+      const el=document.elementFromPoint(x,y);
+      return {tag:el?.tagName,shape:el?.getAttribute('data-chomp-shape'),
+        name:el?.getAttribute('class'),selected:document.querySelector('.selected-vector-shape')?.getAttribute('data-chomp-shape')};
+    },{x:mouseX,y:mouseY});
     await page.mouse.move(mouseX,mouseY);
     await page.mouse.down();
     await page.mouse.move(mouseX+18,mouseY+12,{steps:5});
+    const transientTransform=await movingPath.getAttribute('transform');
     await page.mouse.up();
     const moveResult=await movingPath.getAttribute('d');
+    console.log('MOVE DEBUG',JSON.stringify({moveHit,transientTransform,moveOriginal,moveResult}));
     assert.notEqual(moveResult,moveOriginal,'dragging must translate actual SVG path data');
     await page.click('#vector-undo');
     assert.equal(await movingPath.getAttribute('d'),moveOriginal,'shape drag can be undone');
