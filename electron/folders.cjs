@@ -2,7 +2,8 @@ const fs = require('node:fs/promises');
 const { constants } = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
-const { supported } = require('./files.cjs');
+const { supported, videoSupported } = require('./files.cjs');
+const { VIDEO_LIMIT } = require('./video.cjs');
 const formats = new Set(['jpg', 'png', 'webp', 'avif', 'svg']);
 const fingerprint = s => ({ size: s.size, mtimeMs: s.mtimeMs, ino: s.ino, dev: s.dev });
 const unchanged = (s, before) => Object.keys(before).every(key => s[key] === before[key]);
@@ -16,7 +17,7 @@ async function verifyFile(entry, snapshot = entry.snapshot) {
 async function scanFolder(source) {
   const sourceStat = await fs.lstat(source);
   if (!sourceStat.isDirectory() || sourceStat.isSymbolicLink()) throw new Error('Select a regular folder, not a symbolic link.');
-  const root = { id: randomUUID(), path: await fs.realpath(source), name: path.basename(source), entries: [], ignored: 0, skipped: 0, images: 0 };
+  const root = { id: randomUUID(), path: await fs.realpath(source), name: path.basename(source), entries: [], ignored: 0, skipped: 0, images: 0, videos: 0 };
   const directories = [root.path]; let visited = 0;
   while (directories.length) {
     const directory = directories.pop();
@@ -30,6 +31,7 @@ async function scanFolder(source) {
       root.entries.push(entry);
       if (entry.directory) directories.push(full);
       else if (supported.test(full) && stat.size <= 512 * 1024 * 1024) { entry.image = true; root.images++; }
+      else if (videoSupported.test(full) && stat.size <= VIDEO_LIMIT) { entry.video = true; root.videos++; }
       else { root.ignored++; }
     }
   }
