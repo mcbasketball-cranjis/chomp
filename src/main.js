@@ -1104,9 +1104,10 @@ function buttonState() {
   updateVideoControls();
   $('folder-count').textContent = `${folderRoots.length} folder${folderRoots.length === 1 ? '' : 's'}`;
   $('source-folders').textContent = folderRoots.map(root => root.name).join(' · ');
-  $('output-controls').hidden = replacing;
-  $('replace-warning').hidden = !replacing;
-  $('format').disabled = replacing;
+  const actuallyReplacing=mode()==='replace';
+  $('output-controls').hidden = actuallyReplacing;
+  $('replace-warning').hidden = !actuallyReplacing;
+  $('format').disabled = actuallyReplacing;
   $('action-note').textContent = scanning ? 'Scanning…' : invalidReplace ? 'Video sources cannot be replaced.' :
     (!replacing && eligible.length && !output) ? 'Choose an output folder.' :
     workspaceMode==='video' && !eligible.length ? 'Add videos to begin.' :
@@ -1521,20 +1522,31 @@ async function encode(data, settings) {
   });
 }
 function updateItem(item, text, state) { item.status = state; item.el.querySelector('.status').textContent = text; item.el.querySelector('.status').className = `status ${state}`; }
-$('cancel').onclick = () => { stopped = true; api.stopPreparation(); $('cancel').disabled = true; $('cancel').textContent = 'Stopping…'; };
+$('cancel').onclick = () => { stopped = true; api.stopPreparation(); api.stopVideo?.(); $('cancel').disabled = true; $('cancel').textContent = 'Stopping…'; };
 $('compress').onclick = async () => {
   const maxSize = Number($('max-size').value);
-  if ($('resize').checked && (!Number.isInteger(maxSize) || maxSize < 64 || maxSize > 32768)) { notice('Enter a maximum edge between 64 and 32,768 pixels.'); $('max-size').focus(); return; }
+  if (workspaceMode!=='video' && $('resize').checked && (!Number.isInteger(maxSize) || maxSize < 64 || maxSize > 32768)) { notice('Enter a maximum edge between 64 and 32,768 pixels.'); $('max-size').focus(); return; }
   const maxBytes = $('format').value !== 'svg' && $('limit-size').checked ? Math.floor(Number($('max-bytes').value) * Number($('size-unit').value)) : null;
-  if (maxBytes !== null && (!Number.isInteger(maxBytes) || maxBytes < 1024 || maxBytes > 512 * 1024 * 1024)) { notice('Set a file size between 1 KB and 512 MB.'); $('max-bytes').focus(); return; }
+  if (workspaceMode!=='video' && maxBytes !== null && (!Number.isInteger(maxBytes) || maxBytes < 1024 || maxBytes > 512 * 1024 * 1024)) { notice('Set a file size between 1 KB and 512 MB.'); $('max-bytes').focus(); return; }
   const settings = { format: $('format').value, quality: Number($('quality').value), maxSize: $('resize').checked ? maxSize : null, maxBytes, traceDetail: $('trace-detail').value, traceOptions:traceControls(), removeBackground: $('remove-bg').checked, bgTolerance: Number($('bg-tolerance').value), bgMode: document.querySelector('[name="bg-mode"]:checked').value, bgColor:$('bg-color-source').value==='manual'?$('bg-color').value:null };
-  if (settings.removeBackground && settings.format === 'original' && items.some(item => item.format === 'jpg')) { notice('JPEG cannot save transparency. Choose PNG, WebP, AVIF or SVG to remove the background.'); return; }
+  if (workspaceMode!=='video' && settings.removeBackground && settings.format === 'original' && eligibleItems().some(item => item.format === 'jpg')) { notice('JPEG cannot save transparency. Choose PNG, WebP, AVIF or SVG to remove the background.'); return; }
   const outputMode = mode();
-  if (outputMode === 'replace' && items.some(item => !item.rootId)) { notice('Clear individual image files from the queue before replacing a folder in place.'); return; }
+  const eligible=eligibleItems();
+  if(!eligible.length){notice('Add files supported by this tool first.');return;}
+  if(eligible.some(item=>item.kind==='video')){
+    const engine=await api.getVideoEngine();
+    videoEngineReady=!!engine.available;videoEngineVersion=engine.version||'';
+    updateVideoControls();
+    if(!videoEngineReady){notice('HandBrakeCLI is required for video compression. Select the executable in Video settings.');return;}
+  }
+  if(outputMode==='replace' && items.some(item=>!item.rootId || item.kind==='video')){
+    notice('Video files cannot be replaced in place. Choose Duplicate folder or Media only.');
+    return;
+  }
   closeVectorEditor();stopPreview();running=true;stopped=false;buttonState();notice('');$('summary').hidden=true;$('preview-status').textContent='Exporting…';
   $('compress').hidden = true; $('cancel').hidden = false; $('cancel').disabled = false; $('cancel').textContent = 'Stop after this image'; $('progress-wrap').hidden = false;
   document.querySelectorAll('.remove').forEach(el => el.disabled = true);
-  const pending = folderRoots.length || items.every(i => i.status === 'done') ? [...items] : items.filter(i => i.status !== 'done'); let completed = 0, failed = 0, original = 0, compressed = 0, batch = null, startupError = null;
+  const pending = folderRoots.length || eligible.every(i => i.status === 'done') ? [...eligible] : eligible.filter(i => i.status !== 'done'); let completed = 0, failed = 0, original = 0, compressed = 0, batch = null, startupError = null;
   $('progress').value = 0;
   try {
     $('progress-text').textContent = outputMode === 'copy' ? 'Copying folder contents…' : 'Preparing output…'; $('progress-count').textContent = '';
@@ -1542,8 +1554,23 @@ $('compress').onclick = async () => {
     for (const item of pending) {
       if (stopped) break;
       updateItem(item, 'Processing…', 'working');
-      $('progress-text').textContent = 'Processing images'; $('progress-count').textContent = `${completed + failed + 1} / ${pending.length}`;
+      $('progress-text').textContent = item.kind==='video' ? 'Encoding video' : 'Processing images';
+      $('progress-count').textContent = `${completed + failed + 1} / ${pending.length}`;
       try {
+        if(item.kind==='video'){
+          currentVideoProgress={ id:item.id, processed:completed+failed, total:pending.length };
+          const saved=await api.compressVideo({
+            id:item.id, batchId:batch.id,
+            format:$('video-format').value, preset:$('video-preset').value
+          });
+          item.outputSize=saved.size;
+          const savings=Math.round((1-item.outputSize/item.size)*100);
+          updateItem(item, savings>=0 ? '−'+savings+'%' : '+'+Math.abs(savings)+'% larger','done');
+          item.el.querySelector('.detail').textContent=bytes(item.size)+' → '+bytes(item.outputSize);
+          item.el.title='Saved as '+saved.filename;
+          completed++; original+=item.size;compressed+=item.outputSize;
+          currentVideoProgress=null;
+        } else {
         const data = await api.readImage(item.id);
         const inputSize = data.byteLength;
         const format = settings.format === 'original' ? item.format : settings.format;
@@ -1565,20 +1592,30 @@ $('compress').onclick = async () => {
         item.el.title = `Saved as ${saved.filename}`;
         if (result.thumbnail) { if (item.url) { URL.revokeObjectURL(item.url); urls.delete(item.url); } const url = URL.createObjectURL(new Blob([result.thumbnail], { type: 'image/webp' })); urls.add(url); item.url = url; const img = document.createElement('img'); img.src = url; img.alt = ''; item.el.querySelector('.thumbnail').replaceChildren(img); }
         completed++; original += inputSize; compressed += item.outputSize;
-      } catch (error) { failed++; updateItem(item, 'Failed · retry', 'error'); item.el.title = error.message; item.el.querySelector('.detail').textContent = error.message; }
+        }
+      } catch (error) {
+        currentVideoProgress=null;
+        if(stopped && item.kind==='video'){
+          updateItem(item,'Stopped · retry','ready');
+          item.el.querySelector('.detail').textContent=bytes(item.size);
+          break;
+        }
+        failed++; updateItem(item, 'Failed · retry', 'error'); item.el.title = error.message;
+        item.el.querySelector('.detail').textContent = error.message;
+      }
       $('progress').value = (completed + failed) / pending.length * 100;
     }
   } catch (error) { startupError = error.message; notice(error.message); }
   finally {
     if (batch) await api.endBatch(batch.id);
-    running = false; if (worker) { worker.terminate(); worker = null; }
+    running = false;currentVideoProgress=null; if (worker) { worker.terminate(); worker = null; }
     $('compress').hidden = false; $('cancel').hidden = true; $('progress-wrap').hidden = true;
     document.querySelectorAll('.remove').forEach(el => el.disabled = false); buttonState(); $('format').onchange();
     const delta = original - compressed;
     $('summary').replaceChildren();
     const mark = document.createElement('span'); mark.className = 'summary-icon'; mark.innerHTML = icon('check');
     const text = document.createElement('div'); const title = document.createElement('strong'); title.textContent = startupError ? stopped ? 'Batch stopped' : 'Batch could not start' : stopped ? 'Batch stopped' : failed ? 'Processing finished with errors' : 'Processing complete';
-    const detail = document.createElement('p'); detail.textContent = `${completed} ${outputMode === 'replace' ? 'replaced' : 'saved'}${failed ? ` · ${failed} failed` : ''}${completed ? ` · ${delta >= 0 ? bytes(delta) + ' saved' : bytes(-delta) + ' larger'} · ${bytes(original)} → ${bytes(compressed)}` : ''}${stopped ? ' · Remaining images stay in the queue.' : ''}`;
+    const detail = document.createElement('p'); detail.textContent = `${completed} ${outputMode === 'replace' ? 'replaced' : 'saved'}${failed ? ` · ${failed} failed` : ''}${completed ? ` · ${delta >= 0 ? bytes(delta) + ' saved' : bytes(-delta) + ' larger'} · ${bytes(original)} → ${bytes(compressed)}` : ''}${stopped ? ' · Remaining files stay in the queue.' : ''}`;
     text.append(title, detail); const open = document.createElement('button'); open.className = 'button secondary'; open.innerHTML = `${icon('folder')}Open folder`; open.onclick = () => api.showOutput().catch(e => notice(e.message));
     $('summary').append(mark,text);
      if(batch)$('summary').append(open);
