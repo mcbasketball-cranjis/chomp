@@ -123,12 +123,12 @@ document.querySelector('#app').innerHTML = `
               <h3>Video compression</h3>
               <label class="field-label" for="video-preset">Compression</label>
               <select id="video-preset"><option value="small">Small file · 720p</option><option value="balanced" selected>Balanced · 1080p</option><option value="quality">Better quality · 1080p</option></select>
-              <label class="field-label" for="video-format">Video output</label>
-              <select id="video-format"><option value="mp4" selected>MP4 · H.264</option><option value="mkv">MKV · H.264</option></select>
-              <div class="video-engine"><strong>HandBrakeCLI</strong><span id="video-engine-state">Checking for local engine…</span>
-                <button type="button" id="video-engine-pick">Locate HandBrakeCLI</button>
-              </div>
-              <p class="hint">Videos are processed locally. Requires separately installed HandBrakeCLI. Originals are preserved; video replacement in source folders is disabled.</p>
+              <label class="field-label" for="video-codec">Video codec</label>
+              <select id="video-codec"><option value="h264">H.264 · compatibility</option><option value="hevc">H.265 / HEVC · efficiency</option><option value="av1">AV1 · modern</option><option value="vp9">VP9 · web</option><option value="gif">Animated GIF</option></select>
+              <label class="field-label" for="video-format">Container</label>
+              <select id="video-format"><option value="mp4">MP4</option><option value="mkv">MKV</option><option value="mov">MOV</option><option value="webm">WebM</option><option value="gif">GIF</option></select>
+              <div class="video-engine"><strong>Built-in FFmpeg engine</strong><span id="video-engine-state">Checking installed app…</span></div>
+              <p class="hint">No separate installation or upload. Available codecs depend on the device and bundled encoder. Original recordings are never overwritten.</p>
             </section>
             <section id="trace-controls" class="settings-section">
               <label class="field-label" for="trace-detail">Tracing detail</label>
@@ -228,7 +228,7 @@ const isFolderBatch = () => !!items.length && !!folderRoots.length && items.ever
 const mode = () => isFolderBatch() ? document.querySelector('[name="folder-mode"]:checked').value : 'files';
 const urls = new Set();
 let workspaceMode='compress',selectedId=null,previewTimer=null,previewVersion=0,previewWorker=null,previewOriginalUrl=null,previewResultUrl=null;
-let videoEngineReady=false, videoEngineVersion='', currentVideoProgress=null;
+let videoEngineReady=false, videoEngineVersion='', videoEngineCodecs={}, currentVideoProgress=null;
 let previewZoom=1,previewX=0,previewY=0,previewPanMode=false,previewPointer=null;
 let editorActive=false,editorPending=false,editorSelection=null,editorSvg=null;
 let editorPointMode=false,editorPointSelection=null,editorPointDrag=null,inspectorPage=0;
@@ -305,31 +305,48 @@ function eligibleItems(){
   return items.filter(item => workspaceMode==='video' ? item.kind==='video' :
     workspaceMode==='compress' ? true : item.kind!=='video');
 }
+const VIDEO_COMPAT={
+  mp4:['h264','hevc','av1'],mkv:['h264','hevc','av1','vp9'],
+  mov:['h264','hevc'],webm:['vp9','av1'],gif:['gif']
+};
+function updateVideoChoices(){
+  const available=new Set(Object.entries(videoEngineCodecs)
+    .filter(([,v])=>Array.isArray(v)&&v.length).map(([k])=>k));
+  const codec=$('video-codec');
+  for(const option of codec.options)option.disabled=videoEngineReady&&!available.has(option.value);
+  if(videoEngineReady&&!available.has(codec.value)){
+    const preferred=['h264','hevc','av1','vp9','gif'].find(c=>available.has(c));
+    if(preferred)codec.value=preferred;
+  }
+  const supported=Object.keys(VIDEO_COMPAT)
+    .filter(format=>VIDEO_COMPAT[format].includes(codec.value));
+  for(const option of $('video-format').options)option.disabled=!supported.includes(option.value);
+  if(!supported.includes($('video-format').value))
+    $('video-format').value=supported.includes('mp4')?'mp4':supported[0];
+}
+$('video-codec').onchange=updateVideoChoices;
 function updateVideoControls(){
   const visible=workspaceMode==='video' ||
     (workspaceMode==='compress' && items.some(item=>item.kind==='video'));
   $('video-controls').hidden=!visible;
   $('image-format-controls').hidden=workspaceMode==='video';
   $('video-engine-state').textContent=videoEngineReady
-    ? 'Ready · HandBrakeCLI '+videoEngineVersion
-    : 'Not found · install HandBrakeCLI or select the executable';
+    ? 'Ready · FFmpeg '+videoEngineVersion
+    : 'Unavailable in this build · video encoding requires a bundled FFmpeg engine';
 }
 async function refreshVideoEngine(){
   if(!api?.getVideoEngine)return;
   try{
     const result=await api.getVideoEngine();
-    videoEngineReady=!!result.available;videoEngineVersion=result.version||'';
-    updateVideoControls();buttonState();
-  }catch(e){videoEngineReady=false;videoEngineVersion='';$('video-engine-state').textContent=e.message;buttonState();}
+    videoEngineReady=!!result.available;
+    videoEngineVersion=result.version||'';
+    videoEngineCodecs=result.codecs||{};
+    updateVideoChoices();updateVideoControls();buttonState();
+  }catch(e){
+    videoEngineReady=false;videoEngineVersion='';videoEngineCodecs={};
+    $('video-engine-state').textContent=e.message;buttonState();
+  }
 }
-$('video-engine-pick').onclick=async()=>{
-  if(!api?.pickVideoEngine)return;
-  try{
-    const status=await api.pickVideoEngine();
-    videoEngineReady=!!status.available;videoEngineVersion=status.version||'';
-    updateVideoControls();buttonState();
-  }catch(e){notice(e.message);}
-};
 if(api?.onVideoProgress)api.onVideoProgress(({id,percent})=>{
   if(!currentVideoProgress || currentVideoProgress.id!==id || !running)return;
   const value=Math.max(0,Math.min(100,Number(percent)||0));
@@ -1145,7 +1162,7 @@ function buttonState() {
   $('action-note').textContent = scanning ? 'Scanning…' :
     (!replacing && eligible.length && !output) ? 'Choose an output folder.' :
     workspaceMode==='video' && !eligible.length ? 'Add videos to begin.' :
-    eligible.some(i=>i.kind==='video') && !videoEngineReady ? 'Select a working HandBrakeCLI executable.' : '';
+    eligible.some(i=>i.kind==='video') && !videoEngineReady ? 'Built-in video engine unavailable.' : '';
   $('action-note').hidden = !$('action-note').textContent;
   const editable=workspaceMode==='vectorize' && $('format').value==='svg' &&
     !!selectedItem() && (selectedItem().format!=='svg' || selectedItem().canEditSvg) &&
@@ -1570,15 +1587,16 @@ $('compress').onclick = async () => {
   if(eligible.some(item=>item.kind==='video')){
     const engine=await api.getVideoEngine();
     videoEngineReady=!!engine.available;videoEngineVersion=engine.version||'';
-    updateVideoControls();
-    if(!videoEngineReady){notice('HandBrakeCLI is required for video compression. Select the executable in Video settings.');return;}
+    videoEngineCodecs=engine.codecs||{};
+    updateVideoChoices();updateVideoControls();
+    if(!videoEngineReady){notice('The bundled video engine is unavailable in this build.');return;}
   }
   if(outputMode==='replace' && items.some(item=>!item.rootId || item.kind==='video')){
     notice('Video files cannot be replaced in place. Choose Duplicate folder or Media only.');
     return;
   }
   closeVectorEditor();stopPreview();running=true;stopped=false;buttonState();notice('');$('summary').hidden=true;$('preview-status').textContent='Exporting…';
-  $('compress').hidden = true; $('cancel').hidden = false; $('cancel').disabled = false; $('cancel').textContent = 'Stop after this image'; $('progress-wrap').hidden = false;
+  $('compress').hidden = true; $('cancel').hidden = false; $('cancel').disabled = false; $('cancel').textContent = 'Stop active file'; $('progress-wrap').hidden = false;
   document.querySelectorAll('.remove').forEach(el => el.disabled = true);
   const pending = folderRoots.length || eligible.every(i => i.status === 'done') ? [...eligible] : eligible.filter(i => i.status !== 'done'); let completed = 0, failed = 0, original = 0, compressed = 0, batch = null, startupError = null;
   $('progress').value = 0;
@@ -1595,7 +1613,8 @@ $('compress').onclick = async () => {
           currentVideoProgress={ id:item.id, processed:completed+failed, total:pending.length };
           const saved=await api.compressVideo({
             id:item.id, batchId:batch.id,
-            format:$('video-format').value, preset:$('video-preset').value
+            format:$('video-format').value, preset:$('video-preset').value,
+            codec:$('video-codec').value
           });
           item.outputSize=saved.size;
           const savings=Math.round((1-item.outputSize/item.size)*100);

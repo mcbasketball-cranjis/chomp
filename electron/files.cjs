@@ -1,8 +1,8 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const supported = /\.(jpe?g|png|webp|avif|svg)$/i;
-const videoSupported = /\.(mp4|m4v|mov|mkv|webm|avi)$/i;
-const mediaSupported = /\.(jpe?g|png|webp|avif|svg|mp4|m4v|mov|mkv|webm|avi)$/i;
+const videoSupported = /\.(mp4|m4v|mov|mkv|webm|avi|mpg|mpeg|m2v|ts|mts|m2ts|3gp|3g2|ogv|flv|wmv|asf|vob|mxf|gif)$/i;
+const mediaSupported = /\.(jpe?g|png|webp|avif|svg|mp4|m4v|mov|mkv|webm|avi|mpg|mpeg|m2v|ts|mts|m2ts|3gp|3g2|ogv|flv|wmv|asf|vob|mxf|gif)$/i;
 function safeStem(name) {
   return path.parse(path.basename(name)).name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/[. ]+$/g, '').slice(0, 120) || 'image';
 }

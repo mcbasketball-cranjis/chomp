@@ -26,7 +26,9 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq handbrake-cli ffmpeg
       - name: Transcode synthetic test clips with real HandBrake
-        run: node tests/handbrake-smoke.cjs
+        run: |
+          node tests/handbrake-smoke.cjs
+          node tests/ffmpeg-real.cjs
 
   validate:
     runs-on: ubuntu-latest
@@ -82,6 +84,7 @@ jobs:
       - name: Build and verify Intel Mac package with native layered icon
         run: |
           pnpm dist:mac
+          pnpm test:ffmpeg:package
           node scripts/verify-dmg.mjs x64
           node scripts/test-mac-updater.mjs
       - name: Cross-build and verify Apple Silicon package with native layered icon
@@ -105,6 +108,7 @@ jobs:
       - run: node node_modules/electron/install.js
       - name: Build and validate native MSIX with reserved Partner Center identity
         run: |
+          pnpm prepare:ffmpeg
           pnpm build
           pnpm exec electron-builder --win --x64 --dir --publish never
           node scripts/build-store-msix.mjs
@@ -115,4 +119,6 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       - name: Verify packaged desktop, update feed and checksum metadata
-        run: pnpm test:package
+        run: |
+          pnpm test:ffmpeg:package
+          pnpm test:package

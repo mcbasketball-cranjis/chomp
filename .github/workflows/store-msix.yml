@@ -30,7 +30,9 @@ jobs:
       - run: node node_modules/electron/install.js
       - run: pnpm test
       - name: Package and verify unsigned MSIX
-        run: pnpm dist:store
+        run: |
+          pnpm dist:store
+          pnpm test:ffmpeg:package
       - name: Attach upload-only MSIX to the existing version's GitHub Release
         shell: bash
         env:
