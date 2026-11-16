@@ -4,7 +4,8 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { randomUUID } = require('node:crypto');
 const { createUpdateService } = require('./updater.cjs');
-const { supported, saveUnique } = require('./files.cjs');
+const { supported, videoSupported, saveUnique } = require('./files.cjs');
+const { VIDEO_LIMIT, findHandBrake, processVideo } = require('./video.cjs');
 const { scanFolder, prepareBatch, saveFolderImage, verifyFile, fingerprint, formatFor, contained } = require('./folders.cjs');
 protocol.registerSchemesAsPrivileged([{ scheme: 'chomp', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }]);
 let win;
@@ -17,6 +18,8 @@ let activeBatch = null;
 let preparing = false;
 let cancelPreparation = false;
 let lastPaths = [];
+let handBrakeEngine = null;
+let activeVideoJob = null;
 let themePreference = 'system';
 const themeState = () => ({ preference: themePreference, dark: nativeTheme.shouldUseDarkColors, platform: process.platform });
 function updateTheme() {
@@ -33,9 +36,9 @@ async function register(paths) {
   const addedRoots = [], warnings = [];
   function addEntry(entry, root) {
     const id = randomUUID();
-    const input = Object.assign(entry, { rootId: root?.id, format: formatFor(entry.path) });
+    const input = Object.assign(entry, { rootId: root?.id, format: formatFor(entry.path), kind: entry.video ? 'video' : 'image' });
     inputs.set(id, input);
-    result.push({ id, name: path.basename(entry.path), size: entry.snapshot.size, key: entry.path, relative: entry.relative, rootId: root?.id, format: input.format });
+    result.push({ id, name: path.basename(entry.path), size: entry.snapshot.size, key: entry.path, relative: entry.relative, rootId: root?.id, format: input.format, kind: input.kind });
   }
   for (const file of paths) {
     try {
@@ -45,11 +48,12 @@ async function register(paths) {
         const canonical = await fs.realpath(file);
         if ([...roots.values()].some(root => contained(root.path, canonical) || contained(canonical, root.path))) { warnings.push(`${path.basename(file)} overlaps a folder already in the queue. Clear the queue to select a different root.`); continue; }
         const root = await scanFolder(file);
-        roots.set(root.id, root); addedRoots.push({ id: root.id, name: root.name, images: root.images });
-        for (const entry of root.entries) if (entry.image) addEntry(entry, root);
+        roots.set(root.id, root); addedRoots.push({ id: root.id, name: root.name, images: root.images, videos: root.videos });
+        for (const entry of root.entries) if (entry.image || entry.video) addEntry(entry, root);
         skipped += root.skipped; ignored += root.ignored;
-      } else if (stat.isFile() && supported.test(file) && stat.size <= 512 * 1024 * 1024) {
-        addEntry({ path: await fs.realpath(file), relative: path.basename(file), snapshot: fingerprint(stat) });
+      } else if (stat.isFile() && ((supported.test(file) && stat.size <= 512 * 1024 * 1024) ||
+        (videoSupported.test(file) && stat.size <= VIDEO_LIMIT))) {
+        addEntry({ path: await fs.realpath(file), relative: path.basename(file), snapshot: fingerprint(stat), video: videoSupported.test(file) });
       } else ignored++;
     } catch (error) { warnings.push(`Could not add ${path.basename(file)}: ${error.message}`); }
   }
@@ -93,7 +97,7 @@ app.whenReady().then(async () => {
     updateTheme(); return themeState();
   });
   handle('pick-images', async () => {
-    const pick = await dialog.showOpenDialog(win, { title: 'Add images', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'avif', 'svg'] }] });
+    const pick = await dialog.showOpenDialog(win, { title: 'Add media', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Images and videos', extensions: ['jpg', 'jpeg', 'png', 'webp', 'avif', 'svg','mp4','m4v','mov','mkv','webm','avi'] }] });
     return register(pick.canceled ? [] : pick.filePaths);
   });
   handle('pick-folders', async () => {
@@ -105,7 +109,7 @@ app.whenReady().then(async () => {
     return register(paths);
   });
   handle('read-image', async id => {
-    if (!inputs.has(id)) throw new Error('Please add this image again.');
+    if (!inputs.has(id) || inputs.get(id).kind !== 'image') throw new Error('Please add this image again.');
     const entry = inputs.get(id);
     await verifyFile(entry);
     const data = new Uint8Array(await fs.readFile(entry.path));
@@ -127,7 +131,7 @@ app.whenReady().then(async () => {
     const selected = new Set(ids.map(id => inputs.get(id).rootId).filter(Boolean));
     if (!['copy', 'images', 'replace', 'files'].includes(mode)) throw new Error('Invalid output mode.');
     if (maxBytes != null && (!Number.isInteger(maxBytes) || maxBytes < 1024 || maxBytes > 512 * 1024 * 1024)) throw new Error('Size limit must be between 1 KB and 512 MB.');
-    if (mode === 'replace' && ids.some(id => !inputs.get(id).rootId)) throw new Error('In-place mode requires folder inputs only. Clear individual files from the queue.');
+    if (mode === 'replace' && ids.some(id => !inputs.get(id).rootId || inputs.get(id).kind === 'video')) throw new Error('In-place video compression is disabled to protect the source. Use Duplicate folder or Media only.');
     if (mode !== 'replace' && !outputFolder) throw new Error('Choose an output folder first.');
     preparing = true; cancelPreparation = false;
     try {
@@ -159,6 +163,61 @@ app.whenReady().then(async () => {
     }
     finally { activeWrites--; }
   });
+  handle('get-video-engine', async () => {
+    if (handBrakeEngine) return { available: true, version: handBrakeEngine.version };
+    handBrakeEngine = await findHandBrake();
+    return handBrakeEngine ? { available: true, version: handBrakeEngine.version } :
+      { available: false, message: 'Install HandBrakeCLI and select its executable.' };
+  });
+  handle('pick-video-engine', async () => {
+    if (activeBatch || preparing) throw new Error('Finish the current batch first.');
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Select HandBrakeCLI executable', properties: ['openFile'],
+      filters: process.platform === 'win32' ? [{ name: 'Executables', extensions: ['exe'] }] : []
+    });
+    if (result.canceled) return handBrakeEngine ?
+      { available: true, version: handBrakeEngine.version } : { available: false };
+    const engine = await findHandBrake(result.filePaths[0]);
+    if (!engine) throw new Error('The selected file is not a working HandBrakeCLI executable.');
+    handBrakeEngine = engine;
+    return { available: true, version: engine.version };
+  });
+  handle('compress-video', async ({ id, batchId, format, preset }) => {
+    if (!activeBatch || activeBatch.id !== batchId || !activeBatch.ids.has(id) ||
+        !inputs.has(id) || inputs.get(id).kind !== 'video')
+      throw new Error('Invalid video batch.');
+    if (!handBrakeEngine) throw new Error('HandBrakeCLI is not configured.');
+    if (activeVideoJob) throw new Error('Another video is already compressing.');
+    if (activeBatch.mode === 'replace') throw new Error('Video in-place replacement is not supported.');
+    const entry = inputs.get(id);
+    const root = entry.rootId && roots.get(entry.rootId);
+    let directory = outputFolder, copiedOriginal = null, copySnapshot = null;
+    if (root && activeBatch.mode !== 'files') {
+      const destination = activeBatch.destinations.get(root.id);
+      if (!destination) throw new Error('Video source folder is not in this batch.');
+      directory = path.join(destination, path.dirname(entry.relative));
+      await fs.mkdir(directory, { recursive: true });
+      if (!contained(destination, await fs.realpath(directory))) throw new Error('Invalid output directory.');
+      if (activeBatch.mode === 'copy') {
+        copiedOriginal = path.join(destination, entry.relative);
+        copySnapshot = activeBatch.copySnapshots.get(copiedOriginal);
+      }
+    }
+    activeWrites++;
+    try {
+      return await processVideo({
+        executable: handBrakeEngine.executable, entry, directory, format, preset,
+        copiedOriginal, copySnapshot,
+        verifySource: () => verifyFile(entry),
+        onJob: job => { activeVideoJob = job; },
+        onProgress: percent => {
+          if (win && !win.isDestroyed() && !win.webContents.isDestroyed())
+            win.webContents.send('video-progress', { id, percent });
+        }
+      });
+    } finally { activeVideoJob = null; activeWrites--; }
+  });
+  handle('stop-video', () => { if (activeVideoJob) activeVideoJob.cancel(); });
   handle('show-output', async () => { for (const folder of lastPaths.length ? lastPaths : [outputFolder].filter(Boolean)) { const error = await shell.openPath(folder); if (error) throw new Error(error); } });
   function createWindow() {
     const dark = nativeTheme.shouldUseDarkColors;
