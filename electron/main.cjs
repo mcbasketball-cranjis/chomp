@@ -5,7 +5,8 @@ const { pathToFileURL } = require('node:url');
 const { randomUUID } = require('node:crypto');
 const { createUpdateService } = require('./updater.cjs');
 const { supported, videoSupported, saveUnique } = require('./files.cjs');
-const { VIDEO_LIMIT, findHandBrake, processVideo } = require('./video.cjs');
+const { VIDEO_LIMIT, processVideo } = require('./video.cjs');
+const { bundledPaths, detectFFmpeg, transcodeFFmpeg, durationOf } = require('./ffmpeg.cjs');
 const { scanFolder, prepareBatch, saveFolderImage, verifyFile, fingerprint, formatFor, contained } = require('./folders.cjs');
 protocol.registerSchemesAsPrivileged([{ scheme: 'chomp', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }]);
 let win;
@@ -18,8 +19,17 @@ let activeBatch = null;
 let preparing = false;
 let cancelPreparation = false;
 let lastPaths = [];
-let handBrakeEngine = null;
-let chosenHandBrakePath = null;
+let videoEnginePromise = null;
+async function videoEngine() {
+  if (!videoEnginePromise) videoEnginePromise=(async()=>{
+    const candidate=app.isPackaged ? bundledPaths(process.resourcesPath) : {
+      executable:process.env.CHOMP_FFMPEG_BINARY || (process.platform==='win32'?'ffmpeg.exe':'ffmpeg'),
+      probe:process.env.CHOMP_FFPROBE_BINARY || (process.platform==='win32'?'ffprobe.exe':'ffprobe')
+    };
+    return detectFFmpeg(candidate,{requireLGPL:app.isPackaged});
+  })();
+  return videoEnginePromise;
+}
 let activeVideoJob = null;
 let themePreference = 'system';
 const themeState = () => ({ preference: themePreference, dark: nativeTheme.shouldUseDarkColors, platform: process.platform });
@@ -68,11 +78,6 @@ function handle(name, fn) {
 }
 app.whenReady().then(async () => {
   try { const saved = JSON.parse(await fs.readFile(path.join(app.getPath('userData'), 'preferences.json'), 'utf8')); if (['system', 'light', 'dark'].includes(saved.theme)) themePreference = saved.theme; } catch {}
-  try {
-    const setting=JSON.parse(await fs.readFile(path.join(app.getPath('userData'),'video-engine.json'),'utf8'));
-    if(typeof setting.executable==='string' && setting.executable.length<4096)
-      chosenHandBrakePath=setting.executable;
-  }catch{}
   if (process.platform !== 'darwin') themePreference = 'system';
   nativeTheme.themeSource = themePreference;
   nativeTheme.on('updated', updateTheme);
@@ -103,7 +108,7 @@ app.whenReady().then(async () => {
     updateTheme(); return themeState();
   });
   handle('pick-images', async () => {
-    const pick = await dialog.showOpenDialog(win, { title: 'Add media', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Images and videos', extensions: ['jpg', 'jpeg', 'png', 'webp', 'avif', 'svg','mp4','m4v','mov','mkv','webm','avi'] }] });
+    const pick = await dialog.showOpenDialog(win, { title: 'Add media', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Images and videos', extensions: ['jpg','jpeg','png','webp','avif','svg','mp4','m4v','mov','mkv','webm','avi','mpg','mpeg','m2v','ts','mts','m2ts','3gp','3g2','ogv','flv','wmv','asf','vob','mxf','gif'] }] });
     return register(pick.canceled ? [] : pick.filePaths);
   });
   handle('pick-folders', async () => {
@@ -170,64 +175,49 @@ app.whenReady().then(async () => {
     finally { activeWrites--; }
   });
   handle('get-video-engine', async () => {
-    if (handBrakeEngine) return { available: true, version: handBrakeEngine.version };
-    handBrakeEngine = (chosenHandBrakePath && await findHandBrake(chosenHandBrakePath)) ||
-      await findHandBrake();
-    return handBrakeEngine ? { available: true, version: handBrakeEngine.version } :
-      { available: false, message: 'Install HandBrakeCLI and select its executable.' };
+    const engine=await videoEngine();
+    return engine ? { available:true,version:engine.version,codecs:engine.codecs,formats:engine.formats,
+      bundled:app.isPackaged } :
+      {available:false,codecs:{},formats:[],message:'This build does not include a working video engine.'};
   });
-  handle('pick-video-engine', async () => {
-    if (activeBatch || preparing) throw new Error('Finish the current batch first.');
-    const result = await dialog.showOpenDialog(win, {
-      title: 'Select HandBrakeCLI executable', properties: ['openFile'],
-      filters: process.platform === 'win32' ? [{ name: 'Executables', extensions: ['exe'] }] : []
-    });
-    if (result.canceled) return handBrakeEngine ?
-      { available: true, version: handBrakeEngine.version } : { available: false };
-    const engine = await findHandBrake(result.filePaths[0]);
-    if (!engine) throw new Error('The selected file is not a working HandBrakeCLI executable.');
-    handBrakeEngine = engine;
-    chosenHandBrakePath = result.filePaths[0];
-    await fs.writeFile(path.join(app.getPath('userData'),'video-engine.json'),
-      JSON.stringify({executable:chosenHandBrakePath}));
-    return { available: true, version: engine.version };
-  });
-  handle('compress-video', async ({ id, batchId, format, preset }) => {
+  handle('compress-video', async ({ id, batchId, format, preset, codec }) => {
     if (!activeBatch || activeBatch.id !== batchId || !activeBatch.ids.has(id) ||
         !inputs.has(id) || inputs.get(id).kind !== 'video')
       throw new Error('Invalid video batch.');
-    if (!handBrakeEngine) throw new Error('HandBrakeCLI is not configured.');
-    if (activeVideoJob) throw new Error('Another video is already compressing.');
-    if (activeBatch.mode === 'replace') throw new Error('Video in-place replacement is not supported.');
-    const entry = inputs.get(id);
-    const root = entry.rootId && roots.get(entry.rootId);
-    let directory = outputFolder, copiedOriginal = null, copySnapshot = null;
-    if (root && activeBatch.mode !== 'files') {
-      const destination = activeBatch.destinations.get(root.id);
-      if (!destination) throw new Error('Video source folder is not in this batch.');
-      directory = path.join(destination, path.dirname(entry.relative));
-      await fs.mkdir(directory, { recursive: true });
-      if (!contained(destination, await fs.realpath(directory))) throw new Error('Invalid output directory.');
-      if (activeBatch.mode === 'copy') {
-        copiedOriginal = path.join(destination, entry.relative);
-        copySnapshot = activeBatch.copySnapshots.get(copiedOriginal);
+    const engine=await videoEngine();
+    if(!engine)throw new Error('Chomp could not start its bundled video engine.');
+    if(activeVideoJob)throw new Error('Another video is already compressing.');
+    if(activeBatch.mode==='replace')throw new Error('Videos cannot be replaced in place.');
+    const entry=inputs.get(id),root=entry.rootId && roots.get(entry.rootId);
+    let directory=outputFolder,copiedOriginal=null,copySnapshot=null;
+    if(root && activeBatch.mode!=='files'){
+      const destination=activeBatch.destinations.get(root.id);
+      if(!destination)throw new Error('Video source folder is not in this batch.');
+      directory=path.join(destination,path.dirname(entry.relative));
+      await fs.mkdir(directory,{recursive:true});
+      if(!contained(destination,await fs.realpath(directory)))throw new Error('Invalid output directory.');
+      if(activeBatch.mode==='copy'){
+        copiedOriginal=path.join(destination,entry.relative);
+        copySnapshot=activeBatch.copySnapshots.get(copiedOriginal);
       }
     }
     activeWrites++;
-    try {
+    try{
+      const duration=await durationOf(engine.probe,entry.path);
       return await processVideo({
-        executable: handBrakeEngine.executable, entry, directory, format, preset,
-        copiedOriginal, copySnapshot,
-        verifySource: () => verifyFile(entry),
-        onJob: job => { activeVideoJob = job; },
-        onProgress: percent => {
-          if (win && !win.isDestroyed() && !win.webContents.isDestroyed())
-            win.webContents.send('video-progress', { id, percent });
+        executable:engine.executable,entry,directory,format,preset,codec,
+        copiedOriginal,copySnapshot,verifySource:()=>verifyFile(entry),
+        encodeVideo:(source,target,options,onProgress)=>
+          transcodeFFmpeg({...engine,duration},source,target,options,onProgress),
+        onJob:job=>{activeVideoJob=job;},
+        onProgress:percent=>{
+          if(win && !win.isDestroyed() && !win.webContents.isDestroyed())
+            win.webContents.send('video-progress',{id,percent});
         }
       });
-    } finally { activeVideoJob = null; activeWrites--; }
+    }finally{activeVideoJob=null;activeWrites--;}
   });
-  handle('stop-video', () => { if (activeVideoJob) activeVideoJob.cancel(); });
+  handle('stop-video',()=>{if(activeVideoJob)activeVideoJob.cancel();});
   handle('show-output', async () => { for (const folder of lastPaths.length ? lastPaths : [outputFolder].filter(Boolean)) { const error = await shell.openPath(folder); if (error) throw new Error(error); } });
   function createWindow() {
     const dark = nativeTheme.shouldUseDarkColors;
