@@ -6,7 +6,28 @@ on:
 permissions:
   contents: read
 
+# Only the latest commit in each PR needs full multi-platform packaging checks.
+concurrency:
+  group: chomp-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
+  video-smoke:
+    name: Real HandBrakeCLI encoding (synthetic media)
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install standalone HandBrakeCLI and FFmpeg for validation only
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq handbrake-cli ffmpeg
+      - name: Transcode synthetic test clips with real HandBrake
+        run: node tests/handbrake-smoke.cjs
+
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 15

@@ -1,5 +1,6 @@
 import { decodeSvgBitmap } from './svg-input.js';
 import { normalizeTraceOptions } from './trace-options.js';
+import { snapShapeTranslation } from './vector-snap.js';
 import { vectorPathBounds, vectorPathPoints, moveVectorPathPoint,
   nearestVectorPathSegment, insertVectorPathPoint, deleteVectorPathPoint,
   translateVectorPath,
@@ -19,7 +20,8 @@ const icons = {
   image: '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1"/><path d="m3 16 6-5 4 4 3-3 5 5"/>',
   x: '<path d="m6 6 12 12M6 18 18 6"/>',
   spark: '<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/>',
-  refresh: '<path d="M20 11a8 8 0 1 0-2.2 5.5M20 4v7h-7"/>'
+  refresh: '<path d="M20 11a8 8 0 1 0-2.2 5.5M20 4v7h-7"/>',
+  video: '<rect x="3" y="5" width="14" height="14" rx="3"/><path d="m17 10 4-3v10l-4-3"/>'
 };
 const icon = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]}</svg>`;
 
@@ -33,6 +35,7 @@ document.querySelector('#app').innerHTML = `
       <button type="button" data-workspace="compress">${icon('layers')}<span>Compress</span></button>
       <button type="button" data-workspace="convert">${icon('arrow')}<span>Convert</span></button>
       <button type="button" class="active" data-workspace="vectorize">${icon('spark')}<span>Vectorize</span></button>
+      <button type="button" data-workspace="video">${icon('video')}<span>Video</span></button>
     </nav>
     <div class="sidebar-divider"></div>
     <div class="files-heading"><span class="sidebar-caption">YOUR FILES</span><span id="count" class="files-count">0</span></div>
@@ -57,7 +60,8 @@ document.querySelector('#app').innerHTML = `
             <span class="preview-chip before-chip">ORIGINAL</span><span class="preview-chip after-chip" id="preview-after-label">VECTOR</span>
             <input type="range" min="0" max="100" value="40" id="compare-slider" class="compare-slider" aria-label="Compare original and processed image">
             <button id="drop" class="dropzone" type="button"><span class="upload-icon">${icon('upload')}</span><strong>Drop images or folders here</strong><span><b>Browse files</b></span><span class="drop-note">JPEG, PNG, WebP, AVIF, SVG</span></button>
-            <div id="empty-note" class="empty-note"><span>Drop an image to get started</span></div>
+            <div id="empty-note" class="empty-note"><span>Drop images or videos to get started</span></div>
+      <div id="video-preview" class="video-preview" hidden><span class="video-preview-icon">${icon('video')}</span><strong id="video-preview-name">Video</strong><span id="video-preview-info"></span><small>Ready for local HandBrake compression</small></div>
           </div>
           <footer class="preview-footer"><span class="image-metadata">${icon('image')}<span id="stage-caption">Select an image to see its preview</span></span><div class="preview-actions"><button type="button" id="vector-edit-open" class="vector-edit-open" hidden>Edit shapes</button><div class="preview-zoom" aria-label="Preview zoom"><button type="button" id="zoom-out" aria-label="Zoom out">−</button><button type="button" id="zoom-fit" title="Fit preview"><span id="zoom-value">100%</span></button><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-pan" aria-pressed="false" title="Drag image to pan">Pan</button></div><div class="preview-switch"><button type="button" id="compare-view" class="selected">Compare</button><button type="button" id="result-view">Result only</button></div></div></footer>
           <div id="vector-edit-toolbar" class="vector-edit-toolbar" hidden>
@@ -67,6 +71,7 @@ document.querySelector('#app').innerHTML = `
             <input type="text" id="vector-shape-hex" class="vector-shape-hex" aria-label="Exact fill hex color" maxlength="7" autocomplete="off" spellcheck="false" value="#000000" disabled>
             <button type="button" id="vector-delete-shape" disabled>Remove</button>
             <button type="button" id="vector-move-mode" aria-pressed="false" disabled>Move</button>
+            <label class="vector-match-option" for="vector-snap-toggle"><input id="vector-snap-toggle" type="checkbox" checked disabled> Snap + guides</label>
             <button type="button" id="vector-point-mode" aria-pressed="false" disabled>Points</button>
             <button type="button" id="vector-add-point" aria-pressed="false" disabled>Insert point</button>
             <button type="button" id="vector-remove-point" disabled>Delete point</button>
@@ -111,9 +116,20 @@ document.querySelector('#app').innerHTML = `
       <aside class="settings-panel">
         <div class="settings-scroll"><h2 id="settings-title">Vector settings</h2>
           <fieldset id="settings">
-            <label class="field-label" for="format">Output format</label>
+            <div id="image-format-controls"><label class="field-label" for="format">Image output format</label>
             <div class="format-control"><span class="format-icon">${icon('spark')}</span><select id="format"><option value="original">Keep original format</option><option value="webp">WebP</option><option value="jpg">JPEG</option><option value="png">PNG (lossless)</option><option value="avif">AVIF</option><option value="svg" selected>SVG — editable paths</option></select></div>
-            <p id="format-hint" class="hint" hidden></p>
+            <p id="format-hint" class="hint" hidden></p></div>
+            <section id="video-controls" class="settings-section" hidden>
+              <h3>Video compression</h3>
+              <label class="field-label" for="video-preset">Compression</label>
+              <select id="video-preset"><option value="small">Small file · 720p</option><option value="balanced" selected>Balanced · 1080p</option><option value="quality">Better quality · 1080p</option></select>
+              <label class="field-label" for="video-format">Video output</label>
+              <select id="video-format"><option value="mp4" selected>MP4 · H.264</option><option value="mkv">MKV · H.264</option></select>
+              <div class="video-engine"><strong>HandBrakeCLI</strong><span id="video-engine-state">Checking for local engine…</span>
+                <button type="button" id="video-engine-pick">Locate HandBrakeCLI</button>
+              </div>
+              <p class="hint">Videos are processed locally. Requires separately installed HandBrakeCLI. Originals are preserved; video replacement in source folders is disabled.</p>
+            </section>
             <section id="trace-controls" class="settings-section">
               <label class="field-label" for="trace-detail">Tracing detail</label>
               <select id="trace-detail" class="visually-hidden"><option value="simple">Simple</option><option value="balanced" selected>Balanced</option><option value="detailed">Detailed</option></select>
@@ -172,12 +188,12 @@ document.querySelector('#app').innerHTML = `
               <div class="mini-divider"></div><label class="toggle-row"><span><strong>Resize large images</strong></span><input id="resize" type="checkbox" role="switch"><span class="switch"></span></label>
               <div id="resize-options" hidden><label class="field-label" for="max-size">Maximum long edge</label><div class="number-wrap"><input id="max-size" type="number" min="64" max="32768" value="2400" step="1"><span>px</span></div></div>
             </section>
-            <section id="quick-panel" class="settings-section quick-panel" hidden><div class="quick-heading"><h3>Folder processing</h3><span id="folder-count"></span></div><p id="source-folders"></p><fieldset id="folder-modes"><label class="mode-option"><input type="radio" name="folder-mode" value="copy" checked><span><strong>Duplicate folder</strong><small>Keep non-image files</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="images"><span><strong>Images only</strong><small>Keep subfolders</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="replace"><span><strong>Replace originals</strong><small>Overwrites source images</small></span></label></fieldset></section>
+            <section id="quick-panel" class="settings-section quick-panel" hidden><div class="quick-heading"><h3>Folder processing</h3><span id="folder-count"></span></div><p id="source-folders"></p><fieldset id="folder-modes"><label class="mode-option"><input type="radio" name="folder-mode" value="copy" checked><span><strong>Duplicate folder</strong><small>Keep other files untouched</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="images"><span><strong>Media only</strong><small>Keep subfolders</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="replace"><span><strong>Replace images</strong><small>Videos cannot be replaced</small></span></label></fieldset></section>
           </fieldset>
         </div>
         <div class="settings-footer">
           <div id="output-controls"><span class="destination-label">Save files to</span><button id="folder" class="folder-button">${icon('folder')}<span id="folder-label">Choose output folder</span><span class="folder-arrow">⌄</span></button><p class="hint" id="output-hint" hidden></p></div>
-          <p id="replace-warning" class="replace-warning" hidden>Original images will be overwritten. Keep a backup if you need the source files.</p>
+          <p id="replace-warning" class="replace-warning" hidden>Original images will be overwritten. Videos are not eligible for in-place replacement.</p>
           <div class="action-area"><div id="progress-wrap" hidden><div class="progress-label"><span id="progress-text">Preparing…</span><span id="progress-count"></span></div><progress id="progress" max="100" value="0"></progress></div>
             <button id="compress" class="button primary" disabled>Export SVGs ${icon('arrow')}</button><button id="cancel" class="button cancel" hidden>Stop after this image</button><p class="action-note" id="action-note"></p></div>
         </div>
@@ -212,6 +228,7 @@ const isFolderBatch = () => !!items.length && !!folderRoots.length && items.ever
 const mode = () => isFolderBatch() ? document.querySelector('[name="folder-mode"]:checked').value : 'files';
 const urls = new Set();
 let workspaceMode='compress',selectedId=null,previewTimer=null,previewVersion=0,previewWorker=null,previewOriginalUrl=null,previewResultUrl=null;
+let videoEngineReady=false, videoEngineVersion='', currentVideoProgress=null;
 let previewZoom=1,previewX=0,previewY=0,previewPanMode=false,previewPointer=null;
 let editorActive=false,editorPending=false,editorSelection=null,editorSvg=null;
 let editorPointMode=false,editorPointSelection=null,editorPointDrag=null,inspectorPage=0;
@@ -264,12 +281,13 @@ function limitPan(){
   previewY=Math.max(-maxY,Math.min(maxY,previewY));
 }
 const MIME={jpg:'image/jpeg',png:'image/png',svg:'image/svg+xml',webp:'image/webp',avif:'image/avif'};
-const workspaceCopy={compress:['Compress','Compression'],convert:['Convert','Conversion'],vectorize:['Vectorize','Vectorization']};
-const preferredFormats={compress:'webp',convert:'png',vectorize:'svg'};
+const workspaceCopy={compress:['Compress','Compression'],convert:['Convert','Conversion'],vectorize:['Vectorize','Vectorization'],video:['Video','Video compression']};
+const preferredFormats={compress:'webp',convert:'png',vectorize:'svg',video:'webp'};
 // The input formats are intentionally shared, including SVG. These lists only
 // restrict OUTPUT choices, so SVG -> PNG/JPEG/WebP/AVIF remains possible in Convert.
 const outputFormats={
   compress:['original','webp','jpg','png','avif'],
+  video:['original','webp','jpg','png','avif'],
   convert:['webp','jpg','png','avif'],
   vectorize:['svg']
 };
@@ -283,6 +301,43 @@ function syncOutputFormats(){
   $('format').onchange();
 }
 function selectedItem(){return items.find(item=>item.id===selectedId)||null;}
+function eligibleItems(){
+  return items.filter(item => workspaceMode==='video' ? item.kind==='video' :
+    workspaceMode==='compress' ? true : item.kind!=='video');
+}
+function updateVideoControls(){
+  const visible=workspaceMode==='video' ||
+    (workspaceMode==='compress' && items.some(item=>item.kind==='video'));
+  $('video-controls').hidden=!visible;
+  $('image-format-controls').hidden=workspaceMode==='video';
+  $('video-engine-state').textContent=videoEngineReady
+    ? 'Ready · HandBrakeCLI '+videoEngineVersion
+    : 'Not found · install HandBrakeCLI or select the executable';
+}
+async function refreshVideoEngine(){
+  if(!api?.getVideoEngine)return;
+  try{
+    const result=await api.getVideoEngine();
+    videoEngineReady=!!result.available;videoEngineVersion=result.version||'';
+    updateVideoControls();buttonState();
+  }catch(e){videoEngineReady=false;videoEngineVersion='';$('video-engine-state').textContent=e.message;buttonState();}
+}
+$('video-engine-pick').onclick=async()=>{
+  if(!api?.pickVideoEngine)return;
+  try{
+    const status=await api.pickVideoEngine();
+    videoEngineReady=!!status.available;videoEngineVersion=status.version||'';
+    updateVideoControls();buttonState();
+  }catch(e){notice(e.message);}
+};
+if(api?.onVideoProgress)api.onVideoProgress(({id,percent})=>{
+  if(!currentVideoProgress || currentVideoProgress.id!==id || !running)return;
+  const value=Math.max(0,Math.min(100,Number(percent)||0));
+  const item=items.find(entry=>entry.id===id);
+  if(item)updateItem(item,'Encoding '+Math.round(value)+'%','working');
+  $('progress').value=(currentVideoProgress.processed+value/100)/currentVideoProgress.total*100;
+  $('progress-text').textContent='Encoding video · '+Math.round(value)+'%';
+});
 function releasePreviewUrls(){
   if(previewOriginalUrl)URL.revokeObjectURL(previewOriginalUrl);
   if(previewResultUrl)URL.revokeObjectURL(previewResultUrl);
@@ -327,6 +382,7 @@ function closeVectorEditor(){
   inspectorBoundsCache.clear();
   // Bulk actions are opt-in per editing session; never carry them to a new file.
   $('vector-match-colors').checked=false;
+  $('vector-snap-toggle').checked=true;
   $('vector-only-small').checked=false;
   if(editorSvg){editorSvg.remove();editorSvg=null;}
   $('vector-edit-toolbar').hidden=true;
@@ -383,6 +439,7 @@ function editorToolbar(){
   $('vector-reset').disabled=!doc || !hasVectorEdits(doc);
   $('vector-match-colors').disabled=!shape;
   $('vector-move-mode').disabled=!shape;
+  $('vector-snap-toggle').disabled=!shape || !editorMoveMode;
   $('vector-move-mode').classList.toggle('selected',editorMoveMode);
   $('vector-move-mode').setAttribute('aria-pressed',String(editorMoveMode));
   $('vector-point-mode').disabled=!shape;
@@ -681,7 +738,30 @@ function updateVectorShapeDrag(event){
   const drag=editorShapeDrag;
   if(!drag || event.pointerId!==drag.pointerId)return;
   const point=getLocalPoint(drag.svg,event.clientX,event.clientY);
-  const dx=point.x-drag.start.x,dy=point.y-drag.start.y;
+  let dx=point.x-drag.start.x,dy=point.y-drag.start.y;
+  let guides=[];
+  if($('vector-snap-toggle').checked && !event.altKey) {
+    const matrix=drag.svg.getScreenCTM();
+    const scale=matrix ? Math.hypot(matrix.a,matrix.b) : 1;
+    const snap=snapShapeTranslation(drag.bounds,drag.others,drag.document,dx,dy,
+      Math.min(20,8/Math.max(.0001,scale)));
+    dx=snap.dx;dy=snap.dy;guides=snap.guides;
+  }
+  const lines=drag.svg.querySelector('.vector-snap-guides');
+  if(lines){
+    lines.replaceChildren();
+    for(const guide of guides){
+      const line=document.createElementNS(SVG_NS,'line');
+      if(guide.axis==='x'){
+        line.setAttribute('x1',guide.position);line.setAttribute('x2',guide.position);
+        line.setAttribute('y1','0');line.setAttribute('y2',drag.document.height);
+      }else{
+        line.setAttribute('y1',guide.position);line.setAttribute('y2',guide.position);
+        line.setAttribute('x1','0');line.setAttribute('x2',drag.document.width);
+      }
+      lines.append(line);
+    }
+  }
   // Avoid invalid SVG path coordinates while moving very large artwork.
   if(drag.bounds.x+dx < -32768 || drag.bounds.x+drag.bounds.width+dx > 32768 ||
      drag.bounds.y+dy < -32768 || drag.bounds.y+drag.bounds.height+dy > 32768)return;
@@ -745,11 +825,18 @@ function renderShapeOverlay(){
       const start=getLocalPoint(svg,event.clientX,event.clientY);
       editorShapeDrag={pointerId:event.pointerId,shapeId:chosen.id,
         original:chosen.d,dx:0,dy:0,start,path,svg,
-        bounds:vectorPathBounds(chosen.d)};
+        bounds:vectorPathBounds(chosen.d),
+        document:{width:doc.boxWidth,height:doc.boxHeight},
+        others:doc.shapes.filter(shape=>!shape.hidden && shape.id!==chosen.id)
+          .map(shape=>shapeInspectorBounds(shape))};
       svg.setPointerCapture(event.pointerId);
       svg.classList.add('dragging-vector');
       event.preventDefault();
     });
+  }
+  if(editorMoveMode){
+    const guides=document.createElementNS(SVG_NS,'g');
+    guides.classList.add('vector-snap-guides');svg.append(guides);
   }
   renderSelectedPathPoints(svg,chosen);
   svg.addEventListener('click',event=>{
@@ -844,18 +931,35 @@ function selectItem(item){
   selectedId=item?.id??null;
   previewPanMode=false;previewPointer=null;setZoom(1);
   document.querySelectorAll('.image-row').forEach(el=>el.classList.toggle('selected',el.dataset.id===String(selectedId)));
-  $('selected-name').textContent=item?(item.relative||item.name):'No image selected';
+  $('selected-name').textContent=item?(item.relative||item.name):'No media selected';
   $('metric-original').textContent=item?bytes(item.size):'—';
   $('metric-output').textContent='—';$('metric-savings').textContent='—';
   $('stage-caption').textContent=item?item.name+' · '+item.format.toUpperCase():'Select an image to see its preview';
   $('preview-stage').classList.toggle('is-empty',!item);
+  $('preview-stage').classList.toggle('video-selected',item?.kind==='video');
   $('original-img').hidden=true;$('result-img').hidden=true;
+  $('video-preview').hidden=!item || item.kind!=='video';
   releasePreviewUrls();stopPreview();buttonState();
   if(item)queuePreview();
 }
 function queuePreview(){
   if(!selectedItem()||!api||running||scanning)return;
   const item=selectedItem();
+  if(item.kind==='video'){
+    stopPreview();releasePreviewUrls();
+    $('original-img').hidden=true;$('result-img').hidden=true;
+    $('video-preview').hidden=false;
+    $('video-preview-name').textContent=item.name;
+    $('video-preview-info').textContent=item.format.toUpperCase()+' · '+bytes(item.size);
+    $('preview-status').textContent='Ready for video compression';
+    $('preview-badge').textContent='VIDEO · '+item.format.toUpperCase();
+    $('stage-caption').textContent='Video · '+bytes(item.size)+' · no upload required';
+    $('metric-output').textContent=item.outputSize ? bytes(item.outputSize) : '—';
+    $('metric-savings').textContent=item.outputSize ?
+      Math.round(100*(1-item.outputSize/item.size))+'%' : '—';
+    return;
+  }
+  $('video-preview').hidden=true;
   if(item.vectorEditor && item.vectorEditor.signature!==vectorSignature()){
     delete item.vectorEditor;
     closeVectorEditor();
@@ -984,20 +1088,31 @@ function setWorkspace(next){
     el.classList.toggle('active',el.dataset.workspace===next);
     el.setAttribute('aria-current',el.dataset.workspace===next?'page':'false');
   });
-  syncOutputFormats();buttonState();
+  syncOutputFormats();updateVideoControls();buttonState();
+  if(next==='video' || next==='compress')refreshVideoEngine();
 }
 function updatePreviewSplit(){
   const value=$('compare-slider').value;
   $('original-layer').style.clipPath='inset(0 '+(100-value)+'% 0 0)';
   $('comparison-line').style.left=value+'%';$('comparison-handle').style.left=value+'%';
 }
-const bytes = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`;
+const bytes = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : n < 1073741824 ? `${(n / 1048576).toFixed(1)} MB` : `${(n / 1073741824).toFixed(2)} GB`;
 function notice(message) { $('notice').textContent = message; }
 function buttonState() {
+  const containsVideo=items.some(item=>item.kind==='video');
+  if(containsVideo && mode()==='replace')
+    document.querySelector('[name="folder-mode"][value="copy"]').checked=true;
   const replacing = mode() === 'replace';
-  $('compress').disabled = running || scanning || editorPending || (!replacing && !output) || !items.length;
-  const amount=items.length+' image'+(items.length===1?'':'s');
-  const label=replacing?'Replace original images':items.length&&items.every(i=>i.status==='done')?'Export again':workspaceMode==='vectorize'&&$('format').value==='svg'?'Export '+items.length+' SVG'+(items.length===1?'':'s'):workspaceMode==='convert'?'Convert '+amount:'Compress '+amount;
+  const eligible=eligibleItems();
+  $('compress').disabled = running || scanning || editorPending ||
+    (!replacing && !output) || !eligible.length;
+  const amount=eligible.length+' file'+(eligible.length===1?'':'s');
+  const label=replacing?'Replace original images':
+    eligible.length && eligible.every(i=>i.status==='done')?'Export again':
+    workspaceMode==='vectorize' && $('format').value==='svg'?'Export '+eligible.length+' SVG'+(eligible.length===1?'':'s'):
+    workspaceMode==='convert'?'Convert '+amount:
+    workspaceMode==='video'?'Compress '+eligible.length+' video'+(eligible.length===1?'':'s'):
+    'Compress '+amount;
   $('compress').innerHTML=icon('upload')+' '+label;
   $('clear').disabled = running || scanning || (!items.length && !folderRoots.length);
   $('new-batch').hidden = !items.length && !folderRoots.length;
@@ -1005,24 +1120,32 @@ function buttonState() {
   $('new-batch').innerHTML = icon('refresh') + ' ' +
     (items.length && items.every(item => item.status === 'done') ? 'New batch' : 'Clear all');
   $('add').disabled = running || scanning;
+  $('add').innerHTML=icon('upload')+' Add media';
+  $('add-sidebar').innerHTML=icon('upload')+' Add media';
   $('add-folder').disabled = running || scanning;
   $('drop').disabled = running || scanning;
   $('add-sidebar').disabled=running||scanning;
   document.querySelectorAll('[data-workspace]').forEach(el=>el.disabled=running);
   $('folder-modes').disabled = running || scanning;
   $('settings').disabled = running;
-  $('total').textContent = items.length ? `${items.length} image${items.length === 1 ? '' : 's'} · ${bytes(items.reduce((s, i) => s + i.size, 0))} total` : 'No images added yet';
+  $('total').textContent = items.length ? `${items.filter(i=>i.kind!=='video').length} image(s) · ${items.filter(i=>i.kind==='video').length} video(s) · ${bytes(items.reduce((s, i) => s + i.size, 0))}` : 'No files added yet';
   $('count').textContent = items.length;
   $('empty-note').hidden = items.length > 0;
   $('drop').hidden=items.length>0;
   $('preview-stage').classList.toggle('is-empty',!items.length);
   $('quick-panel').hidden = !isFolderBatch();
+  document.querySelector('[name="folder-mode"][value="replace"]').disabled=containsVideo;
+  updateVideoControls();
   $('folder-count').textContent = `${folderRoots.length} folder${folderRoots.length === 1 ? '' : 's'}`;
   $('source-folders').textContent = folderRoots.map(root => root.name).join(' · ');
-  $('output-controls').hidden = replacing;
-  $('replace-warning').hidden = !replacing;
-  $('format').disabled = replacing;
-  $('action-note').textContent = scanning ? 'Scanning…' : (!replacing && items.length && !output) ? 'Choose an output folder.' : '';
+  const actuallyReplacing=mode()==='replace';
+  $('output-controls').hidden = actuallyReplacing;
+  $('replace-warning').hidden = !actuallyReplacing;
+  $('format').disabled = actuallyReplacing;
+  $('action-note').textContent = scanning ? 'Scanning…' :
+    (!replacing && eligible.length && !output) ? 'Choose an output folder.' :
+    workspaceMode==='video' && !eligible.length ? 'Add videos to begin.' :
+    eligible.some(i=>i.kind==='video') && !videoEngineReady ? 'Select a working HandBrakeCLI executable.' : '';
   $('action-note').hidden = !$('action-note').textContent;
   const editable=workspaceMode==='vectorize' && $('format').value==='svg' &&
     !!selectedItem() && (selectedItem().format!=='svg' || selectedItem().canEditSvg) &&
@@ -1035,7 +1158,7 @@ function row(item) {
   el.tabIndex=0;el.setAttribute('role','button');el.setAttribute('aria-label','Preview '+item.name);
   el.onclick=()=>{if(!running)selectItem(item);};
   el.onkeydown=e=>{if((e.key==='Enter'||e.key===' ')&&e.target===el){e.preventDefault();if(!running)selectItem(item);}};
-  const thumb = document.createElement('div'); thumb.className = 'thumbnail'; thumb.innerHTML = icon('image');
+  const thumb = document.createElement('div'); thumb.className = 'thumbnail'; thumb.innerHTML = icon(item.kind==='video'?'video':'image');
   const info = document.createElement('div'); info.className = 'image-info';
   const name = document.createElement('strong'); name.textContent = item.rootId ? item.relative : item.name; name.title = item.relative || item.name;
   const detail = document.createElement('span'); detail.className = 'detail'; detail.textContent = bytes(item.size);
@@ -1069,7 +1192,7 @@ async function add(result) {
   }
   if (firstFolder && isFolderBatch()) {
     document.querySelector('[name="folder-mode"][value="copy"]').checked = true;
-    setWorkspace('compress');
+    setWorkspace(items.every(item=>item.kind==='video')?'video':'compress');
     $('format').value = 'original';
     $('format').onchange();
   } else {
@@ -1077,12 +1200,12 @@ async function add(result) {
       document.querySelector('[name="folder-mode"][value="images"]').checked = true;
     syncOutputFormats();
   }
-  $('summary').hidden=true;buttonState();
+  $('summary').hidden=true;updateVideoControls();buttonState();
   if(!selectedItem()&&items.length)selectItem(items[0]);
-  notice([result.ignored ? `${result.ignored} non-image or oversized file(s) excluded from compression.` : '', result.skipped ? `${result.skipped} symbolic links or special files skipped.` : '', duplicates ? `${duplicates} duplicate image(s) skipped.` : '', ...(result.warnings || []), !items.length && folderRoots.length ? 'No supported images found in the selected folders.' : ''].filter(Boolean).join(' '));
+  notice([result.ignored ? `${result.ignored} unsupported or oversized file(s) excluded from compression.` : '', result.skipped ? `${result.skipped} symbolic links or special files skipped.` : '', duplicates ? `${duplicates} duplicate image(s) skipped.` : '', ...(result.warnings || []), !items.length && folderRoots.length ? 'No supported media found in the selected folders.' : ''].filter(Boolean).join(' '));
 }
 async function importFiles(load) { if (running || scanning) return; scanning = true; buttonState(); try { await add(await load()); } catch (e) { notice(e.message); } finally { scanning = false; buttonState(); if(selectedItem()) queuePreview(); } }
-async function pick() { if (!api) { notice('Open the desktop app to select images and output folders.'); return; } await importFiles(() => api.pickImages()); }
+async function pick() { if (!api) { notice('Open the desktop app to select media and output folders.'); return; } await importFiles(() => api.pickImages()); }
 $('add').onclick=pick;$('add-sidebar').onclick=pick;$('drop').onclick=pick;
 document.querySelectorAll('[data-workspace]').forEach(el=>el.onclick=()=>setWorkspace(el.dataset.workspace));
 $('compare-slider').oninput=updatePreviewSplit;
@@ -1408,11 +1531,11 @@ $('format').onchange = () => {
   $('quality').disabled = lossless;
   document.querySelectorAll('[data-quality]').forEach(el => el.disabled = lossless);
   $('quality-value').innerHTML = format === 'svg' ? '<span>Vector</span>' : lossless ? '<span>Lossless</span>' : `${$('quality').value}<span>%</span>`;
-  $('trace-controls').hidden = format !== 'svg' || svgPassthrough;
-  $('compression-controls').hidden=lossless;
-  $('limit-section').hidden = format === 'svg';
-  $('advanced-settings').hidden = svgPassthrough;
-  $('background-section').hidden = opaque || svgPassthrough;
+  $('trace-controls').hidden = workspaceMode==='video' || format !== 'svg' || svgPassthrough;
+  $('compression-controls').hidden=workspaceMode==='video' || lossless;
+  $('limit-section').hidden = workspaceMode==='video' || format === 'svg';
+  $('advanced-settings').hidden = workspaceMode==='video' || svgPassthrough;
+  $('background-section').hidden = workspaceMode==='video' || opaque || svgPassthrough;
   $('preview-after-label').textContent=format==='svg'?'VECTOR':'RESULT';
   $('preview-badge').textContent=format==='svg'?'SVG · transparent':format==='original'?'Original format':format.toUpperCase()+(format==='jpg'?' · opaque':' · transparency');
   $('remove-bg').disabled = opaque || svgPassthrough;
@@ -1433,20 +1556,31 @@ async function encode(data, settings) {
   });
 }
 function updateItem(item, text, state) { item.status = state; item.el.querySelector('.status').textContent = text; item.el.querySelector('.status').className = `status ${state}`; }
-$('cancel').onclick = () => { stopped = true; api.stopPreparation(); $('cancel').disabled = true; $('cancel').textContent = 'Stopping…'; };
+$('cancel').onclick = () => { stopped = true; api.stopPreparation(); api.stopVideo?.(); $('cancel').disabled = true; $('cancel').textContent = 'Stopping…'; };
 $('compress').onclick = async () => {
   const maxSize = Number($('max-size').value);
-  if ($('resize').checked && (!Number.isInteger(maxSize) || maxSize < 64 || maxSize > 32768)) { notice('Enter a maximum edge between 64 and 32,768 pixels.'); $('max-size').focus(); return; }
-  const maxBytes = $('format').value !== 'svg' && $('limit-size').checked ? Math.floor(Number($('max-bytes').value) * Number($('size-unit').value)) : null;
-  if (maxBytes !== null && (!Number.isInteger(maxBytes) || maxBytes < 1024 || maxBytes > 512 * 1024 * 1024)) { notice('Set a file size between 1 KB and 512 MB.'); $('max-bytes').focus(); return; }
+  if (workspaceMode!=='video' && $('resize').checked && (!Number.isInteger(maxSize) || maxSize < 64 || maxSize > 32768)) { notice('Enter a maximum edge between 64 and 32,768 pixels.'); $('max-size').focus(); return; }
+  const maxBytes = workspaceMode!=='video' && $('format').value !== 'svg' && $('limit-size').checked ? Math.floor(Number($('max-bytes').value) * Number($('size-unit').value)) : null;
+  if (workspaceMode!=='video' && maxBytes !== null && (!Number.isInteger(maxBytes) || maxBytes < 1024 || maxBytes > 512 * 1024 * 1024)) { notice('Set a file size between 1 KB and 512 MB.'); $('max-bytes').focus(); return; }
   const settings = { format: $('format').value, quality: Number($('quality').value), maxSize: $('resize').checked ? maxSize : null, maxBytes, traceDetail: $('trace-detail').value, traceOptions:traceControls(), removeBackground: $('remove-bg').checked, bgTolerance: Number($('bg-tolerance').value), bgMode: document.querySelector('[name="bg-mode"]:checked').value, bgColor:$('bg-color-source').value==='manual'?$('bg-color').value:null };
-  if (settings.removeBackground && settings.format === 'original' && items.some(item => item.format === 'jpg')) { notice('JPEG cannot save transparency. Choose PNG, WebP, AVIF or SVG to remove the background.'); return; }
+  if (workspaceMode!=='video' && settings.removeBackground && settings.format === 'original' && eligibleItems().some(item => item.format === 'jpg')) { notice('JPEG cannot save transparency. Choose PNG, WebP, AVIF or SVG to remove the background.'); return; }
   const outputMode = mode();
-  if (outputMode === 'replace' && items.some(item => !item.rootId)) { notice('Clear individual image files from the queue before replacing a folder in place.'); return; }
+  const eligible=eligibleItems();
+  if(!eligible.length){notice('Add files supported by this tool first.');return;}
+  if(eligible.some(item=>item.kind==='video')){
+    const engine=await api.getVideoEngine();
+    videoEngineReady=!!engine.available;videoEngineVersion=engine.version||'';
+    updateVideoControls();
+    if(!videoEngineReady){notice('HandBrakeCLI is required for video compression. Select the executable in Video settings.');return;}
+  }
+  if(outputMode==='replace' && items.some(item=>!item.rootId || item.kind==='video')){
+    notice('Video files cannot be replaced in place. Choose Duplicate folder or Media only.');
+    return;
+  }
   closeVectorEditor();stopPreview();running=true;stopped=false;buttonState();notice('');$('summary').hidden=true;$('preview-status').textContent='Exporting…';
   $('compress').hidden = true; $('cancel').hidden = false; $('cancel').disabled = false; $('cancel').textContent = 'Stop after this image'; $('progress-wrap').hidden = false;
   document.querySelectorAll('.remove').forEach(el => el.disabled = true);
-  const pending = folderRoots.length || items.every(i => i.status === 'done') ? [...items] : items.filter(i => i.status !== 'done'); let completed = 0, failed = 0, original = 0, compressed = 0, batch = null, startupError = null;
+  const pending = folderRoots.length || eligible.every(i => i.status === 'done') ? [...eligible] : eligible.filter(i => i.status !== 'done'); let completed = 0, failed = 0, original = 0, compressed = 0, batch = null, startupError = null;
   $('progress').value = 0;
   try {
     $('progress-text').textContent = outputMode === 'copy' ? 'Copying folder contents…' : 'Preparing output…'; $('progress-count').textContent = '';
@@ -1454,8 +1588,23 @@ $('compress').onclick = async () => {
     for (const item of pending) {
       if (stopped) break;
       updateItem(item, 'Processing…', 'working');
-      $('progress-text').textContent = 'Processing images'; $('progress-count').textContent = `${completed + failed + 1} / ${pending.length}`;
+      $('progress-text').textContent = item.kind==='video' ? 'Encoding video' : 'Processing images';
+      $('progress-count').textContent = `${completed + failed + 1} / ${pending.length}`;
       try {
+        if(item.kind==='video'){
+          currentVideoProgress={ id:item.id, processed:completed+failed, total:pending.length };
+          const saved=await api.compressVideo({
+            id:item.id, batchId:batch.id,
+            format:$('video-format').value, preset:$('video-preset').value
+          });
+          item.outputSize=saved.size;
+          const savings=Math.round((1-item.outputSize/item.size)*100);
+          updateItem(item, savings>=0 ? '−'+savings+'%' : '+'+Math.abs(savings)+'% larger','done');
+          item.el.querySelector('.detail').textContent=bytes(item.size)+' → '+bytes(item.outputSize);
+          item.el.title='Saved as '+saved.filename;
+          completed++; original+=item.size;compressed+=item.outputSize;
+          currentVideoProgress=null;
+        } else {
         const data = await api.readImage(item.id);
         const inputSize = data.byteLength;
         const format = settings.format === 'original' ? item.format : settings.format;
@@ -1477,20 +1626,30 @@ $('compress').onclick = async () => {
         item.el.title = `Saved as ${saved.filename}`;
         if (result.thumbnail) { if (item.url) { URL.revokeObjectURL(item.url); urls.delete(item.url); } const url = URL.createObjectURL(new Blob([result.thumbnail], { type: 'image/webp' })); urls.add(url); item.url = url; const img = document.createElement('img'); img.src = url; img.alt = ''; item.el.querySelector('.thumbnail').replaceChildren(img); }
         completed++; original += inputSize; compressed += item.outputSize;
-      } catch (error) { failed++; updateItem(item, 'Failed · retry', 'error'); item.el.title = error.message; item.el.querySelector('.detail').textContent = error.message; }
+        }
+      } catch (error) {
+        currentVideoProgress=null;
+        if(stopped && item.kind==='video'){
+          updateItem(item,'Stopped · retry','ready');
+          item.el.querySelector('.detail').textContent=bytes(item.size);
+          break;
+        }
+        failed++; updateItem(item, 'Failed · retry', 'error'); item.el.title = error.message;
+        item.el.querySelector('.detail').textContent = error.message;
+      }
       $('progress').value = (completed + failed) / pending.length * 100;
     }
   } catch (error) { startupError = error.message; notice(error.message); }
   finally {
     if (batch) await api.endBatch(batch.id);
-    running = false; if (worker) { worker.terminate(); worker = null; }
+    running = false;currentVideoProgress=null; if (worker) { worker.terminate(); worker = null; }
     $('compress').hidden = false; $('cancel').hidden = true; $('progress-wrap').hidden = true;
     document.querySelectorAll('.remove').forEach(el => el.disabled = false); buttonState(); $('format').onchange();
     const delta = original - compressed;
     $('summary').replaceChildren();
     const mark = document.createElement('span'); mark.className = 'summary-icon'; mark.innerHTML = icon('check');
     const text = document.createElement('div'); const title = document.createElement('strong'); title.textContent = startupError ? stopped ? 'Batch stopped' : 'Batch could not start' : stopped ? 'Batch stopped' : failed ? 'Processing finished with errors' : 'Processing complete';
-    const detail = document.createElement('p'); detail.textContent = `${completed} ${outputMode === 'replace' ? 'replaced' : 'saved'}${failed ? ` · ${failed} failed` : ''}${completed ? ` · ${delta >= 0 ? bytes(delta) + ' saved' : bytes(-delta) + ' larger'} · ${bytes(original)} → ${bytes(compressed)}` : ''}${stopped ? ' · Remaining images stay in the queue.' : ''}`;
+    const detail = document.createElement('p'); detail.textContent = `${completed} ${outputMode === 'replace' ? 'replaced' : 'saved'}${failed ? ` · ${failed} failed` : ''}${completed ? ` · ${delta >= 0 ? bytes(delta) + ' saved' : bytes(-delta) + ' larger'} · ${bytes(original)} → ${bytes(compressed)}` : ''}${stopped ? ' · Remaining files stay in the queue.' : ''}`;
     text.append(title, detail); const open = document.createElement('button'); open.className = 'button secondary'; open.innerHTML = `${icon('folder')}Open folder`; open.onclick = () => api.showOutput().catch(e => notice(e.message));
     $('summary').append(mark,text);
      if(batch)$('summary').append(open);

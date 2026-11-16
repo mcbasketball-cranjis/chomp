@@ -23,5 +23,14 @@ contextBridge.exposeInMainWorld('desktop', {
   stopPreparation: () => ipcRenderer.invoke('stop-preparation'),
   pickOutput: () => ipcRenderer.invoke('pick-output'),
   saveImage: payload => ipcRenderer.invoke('save-image', payload),
+  getVideoEngine: () => ipcRenderer.invoke('get-video-engine'),
+  pickVideoEngine: () => ipcRenderer.invoke('pick-video-engine'),
+  compressVideo: payload => ipcRenderer.invoke('compress-video', payload),
+  stopVideo: () => ipcRenderer.invoke('stop-video'),
+  onVideoProgress: callback => {
+    const listener = (_event, state) => callback(state);
+    ipcRenderer.on('video-progress', listener);
+    return () => ipcRenderer.removeListener('video-progress', listener);
+  },
   showOutput: () => ipcRenderer.invoke('show-output')
 });
