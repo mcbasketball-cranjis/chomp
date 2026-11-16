@@ -729,22 +729,28 @@ function renderShapeOverlay(){
     if(shape.opacity!==null)path.setAttribute('fill-opacity',String(shape.opacity));
     path.setAttribute('data-chomp-shape',shape.id);
     if(shape.id===editorSelection)path.classList.add('selected-vector-shape');
-    if(editorMoveMode && shape.id===editorSelection) {
-      path.addEventListener('pointerdown',event=>{
-        if(event.button!==0 || editorPointMode || editorInsertMode || editorColorPick ||
-           (previewPanMode && previewZoom>1))return;
-        const start=getLocalPoint(svg,event.clientX,event.clientY);
-        editorShapeDrag={pointerId:event.pointerId,shapeId:shape.id,
-          original:shape.d,dx:0,dy:0,start,path,svg,
-          bounds:vectorPathBounds(shape.d)};
-        svg.setPointerCapture(event.pointerId);
-        svg.classList.add('dragging-vector');
-        event.preventDefault();
-      });
-    }
     svg.append(path);
   }
   const chosen=doc.shapes.find(shape=>shape.id===editorSelection && !shape.hidden);
+  if(editorMoveMode && chosen) {
+    svg.addEventListener('pointerdown',event=>{
+      if(event.button!==0 || editorPointMode || editorInsertMode || editorColorPick ||
+         (previewPanMode && previewZoom>1))return;
+      // Empty preview space is a valid drag handle for very small shapes.
+      // Clicking a different painted shape still selects that shape normally.
+      const hit=event.target.closest('path[data-chomp-shape]');
+      if(hit && hit.getAttribute('data-chomp-shape')!==editorSelection)return;
+      const path=svg.querySelector('path.selected-vector-shape');
+      if(!path)return;
+      const start=getLocalPoint(svg,event.clientX,event.clientY);
+      editorShapeDrag={pointerId:event.pointerId,shapeId:chosen.id,
+        original:chosen.d,dx:0,dy:0,start,path,svg,
+        bounds:vectorPathBounds(chosen.d)};
+      svg.setPointerCapture(event.pointerId);
+      svg.classList.add('dragging-vector');
+      event.preventDefault();
+    });
+  }
   renderSelectedPathPoints(svg,chosen);
   svg.addEventListener('click',event=>{
     if(previewPanMode && previewZoom>1)return;
