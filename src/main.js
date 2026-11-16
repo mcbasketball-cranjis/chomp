@@ -1,5 +1,6 @@
 import { decodeSvgBitmap } from './svg-input.js';
 import { normalizeTraceOptions } from './trace-options.js';
+import { snapShapeTranslation } from './vector-snap.js';
 import { vectorPathBounds, vectorPathPoints, moveVectorPathPoint,
   nearestVectorPathSegment, insertVectorPathPoint, deleteVectorPathPoint,
   translateVectorPath,
@@ -70,6 +71,7 @@ document.querySelector('#app').innerHTML = `
             <input type="text" id="vector-shape-hex" class="vector-shape-hex" aria-label="Exact fill hex color" maxlength="7" autocomplete="off" spellcheck="false" value="#000000" disabled>
             <button type="button" id="vector-delete-shape" disabled>Remove</button>
             <button type="button" id="vector-move-mode" aria-pressed="false" disabled>Move</button>
+            <label class="vector-match-option" for="vector-snap-toggle"><input id="vector-snap-toggle" type="checkbox" checked disabled> Snap + guides</label>
             <button type="button" id="vector-point-mode" aria-pressed="false" disabled>Points</button>
             <button type="button" id="vector-add-point" aria-pressed="false" disabled>Insert point</button>
             <button type="button" id="vector-remove-point" disabled>Delete point</button>
@@ -380,6 +382,7 @@ function closeVectorEditor(){
   inspectorBoundsCache.clear();
   // Bulk actions are opt-in per editing session; never carry them to a new file.
   $('vector-match-colors').checked=false;
+  $('vector-snap-toggle').checked=true;
   $('vector-only-small').checked=false;
   if(editorSvg){editorSvg.remove();editorSvg=null;}
   $('vector-edit-toolbar').hidden=true;
@@ -436,6 +439,7 @@ function editorToolbar(){
   $('vector-reset').disabled=!doc || !hasVectorEdits(doc);
   $('vector-match-colors').disabled=!shape;
   $('vector-move-mode').disabled=!shape;
+  $('vector-snap-toggle').disabled=!shape || !editorMoveMode;
   $('vector-move-mode').classList.toggle('selected',editorMoveMode);
   $('vector-move-mode').setAttribute('aria-pressed',String(editorMoveMode));
   $('vector-point-mode').disabled=!shape;
@@ -734,7 +738,30 @@ function updateVectorShapeDrag(event){
   const drag=editorShapeDrag;
   if(!drag || event.pointerId!==drag.pointerId)return;
   const point=getLocalPoint(drag.svg,event.clientX,event.clientY);
-  const dx=point.x-drag.start.x,dy=point.y-drag.start.y;
+  let dx=point.x-drag.start.x,dy=point.y-drag.start.y;
+  let guides=[];
+  if($('vector-snap-toggle').checked && !event.altKey) {
+    const matrix=drag.svg.getScreenCTM();
+    const scale=matrix ? Math.hypot(matrix.a,matrix.b) : 1;
+    const snap=snapShapeTranslation(drag.bounds,drag.others,drag.document,dx,dy,
+      Math.min(20,8/Math.max(.0001,scale)));
+    dx=snap.dx;dy=snap.dy;guides=snap.guides;
+  }
+  const lines=drag.svg.querySelector('.vector-snap-guides');
+  if(lines){
+    lines.replaceChildren();
+    for(const guide of guides){
+      const line=document.createElementNS(SVG_NS,'line');
+      if(guide.axis==='x'){
+        line.setAttribute('x1',guide.position);line.setAttribute('x2',guide.position);
+        line.setAttribute('y1','0');line.setAttribute('y2',drag.document.height);
+      }else{
+        line.setAttribute('y1',guide.position);line.setAttribute('y2',guide.position);
+        line.setAttribute('x1','0');line.setAttribute('x2',drag.document.width);
+      }
+      lines.append(line);
+    }
+  }
   // Avoid invalid SVG path coordinates while moving very large artwork.
   if(drag.bounds.x+dx < -32768 || drag.bounds.x+drag.bounds.width+dx > 32768 ||
      drag.bounds.y+dy < -32768 || drag.bounds.y+drag.bounds.height+dy > 32768)return;
@@ -798,11 +825,18 @@ function renderShapeOverlay(){
       const start=getLocalPoint(svg,event.clientX,event.clientY);
       editorShapeDrag={pointerId:event.pointerId,shapeId:chosen.id,
         original:chosen.d,dx:0,dy:0,start,path,svg,
-        bounds:vectorPathBounds(chosen.d)};
+        bounds:vectorPathBounds(chosen.d),
+        document:{width:doc.boxWidth,height:doc.boxHeight},
+        others:doc.shapes.filter(shape=>!shape.hidden && shape.id!==chosen.id)
+          .map(shape=>shapeInspectorBounds(shape))};
       svg.setPointerCapture(event.pointerId);
       svg.classList.add('dragging-vector');
       event.preventDefault();
     });
+  }
+  if(editorMoveMode){
+    const guides=document.createElementNS(SVG_NS,'g');
+    guides.classList.add('vector-snap-guides');svg.append(guides);
   }
   renderSelectedPathPoints(svg,chosen);
   svg.addEventListener('click',event=>{
