@@ -19,7 +19,8 @@ const icons = {
   image: '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1"/><path d="m3 16 6-5 4 4 3-3 5 5"/>',
   x: '<path d="m6 6 12 12M6 18 18 6"/>',
   spark: '<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/>',
-  refresh: '<path d="M20 11a8 8 0 1 0-2.2 5.5M20 4v7h-7"/>'
+  refresh: '<path d="M20 11a8 8 0 1 0-2.2 5.5M20 4v7h-7"/>',
+  video: '<rect x="3" y="5" width="14" height="14" rx="3"/><path d="m17 10 4-3v10l-4-3"/>'
 };
 const icon = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]}</svg>`;
 
@@ -33,6 +34,7 @@ document.querySelector('#app').innerHTML = `
       <button type="button" data-workspace="compress">${icon('layers')}<span>Compress</span></button>
       <button type="button" data-workspace="convert">${icon('arrow')}<span>Convert</span></button>
       <button type="button" class="active" data-workspace="vectorize">${icon('spark')}<span>Vectorize</span></button>
+      <button type="button" data-workspace="video">${icon('video')}<span>Video</span></button>
     </nav>
     <div class="sidebar-divider"></div>
     <div class="files-heading"><span class="sidebar-caption">YOUR FILES</span><span id="count" class="files-count">0</span></div>
@@ -57,7 +59,8 @@ document.querySelector('#app').innerHTML = `
             <span class="preview-chip before-chip">ORIGINAL</span><span class="preview-chip after-chip" id="preview-after-label">VECTOR</span>
             <input type="range" min="0" max="100" value="40" id="compare-slider" class="compare-slider" aria-label="Compare original and processed image">
             <button id="drop" class="dropzone" type="button"><span class="upload-icon">${icon('upload')}</span><strong>Drop images or folders here</strong><span><b>Browse files</b></span><span class="drop-note">JPEG, PNG, WebP, AVIF, SVG</span></button>
-            <div id="empty-note" class="empty-note"><span>Drop an image to get started</span></div>
+            <div id="empty-note" class="empty-note"><span>Drop images or videos to get started</span></div>
+      <div id="video-preview" class="video-preview" hidden><span class="video-preview-icon">${icon('video')}</span><strong id="video-preview-name">Video</strong><span id="video-preview-info"></span><small>Ready for local HandBrake compression</small></div>
           </div>
           <footer class="preview-footer"><span class="image-metadata">${icon('image')}<span id="stage-caption">Select an image to see its preview</span></span><div class="preview-actions"><button type="button" id="vector-edit-open" class="vector-edit-open" hidden>Edit shapes</button><div class="preview-zoom" aria-label="Preview zoom"><button type="button" id="zoom-out" aria-label="Zoom out">−</button><button type="button" id="zoom-fit" title="Fit preview"><span id="zoom-value">100%</span></button><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-pan" aria-pressed="false" title="Drag image to pan">Pan</button></div><div class="preview-switch"><button type="button" id="compare-view" class="selected">Compare</button><button type="button" id="result-view">Result only</button></div></div></footer>
           <div id="vector-edit-toolbar" class="vector-edit-toolbar" hidden>
@@ -111,9 +114,20 @@ document.querySelector('#app').innerHTML = `
       <aside class="settings-panel">
         <div class="settings-scroll"><h2 id="settings-title">Vector settings</h2>
           <fieldset id="settings">
-            <label class="field-label" for="format">Output format</label>
+            <div id="image-format-controls"><label class="field-label" for="format">Image output format</label>
             <div class="format-control"><span class="format-icon">${icon('spark')}</span><select id="format"><option value="original">Keep original format</option><option value="webp">WebP</option><option value="jpg">JPEG</option><option value="png">PNG (lossless)</option><option value="avif">AVIF</option><option value="svg" selected>SVG — editable paths</option></select></div>
-            <p id="format-hint" class="hint" hidden></p>
+            <p id="format-hint" class="hint" hidden></p></div>
+            <section id="video-controls" class="settings-section" hidden>
+              <h3>Video compression</h3>
+              <label class="field-label" for="video-preset">Compression</label>
+              <select id="video-preset"><option value="small">Small file · 720p</option><option value="balanced" selected>Balanced · 1080p</option><option value="quality">Better quality · 1080p</option></select>
+              <label class="field-label" for="video-format">Video output</label>
+              <select id="video-format"><option value="mp4" selected>MP4 · H.264</option><option value="mkv">MKV · H.264</option></select>
+              <div class="video-engine"><strong>HandBrakeCLI</strong><span id="video-engine-state">Checking for local engine…</span>
+                <button type="button" id="video-engine-pick">Locate HandBrakeCLI</button>
+              </div>
+              <p class="hint">Videos are processed locally. Requires separately installed HandBrakeCLI. Originals are preserved; video replacement in source folders is disabled.</p>
+            </section>
             <section id="trace-controls" class="settings-section">
               <label class="field-label" for="trace-detail">Tracing detail</label>
               <select id="trace-detail" class="visually-hidden"><option value="simple">Simple</option><option value="balanced" selected>Balanced</option><option value="detailed">Detailed</option></select>
@@ -172,12 +186,12 @@ document.querySelector('#app').innerHTML = `
               <div class="mini-divider"></div><label class="toggle-row"><span><strong>Resize large images</strong></span><input id="resize" type="checkbox" role="switch"><span class="switch"></span></label>
               <div id="resize-options" hidden><label class="field-label" for="max-size">Maximum long edge</label><div class="number-wrap"><input id="max-size" type="number" min="64" max="32768" value="2400" step="1"><span>px</span></div></div>
             </section>
-            <section id="quick-panel" class="settings-section quick-panel" hidden><div class="quick-heading"><h3>Folder processing</h3><span id="folder-count"></span></div><p id="source-folders"></p><fieldset id="folder-modes"><label class="mode-option"><input type="radio" name="folder-mode" value="copy" checked><span><strong>Duplicate folder</strong><small>Keep non-image files</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="images"><span><strong>Images only</strong><small>Keep subfolders</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="replace"><span><strong>Replace originals</strong><small>Overwrites source images</small></span></label></fieldset></section>
+            <section id="quick-panel" class="settings-section quick-panel" hidden><div class="quick-heading"><h3>Folder processing</h3><span id="folder-count"></span></div><p id="source-folders"></p><fieldset id="folder-modes"><label class="mode-option"><input type="radio" name="folder-mode" value="copy" checked><span><strong>Duplicate folder</strong><small>Keep other files untouched</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="images"><span><strong>Media only</strong><small>Keep subfolders</small></span></label><label class="mode-option"><input type="radio" name="folder-mode" value="replace"><span><strong>Replace images</strong><small>Videos cannot be replaced</small></span></label></fieldset></section>
           </fieldset>
         </div>
         <div class="settings-footer">
           <div id="output-controls"><span class="destination-label">Save files to</span><button id="folder" class="folder-button">${icon('folder')}<span id="folder-label">Choose output folder</span><span class="folder-arrow">⌄</span></button><p class="hint" id="output-hint" hidden></p></div>
-          <p id="replace-warning" class="replace-warning" hidden>Original images will be overwritten. Keep a backup if you need the source files.</p>
+          <p id="replace-warning" class="replace-warning" hidden>Original images will be overwritten. Videos are not eligible for in-place replacement.</p>
           <div class="action-area"><div id="progress-wrap" hidden><div class="progress-label"><span id="progress-text">Preparing…</span><span id="progress-count"></span></div><progress id="progress" max="100" value="0"></progress></div>
             <button id="compress" class="button primary" disabled>Export SVGs ${icon('arrow')}</button><button id="cancel" class="button cancel" hidden>Stop after this image</button><p class="action-note" id="action-note"></p></div>
         </div>
@@ -212,6 +226,7 @@ const isFolderBatch = () => !!items.length && !!folderRoots.length && items.ever
 const mode = () => isFolderBatch() ? document.querySelector('[name="folder-mode"]:checked').value : 'files';
 const urls = new Set();
 let workspaceMode='compress',selectedId=null,previewTimer=null,previewVersion=0,previewWorker=null,previewOriginalUrl=null,previewResultUrl=null;
+let videoEngineReady=false, videoEngineVersion='', currentVideoProgress=null;
 let previewZoom=1,previewX=0,previewY=0,previewPanMode=false,previewPointer=null;
 let editorActive=false,editorPending=false,editorSelection=null,editorSvg=null;
 let editorPointMode=false,editorPointSelection=null,editorPointDrag=null,inspectorPage=0;
@@ -264,12 +279,13 @@ function limitPan(){
   previewY=Math.max(-maxY,Math.min(maxY,previewY));
 }
 const MIME={jpg:'image/jpeg',png:'image/png',svg:'image/svg+xml',webp:'image/webp',avif:'image/avif'};
-const workspaceCopy={compress:['Compress','Compression'],convert:['Convert','Conversion'],vectorize:['Vectorize','Vectorization']};
-const preferredFormats={compress:'webp',convert:'png',vectorize:'svg'};
+const workspaceCopy={compress:['Compress','Compression'],convert:['Convert','Conversion'],vectorize:['Vectorize','Vectorization'],video:['Video','Video compression']};
+const preferredFormats={compress:'webp',convert:'png',vectorize:'svg',video:'webp'};
 // The input formats are intentionally shared, including SVG. These lists only
 // restrict OUTPUT choices, so SVG -> PNG/JPEG/WebP/AVIF remains possible in Convert.
 const outputFormats={
   compress:['original','webp','jpg','png','avif'],
+  video:['original','webp','jpg','png','avif'],
   convert:['webp','jpg','png','avif'],
   vectorize:['svg']
 };
@@ -283,6 +299,43 @@ function syncOutputFormats(){
   $('format').onchange();
 }
 function selectedItem(){return items.find(item=>item.id===selectedId)||null;}
+function eligibleItems(){
+  return items.filter(item => workspaceMode==='video' ? item.kind==='video' :
+    workspaceMode==='compress' ? true : item.kind!=='video');
+}
+function updateVideoControls(){
+  const visible=workspaceMode==='video' ||
+    (workspaceMode==='compress' && items.some(item=>item.kind==='video'));
+  $('video-controls').hidden=!visible;
+  $('image-format-controls').hidden=workspaceMode==='video';
+  $('video-engine-state').textContent=videoEngineReady
+    ? 'Ready · HandBrakeCLI '+videoEngineVersion
+    : 'Not found · install HandBrakeCLI or select the executable';
+}
+async function refreshVideoEngine(){
+  if(!api?.getVideoEngine)return;
+  try{
+    const result=await api.getVideoEngine();
+    videoEngineReady=!!result.available;videoEngineVersion=result.version||'';
+    updateVideoControls();
+  }catch(e){videoEngineReady=false;videoEngineVersion='';$('video-engine-state').textContent=e.message;}
+}
+$('video-engine-pick').onclick=async()=>{
+  if(!api?.pickVideoEngine)return;
+  try{
+    const status=await api.pickVideoEngine();
+    videoEngineReady=!!status.available;videoEngineVersion=status.version||'';
+    updateVideoControls();buttonState();
+  }catch(e){notice(e.message);}
+};
+if(api?.onVideoProgress)api.onVideoProgress(({id,percent})=>{
+  if(!currentVideoProgress || currentVideoProgress.id!==id || !running)return;
+  const value=Math.max(0,Math.min(100,Number(percent)||0));
+  const item=items.find(entry=>entry.id===id);
+  if(item)updateItem(item,'Encoding '+Math.round(value)+'%','working');
+  $('progress').value=(currentVideoProgress.processed+value/100)/currentVideoProgress.total*100;
+  $('progress-text').textContent='Encoding video · '+Math.round(value)+'%';
+});
 function releasePreviewUrls(){
   if(previewOriginalUrl)URL.revokeObjectURL(previewOriginalUrl);
   if(previewResultUrl)URL.revokeObjectURL(previewResultUrl);
@@ -984,14 +1037,15 @@ function setWorkspace(next){
     el.classList.toggle('active',el.dataset.workspace===next);
     el.setAttribute('aria-current',el.dataset.workspace===next?'page':'false');
   });
-  syncOutputFormats();buttonState();
+  syncOutputFormats();updateVideoControls();buttonState();
+  if(next==='video' || next==='compress')refreshVideoEngine();
 }
 function updatePreviewSplit(){
   const value=$('compare-slider').value;
   $('original-layer').style.clipPath='inset(0 '+(100-value)+'% 0 0)';
   $('comparison-line').style.left=value+'%';$('comparison-handle').style.left=value+'%';
 }
-const bytes = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`;
+const bytes = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : n < 1073741824 ? `${(n / 1048576).toFixed(1)} MB` : `${(n / 1073741824).toFixed(2)} GB`;
 function notice(message) { $('notice').textContent = message; }
 function buttonState() {
   const replacing = mode() === 'replace';
