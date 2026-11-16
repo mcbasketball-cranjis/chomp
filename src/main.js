@@ -1098,12 +1098,13 @@ function updatePreviewSplit(){
 const bytes = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : n < 1073741824 ? `${(n / 1048576).toFixed(1)} MB` : `${(n / 1073741824).toFixed(2)} GB`;
 function notice(message) { $('notice').textContent = message; }
 function buttonState() {
+  const containsVideo=items.some(item=>item.kind==='video');
+  if(containsVideo && mode()==='replace')
+    document.querySelector('[name="folder-mode"][value="copy"]').checked=true;
   const replacing = mode() === 'replace';
   const eligible=eligibleItems();
-  const containsVideo=items.some(item=>item.kind==='video');
-  const invalidReplace=replacing && containsVideo;
   $('compress').disabled = running || scanning || editorPending ||
-    (!replacing && !output) || !eligible.length || invalidReplace;
+    (!replacing && !output) || !eligible.length;
   const amount=eligible.length+' file'+(eligible.length===1?'':'s');
   const label=replacing?'Replace original images':
     eligible.length && eligible.every(i=>i.status==='done')?'Export again':
@@ -1118,6 +1119,8 @@ function buttonState() {
   $('new-batch').innerHTML = icon('refresh') + ' ' +
     (items.length && items.every(item => item.status === 'done') ? 'New batch' : 'Clear all');
   $('add').disabled = running || scanning;
+  $('add').innerHTML=icon('upload')+' Add media';
+  $('add-sidebar').innerHTML=icon('upload')+' Add media';
   $('add-folder').disabled = running || scanning;
   $('drop').disabled = running || scanning;
   $('add-sidebar').disabled=running||scanning;
@@ -1131,10 +1134,6 @@ function buttonState() {
   $('preview-stage').classList.toggle('is-empty',!items.length);
   $('quick-panel').hidden = !isFolderBatch();
   document.querySelector('[name="folder-mode"][value="replace"]').disabled=containsVideo;
-  if(containsVideo && replacing){
-    document.querySelector('[name="folder-mode"][value="copy"]').checked=true;
-    $('output-controls').hidden=false;
-  }
   updateVideoControls();
   $('folder-count').textContent = `${folderRoots.length} folder${folderRoots.length === 1 ? '' : 's'}`;
   $('source-folders').textContent = folderRoots.map(root => root.name).join(' · ');
@@ -1142,7 +1141,7 @@ function buttonState() {
   $('output-controls').hidden = actuallyReplacing;
   $('replace-warning').hidden = !actuallyReplacing;
   $('format').disabled = actuallyReplacing;
-  $('action-note').textContent = scanning ? 'Scanning…' : invalidReplace ? 'Video sources cannot be replaced.' :
+  $('action-note').textContent = scanning ? 'Scanning…' :
     (!replacing && eligible.length && !output) ? 'Choose an output folder.' :
     workspaceMode==='video' && !eligible.length ? 'Add videos to begin.' :
     eligible.some(i=>i.kind==='video') && !videoEngineReady ? 'Select a working HandBrakeCLI executable.' : '';
