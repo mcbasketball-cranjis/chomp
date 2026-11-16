@@ -59,9 +59,9 @@ document.querySelector('#app').innerHTML = `
             <div id="comparison-line" class="comparison-line"></div><div id="comparison-handle" class="comparison-handle" aria-hidden="true">‹ ›</div>
             <span class="preview-chip before-chip">ORIGINAL</span><span class="preview-chip after-chip" id="preview-after-label">VECTOR</span>
             <input type="range" min="0" max="100" value="40" id="compare-slider" class="compare-slider" aria-label="Compare original and processed image">
-            <button id="drop" class="dropzone" type="button"><span class="upload-icon">${icon('upload')}</span><strong>Drop images or folders here</strong><span><b>Browse files</b></span><span class="drop-note">JPEG, PNG, WebP, AVIF, SVG</span></button>
+            <button id="drop" class="dropzone" type="button"><span class="upload-icon">${icon('upload')}</span><strong>Drop media or folders here</strong><span><b>Browse files</b></span><span class="drop-note">Images and videos</span></button>
             <div id="empty-note" class="empty-note"><span>Drop images or videos to get started</span></div>
-      <div id="video-preview" class="video-preview" hidden><span class="video-preview-icon">${icon('video')}</span><strong id="video-preview-name">Video</strong><span id="video-preview-info"></span><small>Ready for local HandBrake compression</small></div>
+      <div id="video-preview" class="video-preview" hidden><span class="video-preview-icon">${icon('video')}</span><strong id="video-preview-name">Video</strong><span id="video-preview-info"></span></div>
           </div>
           <footer class="preview-footer"><span class="image-metadata">${icon('image')}<span id="stage-caption">Select an image to see its preview</span></span><div class="preview-actions"><button type="button" id="vector-edit-open" class="vector-edit-open" hidden>Edit shapes</button><div class="preview-zoom" aria-label="Preview zoom"><button type="button" id="zoom-out" aria-label="Zoom out">−</button><button type="button" id="zoom-fit" title="Fit preview"><span id="zoom-value">100%</span></button><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-pan" aria-pressed="false" title="Drag image to pan">Pan</button></div><div class="preview-switch"><button type="button" id="compare-view" class="selected">Compare</button><button type="button" id="result-view">Result only</button></div></div></footer>
           <div id="vector-edit-toolbar" class="vector-edit-toolbar" hidden>
@@ -127,8 +127,6 @@ document.querySelector('#app').innerHTML = `
               <select id="video-codec"><option value="h264">H.264 · compatibility</option><option value="hevc">H.265 / HEVC · efficiency</option><option value="av1">AV1 · modern</option><option value="vp9">VP9 · web</option><option value="gif">Animated GIF</option></select>
               <label class="field-label" for="video-format">Container</label>
               <select id="video-format"><option value="mp4">MP4</option><option value="mkv">MKV</option><option value="mov">MOV</option><option value="webm">WebM</option><option value="gif">GIF</option></select>
-              <div class="video-engine"><strong>Built-in FFmpeg engine</strong><span id="video-engine-state">Checking installed app…</span></div>
-              <p class="hint">No separate installation or upload. Available codecs depend on the device and bundled encoder. Original recordings are never overwritten.</p>
             </section>
             <section id="trace-controls" class="settings-section">
               <label class="field-label" for="trace-detail">Tracing detail</label>
@@ -195,7 +193,7 @@ document.querySelector('#app').innerHTML = `
           <div id="output-controls"><span class="destination-label">Save files to</span><button id="folder" class="folder-button">${icon('folder')}<span id="folder-label">Choose output folder</span><span class="folder-arrow">⌄</span></button><p class="hint" id="output-hint" hidden></p></div>
           <p id="replace-warning" class="replace-warning" hidden>Original images will be overwritten. Videos are not eligible for in-place replacement.</p>
           <div class="action-area"><div id="progress-wrap" hidden><div class="progress-label"><span id="progress-text">Preparing…</span><span id="progress-count"></span></div><progress id="progress" max="100" value="0"></progress></div>
-            <button id="compress" class="button primary" disabled>Export SVGs ${icon('arrow')}</button><button id="cancel" class="button cancel" hidden>Stop after this image</button><p class="action-note" id="action-note"></p></div>
+            <button id="compress" class="button primary" disabled>Export SVGs ${icon('arrow')}</button><button id="cancel" class="button cancel" hidden>Stop</button><p class="action-note" id="action-note"></p></div>
         </div>
       </aside>
     </div>
@@ -330,9 +328,7 @@ function updateVideoControls(){
     (workspaceMode==='compress' && items.some(item=>item.kind==='video'));
   $('video-controls').hidden=!visible;
   $('image-format-controls').hidden=workspaceMode==='video';
-  $('video-engine-state').textContent=videoEngineReady
-    ? 'Ready · FFmpeg '+videoEngineVersion
-    : 'Unavailable in this build · video encoding requires a bundled FFmpeg engine';
+
 }
 async function refreshVideoEngine(){
   if(!api?.getVideoEngine)return;
@@ -344,7 +340,7 @@ async function refreshVideoEngine(){
     updateVideoChoices();updateVideoControls();buttonState();
   }catch(e){
     videoEngineReady=false;videoEngineVersion='';videoEngineCodecs={};
-    $('video-engine-state').textContent=e.message;buttonState();
+    notice('Video compression is unavailable.');buttonState();
   }
 }
 if(api?.onVideoProgress)api.onVideoProgress(({id,percent})=>{
@@ -353,7 +349,7 @@ if(api?.onVideoProgress)api.onVideoProgress(({id,percent})=>{
   const item=items.find(entry=>entry.id===id);
   if(item)updateItem(item,'Encoding '+Math.round(value)+'%','working');
   $('progress').value=(currentVideoProgress.processed+value/100)/currentVideoProgress.total*100;
-  $('progress-text').textContent='Encoding video · '+Math.round(value)+'%';
+  $('progress-text').textContent='Compressing video · '+Math.round(value)+'%';
 });
 function releasePreviewUrls(){
   if(previewOriginalUrl)URL.revokeObjectURL(previewOriginalUrl);
@@ -968,9 +964,9 @@ function queuePreview(){
     $('video-preview').hidden=false;
     $('video-preview-name').textContent=item.name;
     $('video-preview-info').textContent=item.format.toUpperCase()+' · '+bytes(item.size);
-    $('preview-status').textContent='Ready for video compression';
+    $('preview-status').textContent='Ready';
     $('preview-badge').textContent='VIDEO · '+item.format.toUpperCase();
-    $('stage-caption').textContent='Video · '+bytes(item.size)+' · no upload required';
+    $('stage-caption').textContent='Video · '+bytes(item.size)';
     $('metric-output').textContent=item.outputSize ? bytes(item.outputSize) : '—';
     $('metric-savings').textContent=item.outputSize ?
       Math.round(100*(1-item.outputSize/item.size))+'%' : '—';
@@ -1162,7 +1158,7 @@ function buttonState() {
   $('action-note').textContent = scanning ? 'Scanning…' :
     (!replacing && eligible.length && !output) ? 'Choose an output folder.' :
     workspaceMode==='video' && !eligible.length ? 'Add videos to begin.' :
-    eligible.some(i=>i.kind==='video') && !videoEngineReady ? 'Built-in video engine unavailable.' : '';
+    eligible.some(i=>i.kind==='video') && !videoEngineReady ? 'Video compression unavailable.' : '';
   $('action-note').hidden = !$('action-note').textContent;
   const editable=workspaceMode==='vectorize' && $('format').value==='svg' &&
     !!selectedItem() && (selectedItem().format!=='svg' || selectedItem().canEditSvg) &&
@@ -1589,14 +1585,14 @@ $('compress').onclick = async () => {
     videoEngineReady=!!engine.available;videoEngineVersion=engine.version||'';
     videoEngineCodecs=engine.codecs||{};
     updateVideoChoices();updateVideoControls();
-    if(!videoEngineReady){notice('The bundled video engine is unavailable in this build.');return;}
+    if(!videoEngineReady){notice('Video compression is unavailable. Try restarting Chomp.');return;}
   }
   if(outputMode==='replace' && items.some(item=>!item.rootId || item.kind==='video')){
     notice('Video files cannot be replaced in place. Choose Duplicate folder or Media only.');
     return;
   }
   closeVectorEditor();stopPreview();running=true;stopped=false;buttonState();notice('');$('summary').hidden=true;$('preview-status').textContent='Exporting…';
-  $('compress').hidden = true; $('cancel').hidden = false; $('cancel').disabled = false; $('cancel').textContent = 'Stop active file'; $('progress-wrap').hidden = false;
+  $('compress').hidden = true; $('cancel').hidden = false; $('cancel').disabled = false; $('cancel').textContent = 'Stop'; $('progress-wrap').hidden = false;
   document.querySelectorAll('.remove').forEach(el => el.disabled = true);
   const pending = folderRoots.length || eligible.every(i => i.status === 'done') ? [...eligible] : eligible.filter(i => i.status !== 'done'); let completed = 0, failed = 0, original = 0, compressed = 0, batch = null, startupError = null;
   $('progress').value = 0;
