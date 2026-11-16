@@ -19,6 +19,7 @@ let preparing = false;
 let cancelPreparation = false;
 let lastPaths = [];
 let handBrakeEngine = null;
+let chosenHandBrakePath = null;
 let activeVideoJob = null;
 let themePreference = 'system';
 const themeState = () => ({ preference: themePreference, dark: nativeTheme.shouldUseDarkColors, platform: process.platform });
@@ -67,6 +68,11 @@ function handle(name, fn) {
 }
 app.whenReady().then(async () => {
   try { const saved = JSON.parse(await fs.readFile(path.join(app.getPath('userData'), 'preferences.json'), 'utf8')); if (['system', 'light', 'dark'].includes(saved.theme)) themePreference = saved.theme; } catch {}
+  try {
+    const setting=JSON.parse(await fs.readFile(path.join(app.getPath('userData'),'video-engine.json'),'utf8'));
+    if(typeof setting.executable==='string' && setting.executable.length<4096)
+      chosenHandBrakePath=setting.executable;
+  }catch{}
   if (process.platform !== 'darwin') themePreference = 'system';
   nativeTheme.themeSource = themePreference;
   nativeTheme.on('updated', updateTheme);
@@ -165,7 +171,8 @@ app.whenReady().then(async () => {
   });
   handle('get-video-engine', async () => {
     if (handBrakeEngine) return { available: true, version: handBrakeEngine.version };
-    handBrakeEngine = await findHandBrake();
+    handBrakeEngine = (chosenHandBrakePath && await findHandBrake(chosenHandBrakePath)) ||
+      await findHandBrake();
     return handBrakeEngine ? { available: true, version: handBrakeEngine.version } :
       { available: false, message: 'Install HandBrakeCLI and select its executable.' };
   });
@@ -180,6 +187,9 @@ app.whenReady().then(async () => {
     const engine = await findHandBrake(result.filePaths[0]);
     if (!engine) throw new Error('The selected file is not a working HandBrakeCLI executable.');
     handBrakeEngine = engine;
+    chosenHandBrakePath = result.filePaths[0];
+    await fs.writeFile(path.join(app.getPath('userData'),'video-engine.json'),
+      JSON.stringify({executable:chosenHandBrakePath}));
     return { available: true, version: engine.version };
   });
   handle('compress-video', async ({ id, batchId, format, preset }) => {
