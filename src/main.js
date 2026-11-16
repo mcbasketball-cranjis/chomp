@@ -966,7 +966,7 @@ function queuePreview(){
     $('video-preview-info').textContent=item.format.toUpperCase()+' · '+bytes(item.size);
     $('preview-status').textContent='Ready';
     $('preview-badge').textContent='VIDEO · '+item.format.toUpperCase();
-    $('stage-caption').textContent='Video · '+bytes(item.size)';
+    $('stage-caption').textContent='Video · '+bytes(item.size);;
     $('metric-output').textContent=item.outputSize ? bytes(item.outputSize) : '—';
     $('metric-savings').textContent=item.outputSize ?
       Math.round(100*(1-item.outputSize/item.size))+'%' : '—';
