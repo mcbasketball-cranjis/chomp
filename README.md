@@ -1,13 +1,13 @@
 # Chomp
 
-Batch image compression and vector conversion for Windows and macOS. Uses Squoosh-derived codecs through [jSquash](https://github.com/jamsinclair/jSquash) and a built-in JavaScript SVG tracer. Images are processed locally, without uploads.
+Local image/video compression and vector conversion for Windows and macOS. Uses Squoosh-derived codecs through [jSquash](https://github.com/jamsinclair/jSquash) and a built-in JavaScript SVG tracer. Images are processed locally, without uploads.
 
 ## Usage
 
 1. Windows: run `Chomp-<version>-win-x64-Setup.exe`. It installs the supporting files and a Start menu shortcut. macOS: open the DMG, drag Chomp into Applications.
-2. Drop images or folders into the window, or click **Add images** / **Add folder**.
+2. Drop images, videos, or folders into the window, or click **Add media** / **Add folder**. Video compression requires a separately installed HandBrakeCLI.
 3. Choose an output format. Select **SVG (editable vectors)** to trace raster artwork into actual vector paths, or choose PNG/WebP/JPEG/AVIF to rasterize an SVG. Optionally resize or remove a solid background.
-4. Choose an output folder and click **Compress batch**.
+4. Choose an output folder and click **Compress batch** (or **Compress videos** in the Video workspace).
 
 ## Video compression (HandBrakeCLI)
 
