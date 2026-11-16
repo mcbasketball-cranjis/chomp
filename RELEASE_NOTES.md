@@ -1,41 +1,42 @@
-# Chomp 2.3.0
+# Chomp 2.4.0
 
-## Video compression
+## Video compression without a separate installation
 
-Chomp adds a dedicated **Video** workspace powered by a locally installed HandBrakeCLI executable.
+Chomp now includes a **local, LGPL-configured FFmpeg video engine** in its Windows and macOS desktop downloads. There is **no HandBrakeCLI or FFmpeg installation step** for the user.
 
-- **Compress videos:** Import MP4, MOV, M4V, MKV, WebM and AVI. Export H.264 videos to MP4 or MKV.
-- **Three HandBrake presets:** Small (Very Fast 720p30), Balanced (Fast 1080p30), and Higher quality (HQ 1080p30 Surround).
-- **Mixed-media compression:** Queue images and videos together in the existing **Compress** workspace. Image conversions and SVG tracing remain available.
-- **Folder processing:** Keep nested directories with Duplicate Folder or Media Only. Original videos remain untouched.
-- **Progress and cancellation:** Track video encode progress and stop active transcoding. Partial outputs are cleaned up and duplicate filenames are never overwritten.
-- **Safe output:** Verify sources before and after encoding, create output in a private temporary directory and publish without clobbering other files.
+- **Video encoding:** H.264, H.265/HEVC, AV1, VP9 and animated GIF, as available in the bundled build and on the user's hardware.
+- **Output formats:** MP4, MKV, MOV, WebM and animated GIF, with incompatible codec/container pairs disabled.
+- **More video inputs:** MP4, M4V, MOV, MKV, WebM, AVI, MPG, MPEG, M2V, TS, MTS, M2TS, 3GP, 3G2, OGV, FLV, WMV, ASF, VOB, MXF and GIF. Support depends on the actual codec and file integrity, not just the extension.
+- **One local queue:** The dedicated Video tab and existing mixed image/video compression workflow support the broader formats.
+- **Encoding presets:** Small, Balanced and Higher quality, with sensible resolution limits. Output files are not guaranteed to be smaller than inputs.
+- **Source protection:** Input videos remain unchanged; the existing folder-copy and Media Only modes retain their safe, collision-free output behavior, progress and cancellation.
 
-**Setup required:** Install the open-source [HandBrakeCLI](https://handbrake.fr/downloads.php) independently and select **Locate HandBrakeCLI** if Chomp does not find it automatically. HandBrake's GPLv2 executable is **not bundled** with Chomp. The transcoding happens entirely on the user's device. Supported input extensions do not guarantee every video codec is decodable. Output is not guaranteed to be smaller and preset selection may change frame rate, dimensions, audio or subtitle tracks.
+Encoding speed and availability depend on the device. In particular, H.264 and HEVC can require supported hardware; software AV1/VP9 can be slower. Animated GIF output contains no audio. Video compression happens entirely on the user's device, without uploads.
 
-## Vector Studio
+## Previous Chomp improvements
 
-- **Move whole shapes:** Drag a selected vector region or nudge it with the arrow keys, with Shift for quarter-unit precision.
-- **Smart snapping:** Align edges and centers to neighboring shapes or the artboard. Optional live guides appear during movement; hold Alt for temporary free movement.
-- **Reversible edits:** SVG coordinates, compound contours, curves and holes remain editable; movements integrate with undo and redo.
+Also includes Chomp 2.3.0's whole-shape movement and precision snapping in Vector Studio, editable SVG path tools, local image compression and conversion, safe folder processing, and existing application update support.
 
 ## Quality and compatibility
 
-- Expanded tests for safe video exports, job cancellation, existing output protection, folder handling, and vector snapping.
-- Automated end-to-end HandBrakeCLI test of synthetic footage; image/vector desktop tests and Windows/macOS package validation.
-- Maintains Windows x64 installer and portable releases, Windows Store MSIX output, and Intel/Apple Silicon macOS packages.
-- Does not require network access for compression or tracing. Existing Chomp updater behavior is preserved.
-- macOS packages remain ad-hoc signed until Apple Developer ID signing and notarization are configured.
+- Automated real FFmpeg transcodes of synthetic VP9 WebM and animated GIF media, plus continued image/video and SVG unit/desktop tests.
+- Windows x64 installers, portable package, and Microsoft Store unsigned MSIX package validation.
+- macOS Intel and Apple Silicon builds with the native layered app icon.
+- SHA-256-pinned FFmpeg archives and license/source/build provenance. No GPL-only x264/x265 binaries are intentionally bundled.
+- Existing macOS downloads remain ad-hoc signed until Developer ID signing and notarization are configured.
+- Microsoft Store installs are updated through the Store after certification and are separate from GitHub installer auto-updates.
+
+## Third-party software and redistribution
+
+This software uses [FFmpeg](https://ffmpeg.org), distributed under the LGPL and its applicable bundled codec-library licenses. Chomp's Apache-2.0 license does not replace those terms. Third-party provenance, FFmpeg source/build references, and obligations are in [docs/BUNDLED_FFMPEG.md](docs/BUNDLED_FFMPEG.md) and THIRD_PARTY_NOTICES.md. Codec-related patents may have additional requirements.
 
 ## Downloads
 
-After the v2.3.0 build and release workflow completes, the GitHub release provides installers at:
+[Chomp v2.4.0 on GitHub Releases](https://github.com/mcbasketball-cranjis/chomp/releases/tag/v2.4.0)
 
-[Chomp 2.3.0 on GitHub Releases](https://github.com/mcbasketball-cranjis/chomp/releases/tag/v2.3.0)
+- Apple Silicon: `Chomp-2.4.0-mac-arm64.dmg` (or ZIP)
+- Intel Mac: `Chomp-2.4.0-mac-x64.dmg` (or ZIP)
+- Windows: `Chomp-2.4.0-win-x64-Setup.exe` (or Portable EXE)
+- Microsoft Store: Store-compatible MSIX is separately submitted/certified, not automatically installed from GitHub
 
-- Apple Silicon: `Chomp-2.3.0-mac-arm64.dmg` or ZIP
-- Intel Mac: `Chomp-2.3.0-mac-x64.dmg` or ZIP
-- Windows: `Chomp-2.3.0-win-x64-Setup.exe` or portable build
-- Microsoft Store: Updated via Microsoft certification, not directly from the unsigned MSIX archive
-
-*Download packages only from the verified release assets. Microsoft Store updates may follow after certification.*
+The actual downloads are available only after the release workflow succeeds and publishes v2.4.0.
