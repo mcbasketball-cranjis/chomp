@@ -2,6 +2,7 @@ import { decodeSvgBitmap } from './svg-input.js';
 import { normalizeTraceOptions } from './trace-options.js';
 import { vectorPathBounds, vectorPathPoints, moveVectorPathPoint,
   nearestVectorPathSegment, insertVectorPathPoint, deleteVectorPathPoint,
+  translateVectorPath,
   setVectorPathSegmentType } from './vector-path.js';
 import { openVectorDocument, modifyVectorShape, modifyVectorShapes,
   matchingShapeIds, vectorPalette, undoVectorEdit, redoVectorEdit,
@@ -65,6 +66,7 @@ document.querySelector('#app').innerHTML = `
             <input type="color" id="vector-shape-color" aria-label="Selected shape color" value="#000000" disabled>
             <input type="text" id="vector-shape-hex" class="vector-shape-hex" aria-label="Exact fill hex color" maxlength="7" autocomplete="off" spellcheck="false" value="#000000" disabled>
             <button type="button" id="vector-delete-shape" disabled>Remove</button>
+            <button type="button" id="vector-move-mode" aria-pressed="false" disabled>Move</button>
             <button type="button" id="vector-point-mode" aria-pressed="false" disabled>Points</button>
             <button type="button" id="vector-add-point" aria-pressed="false" disabled>Insert point</button>
             <button type="button" id="vector-remove-point" disabled>Delete point</button>
@@ -214,6 +216,7 @@ let previewZoom=1,previewX=0,previewY=0,previewPanMode=false,previewPointer=null
 let editorActive=false,editorPending=false,editorSelection=null,editorSvg=null;
 let editorPointMode=false,editorPointSelection=null,editorPointDrag=null,inspectorPage=0;
 let editorInsertMode=false,editorColorPick=false,backgroundColorPick=false;
+let editorMoveMode=false,editorShapeDrag=null;
 let sampleCanvas=null,sampleContext=null,sampleImageId=null;
 const inspectorBoundsCache=new Map();
 const INSPECTOR_PAGE_SIZE=48;
@@ -310,6 +313,7 @@ function currentVectorEditor(item=selectedItem()){
 function closeVectorEditor(){
   editorActive=false;editorPending=false;editorSelection=null;
   editorPointMode=false;editorPointSelection=null;editorPointDrag=null;inspectorPage=0;
+  editorMoveMode=false;editorShapeDrag=null;
   backgroundColorPick=false;$('preview-stage').classList.remove('source-color-picker');
   editorInsertMode=false;editorColorPick=false;
   $('preview-stage').classList.remove('picking-source-color');
@@ -330,6 +334,7 @@ function closeVectorEditor(){
   $('vector-inspector').hidden=true;
   $('vector-point-help').hidden=true;
   $('vector-point-mode').setAttribute('aria-pressed','false');
+  $('vector-move-mode').setAttribute('aria-pressed','false');
   $('preview-stage').classList.remove('editing-vector');
   $('preview-stage').classList.toggle('result-only', $('result-view').classList.contains('selected'));
   $('result-img').hidden=!previewResultUrl;
@@ -377,6 +382,9 @@ function editorToolbar(){
   $('vector-redo').disabled=!doc?.redoStack.length;
   $('vector-reset').disabled=!doc || !hasVectorEdits(doc);
   $('vector-match-colors').disabled=!shape;
+  $('vector-move-mode').disabled=!shape;
+  $('vector-move-mode').classList.toggle('selected',editorMoveMode);
+  $('vector-move-mode').setAttribute('aria-pressed',String(editorMoveMode));
   $('vector-point-mode').disabled=!shape;
   $('vector-point-mode').classList.toggle('selected',editorPointMode);
   $('vector-point-mode').setAttribute('aria-pressed',String(editorPointMode));
@@ -669,6 +677,38 @@ function finishVectorPointDrag(event,commit=true){
 window.addEventListener('pointermove',updateVectorPointDrag,true);
 window.addEventListener('pointerup',event=>finishVectorPointDrag(event,true),true);
 window.addEventListener('pointercancel',event=>finishVectorPointDrag(event,false),true);
+function updateVectorShapeDrag(event){
+  const drag=editorShapeDrag;
+  if(!drag || event.pointerId!==drag.pointerId)return;
+  const point=getLocalPoint(drag.svg,event.clientX,event.clientY);
+  const dx=point.x-drag.start.x,dy=point.y-drag.start.y;
+  // Avoid invalid SVG path coordinates while moving very large artwork.
+  if(drag.bounds.x+dx < -32768 || drag.bounds.x+drag.bounds.width+dx > 32768 ||
+     drag.bounds.y+dy < -32768 || drag.bounds.y+drag.bounds.height+dy > 32768)return;
+  drag.dx=dx;drag.dy=dy;
+  drag.path.setAttribute('transform','translate('+dx+' '+dy+')');
+  event.preventDefault();
+}
+function finishVectorShapeDrag(event,commit=true){
+  const drag=editorShapeDrag;
+  if(!drag || event.pointerId!==drag.pointerId)return;
+  editorShapeDrag=null;
+  drag.svg.classList.remove('dragging-vector');
+  if(commit && (Math.abs(drag.dx)>.005 || Math.abs(drag.dy)>.005)){
+    try{
+      const d=translateVectorPath(drag.original,drag.dx,drag.dy);
+      const doc=currentVectorEditor();
+      if(doc && modifyVectorShape(doc,drag.shapeId,{d})){
+        afterShapeEdit();event.preventDefault();return;
+      }
+    }catch(error){notice(error.message);}
+  }
+  renderShapeOverlay();
+  event.preventDefault();
+}
+window.addEventListener('pointermove',updateVectorShapeDrag,true);
+window.addEventListener('pointerup',event=>finishVectorShapeDrag(event,true),true);
+window.addEventListener('pointercancel',event=>finishVectorShapeDrag(event,false),true);
 function renderShapeOverlay(){
   if(editorSvg){editorSvg.remove();editorSvg=null;}
   if(!editorActive)return;
@@ -676,6 +716,7 @@ function renderShapeOverlay(){
   if(!doc)return;
   const svg=document.createElementNS(SVG_NS,'svg');
   svg.classList.add('vector-edit-svg');
+  svg.classList.toggle('moving-vector',editorMoveMode);
   svg.setAttribute('viewBox','0 0 '+doc.boxWidth+' '+doc.boxHeight);
   svg.setAttribute('preserveAspectRatio','xMidYMid meet');
   svg.setAttribute('aria-label','Select a vector shape to change its color or remove it');
@@ -688,6 +729,19 @@ function renderShapeOverlay(){
     if(shape.opacity!==null)path.setAttribute('fill-opacity',String(shape.opacity));
     path.setAttribute('data-chomp-shape',shape.id);
     if(shape.id===editorSelection)path.classList.add('selected-vector-shape');
+    if(editorMoveMode && shape.id===editorSelection) {
+      path.addEventListener('pointerdown',event=>{
+        if(event.button!==0 || editorPointMode || editorInsertMode || editorColorPick ||
+           (previewPanMode && previewZoom>1))return;
+        const start=getLocalPoint(svg,event.clientX,event.clientY);
+        editorShapeDrag={pointerId:event.pointerId,shapeId:shape.id,
+          original:shape.d,dx:0,dy:0,start,path,svg,
+          bounds:vectorPathBounds(shape.d)};
+        svg.setPointerCapture(event.pointerId);
+        svg.classList.add('dragging-vector');
+        event.preventDefault();
+      });
+    }
     svg.append(path);
   }
   const chosen=doc.shapes.find(shape=>shape.id===editorSelection && !shape.hidden);
@@ -724,7 +778,7 @@ function renderShapeOverlay(){
       }catch(e){notice(e.message);}
       return;
     }
-    if(editorPointMode && event.target===svg)return;
+    if((editorPointMode || editorMoveMode) && event.target===svg)return;
     selectEditorShape(path?.getAttribute('data-chomp-shape')||null);
   });
   editorSvg=svg;
@@ -773,6 +827,7 @@ function afterShapeEdit(){
   const doc=currentVectorEditor();
   if(editorSelection && doc?.shapes.find(s=>s.id===editorSelection)?.hidden){
     editorSelection=null;editorPointMode=false;editorPointSelection=null;
+    editorMoveMode=false;editorShapeDrag=null;
   }
   inspectorBoundsCache.clear();
   refreshEditedPreview();
@@ -1025,9 +1080,23 @@ async function pick() { if (!api) { notice('Open the desktop app to select image
 $('add').onclick=pick;$('add-sidebar').onclick=pick;$('drop').onclick=pick;
 document.querySelectorAll('[data-workspace]').forEach(el=>el.onclick=()=>setWorkspace(el.dataset.workspace));
 $('compare-slider').oninput=updatePreviewSplit;
+$('vector-move-mode').onclick=()=>{
+  if(!editorActive||!editorSelection||!currentVectorEditor())return;
+  editorMoveMode=!editorMoveMode;editorShapeDrag=null;
+  if(editorMoveMode){
+    editorPointMode=false;editorPointSelection=null;editorPointDrag=null;
+    editorInsertMode=false;editorColorPick=false;
+    previewPanMode=false;renderZoom();
+  }
+  renderShapeOverlay();
+  $('preview-status').textContent=editorMoveMode
+    ? 'Drag the selected shape or use arrow keys to move it'
+    : 'Editable preview ready';
+};
 $('vector-point-mode').onclick=()=>{
   if(!editorSelection || !currentVectorEditor())return;
   editorPointMode=!editorPointMode;
+  editorMoveMode=false;editorShapeDrag=null;
   editorPointSelection=null;editorPointDrag=null;editorInsertMode=false;editorColorPick=false;
   if(editorPointMode){previewPanMode=false;renderZoom();}
   renderShapeOverlay();
@@ -1083,6 +1152,7 @@ $('vector-eyedropper').onclick=()=>{
   editorColorPick=!editorColorPick;
   editorInsertMode=false;
   if(editorColorPick){
+    editorMoveMode=false;editorShapeDrag=null;
     editorPointMode=false;editorPointSelection=null;
     $('vector-overlay-toggle').checked=true;
   }
@@ -1146,7 +1216,22 @@ $('vector-reset').onclick=()=>{
 document.addEventListener('keydown',event=>{
   if(!editorActive || event.target.closest('input,select,textarea') || event.altKey)return;
   const key=event.key.toLowerCase();
-  if(editorPointMode && editorPointSelection && !event.metaKey && !event.ctrlKey &&
+  if(editorMoveMode && editorSelection && !editorPointMode &&
+     !event.metaKey && !event.ctrlKey &&
+     ['arrowleft','arrowright','arrowup','arrowdown'].includes(key)){
+    const doc=currentVectorEditor();
+    const shape=doc?.shapes.find(s=>s.id===editorSelection && !s.hidden);
+    if(shape){
+      const delta=event.shiftKey ? .25 : 1;
+      const dx=key==='arrowleft'?-delta:key==='arrowright'?delta:0;
+      const dy=key==='arrowup'?-delta:key==='arrowdown'?delta:0;
+      try{
+        const d=translateVectorPath(shape.d,dx,dy);
+        if(modifyVectorShape(doc,shape.id,{d}))afterShapeEdit();
+      }catch(error){notice(error.message);}
+      event.preventDefault();
+    }
+  }else if(editorPointMode && editorPointSelection && !event.metaKey && !event.ctrlKey &&
      ['arrowleft','arrowright','arrowup','arrowdown'].includes(key)){
     const doc=currentVectorEditor();
     const shape=doc?.shapes.find(s=>s.id===editorSelection&&!s.hidden);
