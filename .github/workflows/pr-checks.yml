@@ -6,6 +6,11 @@ on:
 permissions:
   contents: read
 
+# Only the latest commit in each PR needs full multi-platform packaging checks.
+concurrency:
+  group: chomp-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   video-smoke:
     name: Real HandBrakeCLI encoding (synthetic media)
