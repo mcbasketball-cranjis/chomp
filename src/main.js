@@ -936,6 +936,7 @@ function selectItem(item){
   $('metric-output').textContent='—';$('metric-savings').textContent='—';
   $('stage-caption').textContent=item?item.name+' · '+item.format.toUpperCase():'Select an image to see its preview';
   $('preview-stage').classList.toggle('is-empty',!item);
+  $('preview-stage').classList.toggle('video-selected',item?.kind==='video');
   $('original-img').hidden=true;$('result-img').hidden=true;
   $('video-preview').hidden=!item || item.kind!=='video';
   releasePreviewUrls();stopPreview();buttonState();
