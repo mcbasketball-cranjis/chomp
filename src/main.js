@@ -897,18 +897,34 @@ function selectItem(item){
   selectedId=item?.id??null;
   previewPanMode=false;previewPointer=null;setZoom(1);
   document.querySelectorAll('.image-row').forEach(el=>el.classList.toggle('selected',el.dataset.id===String(selectedId)));
-  $('selected-name').textContent=item?(item.relative||item.name):'No image selected';
+  $('selected-name').textContent=item?(item.relative||item.name):'No media selected';
   $('metric-original').textContent=item?bytes(item.size):'—';
   $('metric-output').textContent='—';$('metric-savings').textContent='—';
   $('stage-caption').textContent=item?item.name+' · '+item.format.toUpperCase():'Select an image to see its preview';
   $('preview-stage').classList.toggle('is-empty',!item);
   $('original-img').hidden=true;$('result-img').hidden=true;
+  $('video-preview').hidden=!item || item.kind!=='video';
   releasePreviewUrls();stopPreview();buttonState();
   if(item)queuePreview();
 }
 function queuePreview(){
   if(!selectedItem()||!api||running||scanning)return;
   const item=selectedItem();
+  if(item.kind==='video'){
+    stopPreview();releasePreviewUrls();
+    $('original-img').hidden=true;$('result-img').hidden=true;
+    $('video-preview').hidden=false;
+    $('video-preview-name').textContent=item.name;
+    $('video-preview-info').textContent=item.format.toUpperCase()+' · '+bytes(item.size);
+    $('preview-status').textContent='Ready for video compression';
+    $('preview-badge').textContent='VIDEO · '+item.format.toUpperCase();
+    $('stage-caption').textContent='Video · '+bytes(item.size)+' · no upload required';
+    $('metric-output').textContent=item.outputSize ? bytes(item.outputSize) : '—';
+    $('metric-savings').textContent=item.outputSize ?
+      Math.round(100*(1-item.outputSize/item.size))+'%' : '—';
+    return;
+  }
+  $('video-preview').hidden=true;
   if(item.vectorEditor && item.vectorEditor.signature!==vectorSignature()){
     delete item.vectorEditor;
     closeVectorEditor();
@@ -1049,9 +1065,18 @@ const bytes = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)}
 function notice(message) { $('notice').textContent = message; }
 function buttonState() {
   const replacing = mode() === 'replace';
-  $('compress').disabled = running || scanning || editorPending || (!replacing && !output) || !items.length;
-  const amount=items.length+' image'+(items.length===1?'':'s');
-  const label=replacing?'Replace original images':items.length&&items.every(i=>i.status==='done')?'Export again':workspaceMode==='vectorize'&&$('format').value==='svg'?'Export '+items.length+' SVG'+(items.length===1?'':'s'):workspaceMode==='convert'?'Convert '+amount:'Compress '+amount;
+  const eligible=eligibleItems();
+  const containsVideo=items.some(item=>item.kind==='video');
+  const invalidReplace=replacing && containsVideo;
+  $('compress').disabled = running || scanning || editorPending ||
+    (!replacing && !output) || !eligible.length || invalidReplace;
+  const amount=eligible.length+' file'+(eligible.length===1?'':'s');
+  const label=replacing?'Replace original images':
+    eligible.length && eligible.every(i=>i.status==='done')?'Export again':
+    workspaceMode==='vectorize' && $('format').value==='svg'?'Export '+eligible.length+' SVG'+(eligible.length===1?'':'s'):
+    workspaceMode==='convert'?'Convert '+amount:
+    workspaceMode==='video'?'Compress '+eligible.length+' video'+(eligible.length===1?'':'s'):
+    'Compress '+amount;
   $('compress').innerHTML=icon('upload')+' '+label;
   $('clear').disabled = running || scanning || (!items.length && !folderRoots.length);
   $('new-batch').hidden = !items.length && !folderRoots.length;
@@ -1065,18 +1090,27 @@ function buttonState() {
   document.querySelectorAll('[data-workspace]').forEach(el=>el.disabled=running);
   $('folder-modes').disabled = running || scanning;
   $('settings').disabled = running;
-  $('total').textContent = items.length ? `${items.length} image${items.length === 1 ? '' : 's'} · ${bytes(items.reduce((s, i) => s + i.size, 0))} total` : 'No images added yet';
+  $('total').textContent = items.length ? `${items.filter(i=>i.kind!=='video').length} image(s) · ${items.filter(i=>i.kind==='video').length} video(s) · ${bytes(items.reduce((s, i) => s + i.size, 0))}` : 'No files added yet';
   $('count').textContent = items.length;
   $('empty-note').hidden = items.length > 0;
   $('drop').hidden=items.length>0;
   $('preview-stage').classList.toggle('is-empty',!items.length);
   $('quick-panel').hidden = !isFolderBatch();
+  document.querySelector('[name="folder-mode"][value="replace"]').disabled=containsVideo;
+  if(containsVideo && replacing){
+    document.querySelector('[name="folder-mode"][value="copy"]').checked=true;
+    $('output-controls').hidden=false;
+  }
+  updateVideoControls();
   $('folder-count').textContent = `${folderRoots.length} folder${folderRoots.length === 1 ? '' : 's'}`;
   $('source-folders').textContent = folderRoots.map(root => root.name).join(' · ');
   $('output-controls').hidden = replacing;
   $('replace-warning').hidden = !replacing;
   $('format').disabled = replacing;
-  $('action-note').textContent = scanning ? 'Scanning…' : (!replacing && items.length && !output) ? 'Choose an output folder.' : '';
+  $('action-note').textContent = scanning ? 'Scanning…' : invalidReplace ? 'Video sources cannot be replaced.' :
+    (!replacing && eligible.length && !output) ? 'Choose an output folder.' :
+    workspaceMode==='video' && !eligible.length ? 'Add videos to begin.' :
+    eligible.some(i=>i.kind==='video') && !videoEngineReady ? 'Select a working HandBrakeCLI executable.' : '';
   $('action-note').hidden = !$('action-note').textContent;
   const editable=workspaceMode==='vectorize' && $('format').value==='svg' &&
     !!selectedItem() && (selectedItem().format!=='svg' || selectedItem().canEditSvg) &&
@@ -1089,7 +1123,7 @@ function row(item) {
   el.tabIndex=0;el.setAttribute('role','button');el.setAttribute('aria-label','Preview '+item.name);
   el.onclick=()=>{if(!running)selectItem(item);};
   el.onkeydown=e=>{if((e.key==='Enter'||e.key===' ')&&e.target===el){e.preventDefault();if(!running)selectItem(item);}};
-  const thumb = document.createElement('div'); thumb.className = 'thumbnail'; thumb.innerHTML = icon('image');
+  const thumb = document.createElement('div'); thumb.className = 'thumbnail'; thumb.innerHTML = icon(item.kind==='video'?'video':'image');
   const info = document.createElement('div'); info.className = 'image-info';
   const name = document.createElement('strong'); name.textContent = item.rootId ? item.relative : item.name; name.title = item.relative || item.name;
   const detail = document.createElement('span'); detail.className = 'detail'; detail.textContent = bytes(item.size);
@@ -1123,7 +1157,7 @@ async function add(result) {
   }
   if (firstFolder && isFolderBatch()) {
     document.querySelector('[name="folder-mode"][value="copy"]').checked = true;
-    setWorkspace('compress');
+    setWorkspace(items.every(item=>item.kind==='video')?'video':'compress');
     $('format').value = 'original';
     $('format').onchange();
   } else {
@@ -1131,12 +1165,12 @@ async function add(result) {
       document.querySelector('[name="folder-mode"][value="images"]').checked = true;
     syncOutputFormats();
   }
-  $('summary').hidden=true;buttonState();
+  $('summary').hidden=true;updateVideoControls();buttonState();
   if(!selectedItem()&&items.length)selectItem(items[0]);
-  notice([result.ignored ? `${result.ignored} non-image or oversized file(s) excluded from compression.` : '', result.skipped ? `${result.skipped} symbolic links or special files skipped.` : '', duplicates ? `${duplicates} duplicate image(s) skipped.` : '', ...(result.warnings || []), !items.length && folderRoots.length ? 'No supported images found in the selected folders.' : ''].filter(Boolean).join(' '));
+  notice([result.ignored ? `${result.ignored} unsupported or oversized file(s) excluded from compression.` : '', result.skipped ? `${result.skipped} symbolic links or special files skipped.` : '', duplicates ? `${duplicates} duplicate image(s) skipped.` : '', ...(result.warnings || []), !items.length && folderRoots.length ? 'No supported media found in the selected folders.' : ''].filter(Boolean).join(' '));
 }
 async function importFiles(load) { if (running || scanning) return; scanning = true; buttonState(); try { await add(await load()); } catch (e) { notice(e.message); } finally { scanning = false; buttonState(); if(selectedItem()) queuePreview(); } }
-async function pick() { if (!api) { notice('Open the desktop app to select images and output folders.'); return; } await importFiles(() => api.pickImages()); }
+async function pick() { if (!api) { notice('Open the desktop app to select media and output folders.'); return; } await importFiles(() => api.pickImages()); }
 $('add').onclick=pick;$('add-sidebar').onclick=pick;$('drop').onclick=pick;
 document.querySelectorAll('[data-workspace]').forEach(el=>el.onclick=()=>setWorkspace(el.dataset.workspace));
 $('compare-slider').oninput=updatePreviewSplit;
@@ -1462,11 +1496,11 @@ $('format').onchange = () => {
   $('quality').disabled = lossless;
   document.querySelectorAll('[data-quality]').forEach(el => el.disabled = lossless);
   $('quality-value').innerHTML = format === 'svg' ? '<span>Vector</span>' : lossless ? '<span>Lossless</span>' : `${$('quality').value}<span>%</span>`;
-  $('trace-controls').hidden = format !== 'svg' || svgPassthrough;
-  $('compression-controls').hidden=lossless;
-  $('limit-section').hidden = format === 'svg';
-  $('advanced-settings').hidden = svgPassthrough;
-  $('background-section').hidden = opaque || svgPassthrough;
+  $('trace-controls').hidden = workspaceMode==='video' || format !== 'svg' || svgPassthrough;
+  $('compression-controls').hidden=workspaceMode==='video' || lossless;
+  $('limit-section').hidden = workspaceMode==='video' || format === 'svg';
+  $('advanced-settings').hidden = workspaceMode==='video' || svgPassthrough;
+  $('background-section').hidden = workspaceMode==='video' || opaque || svgPassthrough;
   $('preview-after-label').textContent=format==='svg'?'VECTOR':'RESULT';
   $('preview-badge').textContent=format==='svg'?'SVG · transparent':format==='original'?'Original format':format.toUpperCase()+(format==='jpg'?' · opaque':' · transparency');
   $('remove-bg').disabled = opaque || svgPassthrough;
