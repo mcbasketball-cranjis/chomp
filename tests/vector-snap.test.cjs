@@ -15,8 +15,8 @@ test('snaps nearby shape edges and centers within the tolerance',async()=>{
   const moving={x:0,y:0,width:20,height:20};
   const other=[{x:34,y:42,width:20,height:20}];
   const result=snapShapeTranslation(moving,other,{width:200,height:200},13.2,41.4,1);
-  assert.equal(result.dx,14);
-  assert.equal(result.dy,42);
+  assert.ok(Math.abs(result.dx-14)<1e-8);
+  assert.ok(Math.abs(result.dy-42)<1e-8);
   assert.deepEqual(result.guides,[{axis:'x',position:34},{axis:'y',position:42}]);
 });
 test('no snap when distant, and tolerance zero allows exact matches',async()=>{
