@@ -50,6 +50,7 @@ test('HandBrake arguments use an allowlist and never a shell', () => {
   assert.deepEqual(handBrakeArgs('/tmp/source mov', '/tmp/out.mp4', {preset:'balanced',format:'mp4'}),
     ['--input','/tmp/source mov','--output','/tmp/out.mp4',
       '--min-duration','0','--preset','Fast 1080p30','--format','av_mp4']);
+  assert.equal(videoOptions({preset:'quality',format:'mp4'}).preset,'HQ 1080p30 Surround');
   assert.deepEqual(videoOptions({preset:'small',format:'mkv'}),
     {preset:'Very Fast 720p30',format:'av_mkv',extension:'mkv'});
   assert.throws(()=>handBrakeArgs('a','b',{preset:'--help',format:'mp4'}),/Invalid video/);
