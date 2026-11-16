@@ -17,3 +17,5 @@ previous-release/
 windows-signing/THIS-PC-PUBLIC-CERTIFICATE.cer
 windows-signing/LOCAL-SIGNING-RESULT.txt
 
+# Pinned FFmpeg LGPL builds are staged by packaging CI; never committed.
+vendor/ffmpeg/
