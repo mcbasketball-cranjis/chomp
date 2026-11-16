@@ -148,7 +148,11 @@ async function durationOf(probe, source) {
 async function detectFFmpeg(paths,{requireLGPL=false}={}) {
   if(!paths)return null;
   try {
-    await Promise.all([fs.access(paths.executable),fs.access(paths.probe)]);
+    // Development tests may use a binary from PATH; packaged releases use
+    // absolute resource paths and must verify those local files exist.
+    for(const executable of [paths.executable,paths.probe])
+      if(path.isAbsolute(executable)||executable.includes('/')||executable.includes('\\\\'))
+        await fs.access(executable);
     const [version,encoders]=await Promise.all([
       runFile(paths.executable,['-version'],{timeout:10000,windowsHide:true,maxBuffer:512*1024}),
       runFile(paths.executable,['-hide_banner','-encoders'],{timeout:10000,windowsHide:true,maxBuffer:2*1024*1024})
