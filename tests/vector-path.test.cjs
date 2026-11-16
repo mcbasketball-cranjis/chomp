@@ -145,3 +145,40 @@ test('lossless cleanup removes redundant lines without breaking undo/redo',async
   assert.equal(redoVectorEdit(doc),true);
   assert.equal(doc.shapes[0].d,'M0 0L20 0L20 20L0 20Z');
 });
+
+test('whole shape translation preserves subpaths, corners, curves and undo history',async()=>{
+  const {translateVectorPath,vectorPathBounds,parseVectorPath}=await vectorPath;
+  const {openVectorDocument,modifyVectorShape,undoVectorEdit,redoVectorEdit,
+    serializeVectorDocument}=await editor;
+  const original='M1 2H7V8C8 9 12 13 15 16ZM20 20L30 20L30 30Z';
+  const translated=translateVectorPath(original,3.5,-1.25);
+  assert.equal(translated,
+    'M4.5 0.75L10.5 0.75L10.5 6.75C11.5 7.75 15.5 11.75 18.5 14.75Z'+
+    'M23.5 18.75L33.5 18.75L33.5 28.75Z');
+  assert.deepEqual(parseVectorPath(translated).map(c=>c.type),
+    ['M','L','L','C','Z','M','L','L','Z']);
+  assert.deepEqual(vectorPathBounds(translated),
+    {x:4.5,y:0.75,width:29,height:28});
+  assert.equal(translateVectorPath(original,0,0),original);
+  const doc=openVectorDocument(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">'+
+    '<path data-chomp-shape="s0" fill="#123456" fill-rule="evenodd" d="'+original+'"/></svg>');
+  assert.equal(modifyVectorShape(doc,'s0',{d:translated}),true);
+  assert.equal(doc.undoStack.length,1);
+  assert.match(serializeVectorDocument(doc),/M4.5 0.75/);
+  assert.equal(undoVectorEdit(doc),true);
+  assert.equal(doc.shapes[0].d,original);
+  assert.equal(redoVectorEdit(doc),true);
+  assert.equal(doc.shapes[0].d,translated);
+  assert.equal(openVectorDocument(serializeVectorDocument(doc)).shapes[0].d,translated);
+});
+
+test('whole shape movement rejects malformed or overflowing coordinates without mutation',async()=>{
+  const {translateVectorPath}=await vectorPath;
+  const original='M32760 1L32767 1L32767 3Z';
+  assert.throws(()=>translateVectorPath(original,2,0),/coordinate limits/);
+  assert.throws(()=>translateVectorPath(original,Infinity,0),/Invalid vector movement/);
+  assert.throws(()=>translateVectorPath(original,NaN,0),/Invalid vector movement/);
+  assert.throws(()=>translateVectorPath(original,0,32769),/Invalid vector movement/);
+  assert.equal(translateVectorPath('M1 1L3 1L3 3Z',-1,2),'M0 3L2 3L2 5Z');
+});
