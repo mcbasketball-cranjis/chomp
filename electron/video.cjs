@@ -23,8 +23,8 @@ function videoOptions(options) {
 }
 function handBrakeArgs(input, output, options) {
   const selected = videoOptions(options);
-  return ['--input', input, '--output', output, '--preset', selected.preset,
-    '--format', selected.format];
+  return ['--input', input, '--output', output, '--min-duration', '0',
+    '--preset', selected.preset, '--format', selected.format];
 }
 function progressFromText(value) {
   const matches = [...String(value).matchAll(/Encoding:\s*task\s+\d+\s+of\s+\d+,\s*([\d.]+)\s*%/gi)];
@@ -129,8 +129,6 @@ async function processVideo({ executable, entry, directory, format, preset,
   if (!videoSupported.test(source)) throw new Error('Unsupported video format.');
   await verifySource();
   const destination = await fs.realpath(directory);
-  if (destination === path.dirname(source) && copiedOriginal === null)
-    throw new Error('Choose an output location separate from the source.');
   const target = copiedOriginal && path.extname(copiedOriginal).slice(1).toLowerCase() === format
     ? copiedOriginal
     : await uniqueVideoTarget(destination, copiedOriginal ? path.basename(copiedOriginal) : path.basename(source), format, !!copiedOriginal);
