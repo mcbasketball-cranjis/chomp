@@ -393,6 +393,7 @@ const root = path.resolve(__dirname, '..');
     await page.click('#vector-move-mode');
     await expect(page.locator('#vector-move-mode')).toHaveAttribute('aria-pressed','true');
     const movingPath=page.locator('.vector-edit-svg path.selected-vector-shape');
+    await movingPath.scrollIntoViewIfNeeded();
     const moveOriginal=await movingPath.getAttribute('d');
     const movingBounds=await movingPath.boundingBox();
     assert.ok(movingBounds,'selected shape should be draggable');
