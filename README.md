@@ -49,6 +49,8 @@ Failed files can be retried. **Stop after this image** saves the current file an
 - **SVG → raster:** Add SVG files and choose PNG, WebP, AVIF, or JPEG. Rasterization occurs locally. Select PNG, WebP, or AVIF to preserve transparency; JPEG is always opaque.
 - **SVG → SVG:** Existing vector artwork is kept intact instead of being retraced. Background removal is intended for bitmap input, or SVG rendered to a raster output. SVGs with external resources, scripts, or active markup are rejected for safety.
 
+**Vector Studio shape movement:** After tracing, choose **Edit shapes**, select a shape, then select **Move**. Drag the selected shape across the preview to reposition its complete outline (including Bézier handles and holes), or use the arrow keys to move it by one vector unit at a time. Hold Shift while using arrow keys for quarter-unit precision. Every completed drag or key nudge creates an undoable edit; the exported SVG contains the moved vector coordinates and never embeds the original image. Turn Move off to return to selecting and editing individual paths. Use Pan separately for navigating a zoomed preview.
+
 For photographs, detailed gradients, and complex textures, automatic vector tracing is an approximation and may produce large files. It is intended primarily for logos, icons, illustrations, and flatter artwork. The optional file-size limit is enforced on exported SVG files, but SVG path data cannot be quality-compressed like JPEG/WebP.
 
 ## Microsoft Store (MSIX)

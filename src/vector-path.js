@@ -112,6 +112,28 @@ export function moveVectorPathPoint(d,index,role,x,y) {
 }
 
 
+/** Move an entire editable shape, including cubic handles and every subpath.
+ * Reject coordinate overflow before serializing so movement stays atomic.
+ */ 
+export function translateVectorPath(d, dx, dy) {
+  if (!Number.isFinite(dx) || !Number.isFinite(dy) ||
+      Math.abs(dx) > POSITION_LIMIT || Math.abs(dy) > POSITION_LIMIT)
+    throw new Error('Invalid vector movement.');
+  if (dx === 0 && dy === 0) return d;
+  const commands = parseVectorPath(d);
+  for (const command of commands) {
+    for (let i = 0; i < command.values.length; i += 2) {
+      const x = command.values[i] + dx, y = command.values[i + 1] + dy;
+      if (!Number.isFinite(x) || !Number.isFinite(y) ||
+          Math.abs(x) > POSITION_LIMIT || Math.abs(y) > POSITION_LIMIT)
+        throw new Error('Vector shape exceeds coordinate limits.');
+      command.values[i] = x;
+      command.values[i + 1] = y;
+    }
+  }
+  return serializeVectorPath(commands);
+}
+
 function lerpPoint(a,b,t){
   return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];
 }
