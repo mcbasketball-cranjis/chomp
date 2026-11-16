@@ -13,7 +13,7 @@ Video inputs can be up to 16 GiB per file.
 Output containers: MP4 or MKV, H.264 video via HandBrakeCLI. Presets:
 - Small file: HandBrake `Very Fast 720p30`
 - Balanced: HandBrake `Fast 1080p30`
-- Better quality: HandBrake `HQ 1080p30`
+- Better quality: HandBrake `HQ 1080p30 Surround`
 
 Presets can reduce resolution/frame rate and may discard tracks or alter audio/subtitle
 behavior according to HandBrake's preset definition. Output size is **not guaranteed**
