@@ -1,6 +1,7 @@
 'use strict';
 // Optional local integration. Chomp never downloads, embeds or runs a shell.
 const fs = require('node:fs/promises');
+const { constants } = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { safeStem } = require('./files.cjs');
@@ -156,7 +157,21 @@ async function processVideo({ executable, entry, directory, format, preset,
       for (let attempt = 0; attempt < 10000; attempt++) {
         try { await fs.link(temporary, final); done = true; break; }
         catch (error) {
-          if (error.code !== 'EEXIST') throw error;
+          if (['ENOTSUP','EOPNOTSUPP','EPERM','EXDEV'].includes(error.code)) {
+            // FAT/exFAT drives may not support hard links. Exclusive copy still
+            // refuses to overwrite files owned by another process.
+            try {
+              await fs.copyFile(temporary, final, constants.COPYFILE_EXCL);
+              if ((await fs.stat(final)).size !== result.size)
+                throw new Error('Video output copy was incomplete.');
+              done = true; break;
+            } catch (copyError) {
+              if (copyError.code !== 'EEXIST') {
+                await fs.unlink(final).catch(()=>{});
+                throw copyError;
+              }
+            }
+          } else if (error.code !== 'EEXIST') throw error;
           final = await uniqueVideoTarget(destination,
             copiedOriginal ? path.basename(copiedOriginal) : path.basename(source), format, !!copiedOriginal);
         }
