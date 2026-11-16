@@ -319,8 +319,8 @@ async function refreshVideoEngine(){
   try{
     const result=await api.getVideoEngine();
     videoEngineReady=!!result.available;videoEngineVersion=result.version||'';
-    updateVideoControls();
-  }catch(e){videoEngineReady=false;videoEngineVersion='';$('video-engine-state').textContent=e.message;}
+    updateVideoControls();buttonState();
+  }catch(e){videoEngineReady=false;videoEngineVersion='';$('video-engine-state').textContent=e.message;buttonState();}
 }
 $('video-engine-pick').onclick=async()=>{
   if(!api?.pickVideoEngine)return;
@@ -1560,7 +1560,7 @@ $('cancel').onclick = () => { stopped = true; api.stopPreparation(); api.stopVid
 $('compress').onclick = async () => {
   const maxSize = Number($('max-size').value);
   if (workspaceMode!=='video' && $('resize').checked && (!Number.isInteger(maxSize) || maxSize < 64 || maxSize > 32768)) { notice('Enter a maximum edge between 64 and 32,768 pixels.'); $('max-size').focus(); return; }
-  const maxBytes = $('format').value !== 'svg' && $('limit-size').checked ? Math.floor(Number($('max-bytes').value) * Number($('size-unit').value)) : null;
+  const maxBytes = workspaceMode!=='video' && $('format').value !== 'svg' && $('limit-size').checked ? Math.floor(Number($('max-bytes').value) * Number($('size-unit').value)) : null;
   if (workspaceMode!=='video' && maxBytes !== null && (!Number.isInteger(maxBytes) || maxBytes < 1024 || maxBytes > 512 * 1024 * 1024)) { notice('Set a file size between 1 KB and 512 MB.'); $('max-bytes').focus(); return; }
   const settings = { format: $('format').value, quality: Number($('quality').value), maxSize: $('resize').checked ? maxSize : null, maxBytes, traceDetail: $('trace-detail').value, traceOptions:traceControls(), removeBackground: $('remove-bg').checked, bgTolerance: Number($('bg-tolerance').value), bgMode: document.querySelector('[name="bg-mode"]:checked').value, bgColor:$('bg-color-source').value==='manual'?$('bg-color').value:null };
   if (workspaceMode!=='video' && settings.removeBackground && settings.format === 'original' && eligibleItems().some(item => item.format === 'jpg')) { notice('JPEG cannot save transparency. Choose PNG, WebP, AVIF or SVG to remove the background.'); return; }
