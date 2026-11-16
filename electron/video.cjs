@@ -3,7 +3,6 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
-const { randomUUID } = require('node:crypto');
 const { safeStem } = require('./files.cjs');
 
 const videoSupported = /\.(mp4|m4v|mov|mkv|webm|avi)$/i;
@@ -135,10 +134,10 @@ async function processVideo({ executable, entry, directory, format, preset,
   const target = copiedOriginal && path.extname(copiedOriginal).slice(1).toLowerCase() === format
     ? copiedOriginal
     : await uniqueVideoTarget(destination, copiedOriginal ? path.basename(copiedOriginal) : path.basename(source), format, !!copiedOriginal);
-  const temporary = path.join(destination, '.chomp-' + randomUUID() + '.' + format);
-  // O_EXCL reserves a private, fresh filename without overwriting a user file.
-  const handle = await fs.open(temporary, 'wx', 0o600);
-  await handle.close();
+  // Encode into a fresh private directory, using a filename that does not exist.
+  // HandBrake can create its output normally; the final publication is no-clobber.
+  const tempDirectory=await fs.mkdtemp(path.join(destination,'.chomp-video-'));
+  const temporary=path.join(tempDirectory,'encoded.'+format);
   try {
     const job = transcode(executable, source, temporary, settings, onProgress, spawnProcess);
     onJob(job);
@@ -178,7 +177,7 @@ async function processVideo({ executable, entry, directory, format, preset,
     return { filename: path.basename(target), path: target, size: result.size };
   } finally {
     onJob(null);
-    await fs.unlink(temporary).catch(() => {});
+    await fs.rm(tempDirectory,{recursive:true,force:true}).catch(() => {});
   }
 }
 module.exports = { videoSupported, VIDEO_LIMIT, PRESETS, FORMATS, videoOptions,
